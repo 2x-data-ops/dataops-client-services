@@ -65,10 +65,10 @@ WITH
         _lifecycleStage,
       FROM
         `sandler.db_tam_database`
-      -- WHERE
-      --   _email IS NOT NULL
-      --   AND _email NOT LIKE '%2x.marketing%'
-      --   AND _email NOT LIKE '%sandler.com%'
+      WHERE
+		_email IS NOT NULL
+		AND _email NOT LIKE '%2x.marketing%'
+        AND _email NOT LIKE '%sandler.com%'
   ),
   airtable_info AS (
     SELECT
