@@ -40,26 +40,57 @@ INSERT INTO `x-marketing.pcs.db_campaign_analysis` (
   _pardotid,
   _landingpage_airtable,
   _url_param,
-  _download_utm_content, _download_utm_source, _download_utm_medium, _download_content_downloaded,_phone,_type,_linked_clicked,
+  _download_utm_content, 
+  _download_utm_source, 
+  _download_utm_medium, 
+  _download_content_downloaded,
+  _phone,
+  _type,
+  _linked_clicked,
   _lead_status,
   _leadsource,
-  _salesforceLeadStage,_Salesforceownername
-  , _Salesforceownerid,
+  _salesforceLeadStage,
+  _Salesforceownername, 
+  _Salesforceownerid,
   _target,
   average_retirement_plan_size_aua__c, 
   number_of_retirement_plans__c, 
   retirement_aum__c, 
   of_plans_acquired_per_year__c,
   mql_source__c,
-      convertedcontactid,
-    convertedopportunityid,
-    isconverted,
-    converteddate,
-    convertedaccountid,
-    isdeleted,
-   leadid,  field, oldvalue, newvalue, segment__c,
-   _email_segment, masterrecordid,Salesforce_Link,new_lead_status, new_mql_source,salesforce_mastercontactid,_lead_score,_mql_dates,
-   planname__c, plan_lead_name, excl_pcs_revenue__c, forecast_amount_of_assets__c, participants__c, PROP_Total_Participants__c_n, StageName__c, WIN_E_mail_Date__c, Converted_to_New_Plan__c, Converted_to_New_Plan__c_name, plan_id 
+  convertedcontactid,
+  convertedopportunityid,
+  isconverted,
+  converteddate,
+  convertedaccountid,
+  isdeleted,
+  leadid,  
+  field, 
+  oldvalue, 
+  newvalue, 
+  segment__c,
+  _email_segment, 
+  masterrecordid,
+  Salesforce_Link,
+  new_lead_status, 
+  new_mql_source,
+  salesforce_mastercontactid,
+  _lead_score,
+  _mql_dates,
+   planname__c, 
+   plan_lead_name, 
+   excl_pcs_revenue__c, 
+   forecast_amount_of_assets__c, 
+   participants__c, 
+   PROP_Total_Participants__c_n, 
+   StageName__c, 
+   WIN_E_mail_Date__c, 
+   Converted_to_New_Plan__c, 
+   Converted_to_New_Plan__c_name, 
+   plan_id,
+   _showExport,
+   _dropped,
+   _isBot
   --, _salesforce_lead_status,_last_timestamp_sec
   )
  WITH prospect_info AS (
@@ -203,13 +234,13 @@ SELECT name,
     title, 
     dd_bd_title_categories__c, 
     phone, 
-_state, 
+    _state, 
     email,
     leads.leadsource,
- _salesforceLeadStage,
+    _salesforceLeadStage,
     link,
- ownername,
- ownerid, 
+    ownername,
+    ownerid, 
     average_retirement_plan_size_aua__c, 
     number_of_retirement_plans__c,
     retirement_aum__c, 
@@ -218,13 +249,15 @@ _state,
     convertedcontactid,
     opsid AS  convertedopportunityid,
     isconverted,
-converteddate,
+    converteddate,
     convertedaccountid,
     isdeleted,
     masterrecordid,
- link_m,
-lead_history.*,
-segment__c,new_status,mql_source,total_lead_score__c,_mql_date,
+    link_m,
+    lead_history.*,
+    segment__c,
+    new_status,
+    mql_source,total_lead_score__c,_mql_date,
 createddate,
 plan_lead_name, 
   planname__c , 
@@ -1794,7 +1827,7 @@ WHEN k.id = '00Q5x00001wNmV6EAK' THEN 'Video'
     LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON TRIM(emailname) = utm_campaign
         --WHERE eventtype = 'Click' AND url LIKE '%PCSRetirement.accountsvc.com%'
         ))WHERE _rownum = 1
-)
+), combine_all AS (
 SELECT 
     engagements._scd_sequence,
     engagements._prospectID,
@@ -1862,10 +1895,25 @@ SELECT
     isdeleted,
     leadid,field,oldvalue,newvalue,
     segment__c,
-    _email_segment, masterrecordid,prospect_info.link,new_status,mql_source,link_m,total_lead_score__c,_mql_date,
+    _email_segment, 
+    masterrecordid,
+    prospect_info.link,
+    new_status,
+    mql_source,
+    link_m,
+    total_lead_score__c,
+    _mql_date,
     plan_lead_name, 
   planname__c , 
-  excl_pcs_revenue__c, forecast_amount_of_assets__c, participants__c,PROP_Total_Participants__c,StageName__c,WIN_E_mail_Date__c,	Converted_to_New_Plan__c,Converted_to_New_Plan__c_name,plan_id
+  excl_pcs_revenue__c, 
+  forecast_amount_of_assets__c, 
+  participants__c,
+  PROP_Total_Participants__c,
+  StageName__c,
+  WIN_E_mail_Date__c,	
+  Converted_to_New_Plan__c,
+  Converted_to_New_Plan__c_name,
+  plan_id
 
 
   FROM (
@@ -1944,7 +1992,7 @@ SELECT
     retirement_aum__c, 
     of_plans_acquired_per_year__c,
     mql_source__c,
-        convertedcontactid,
+    convertedcontactid,
     convertedopportunityid,
     isconverted,
     converteddate,
@@ -1952,10 +2000,23 @@ SELECT
     isdeleted,
     leadid,field,oldvalue,newvalue,
     segment__c,
-    _email_segment, masterrecordid,prospect_info.link,new_status,mql_source,link_m,total_lead_score__c,_mql_date,
+    _email_segment, 
+    masterrecordid,
+    prospect_info.link,
+    new_status,
+    mql_source,
+    link_m,total_lead_score__c,_mql_date,
     plan_lead_name, 
   planname__c , 
-  excl_pcs_revenue__c, forecast_amount_of_assets__c, participants__c,PROP_Total_Participants__c,StageName__c,WIN_E_mail_Date__c,	Converted_to_New_Plan__c,Converted_to_New_Plan__c_name,plan_id
+  excl_pcs_revenue__c, 
+  forecast_amount_of_assets__c, 
+  participants__c,
+  PROP_Total_Participants__c,
+  StageName__c,
+  WIN_E_mail_Date__c,	
+  Converted_to_New_Plan__c,
+  Converted_to_New_Plan__c_name,
+  plan_id
 
 
   FROM (
@@ -2063,11 +2124,25 @@ SELECT
     isdeleted,
     leadid,field,oldvalue,newvalue,
     segment__c,
-    _email_segment, masterrecordid,prospect_info.link,new_status,mql_source,link_m,total_lead_score__c,_mql_date,
+    _email_segment, 
+    masterrecordid,
+    prospect_info.link,
+    new_status,
+    mql_source,
+    link_m,
+    total_lead_score__c,
+    _mql_date,
     plan_lead_name, 
   planname__c , 
-  excl_pcs_revenue__c, forecast_amount_of_assets__c, participants__c,PROP_Total_Participants__c,StageName__c,WIN_E_mail_Date__c,	Converted_to_New_Plan__c,Converted_to_New_Plan__c_name,plan_id
-
+  excl_pcs_revenue__c, 
+  forecast_amount_of_assets__c, 
+  participants__c,
+  PROP_Total_Participants__c,
+  StageName__c,
+  WIN_E_mail_Date__c,	
+  Converted_to_New_Plan__c,
+  Converted_to_New_Plan__c_name,
+  plan_id
   FROM (
   SELECT * FROM lead_score
   UNION ALL
@@ -2075,75 +2150,22 @@ SELECT
   ) engagements
 LEFT JOIN airtable ON CAST(engagements._campaignID AS INT64) = airtable.id
 LEFT JOIN prospect_info ON prospect_info.id = engagements._prospectID
-/*),
-all_dates AS(
-  SELECT DISTINCT LAST_DAY(CAST(_timestamp AS DATE), MONTH) AS _last_day_second
-  FROM all_engagement
-),
-all_leadstage AS (
-  SELECT DISTINCT status
-  FROM prospect_info
-)
-,cross_join AS (
-  SELECT *
-    FROM all_leadstage
-    CROSS JOIN all_dates
-)
-SELECT all_engagement.*,
-cross_join.status,
-cross_join._last_day_second FROM 
-cross_join 
-LEFT JOIN  all_engagement ON  cross_join._last_day_second = all_engagement._lastday_timestamp AND cross_join.status = all_engagement._lead_status*/;
---WHERE CONCAT(_scd_sequence, _event_type) NOT IN (SELECT DISTINCT CONCAT(_sdc_sequence, _engagement) FROM `pcs.db_campaign_analysis`);
+), _dropped AS (
 
---- Set Show Export
-UPDATE `x-marketing.pcs.db_campaign_analysis` origin
-SET origin._showExport = 'Yes'
-FROM (
-    WITH focused_engagement AS (
-        SELECT 
-            _email, 
-            _engagement, 
-            _utm_campaign,
-            CASE WHEN _engagement = 'Opened' THEN 1
-                WHEN _engagement = 'Clicked' THEN 2
-                WHEN _engagement = 'Downloaded' THEN 3
-            END AS _priority
-        FROM `x-marketing.pcs.db_campaign_analysis`
-        WHERE _engagement IN('Opened', 'Clicked', 'Downloaded','Clicked Downloaded')
-        ORDER BY 1, 3 DESC 
-    ),
-    final_engagement AS (
-        SELECT * EXCEPT(_priority, _rownum)
-        FROM (
-            SELECT *, ROW_NUMBER() OVER(PARTITION BY _email, _utm_campaign ORDER BY _priority DESC) AS _rownum
-            FROM focused_engagement
-        )
-        WHERE _rownum = 1
-    )    
-    SELECT * FROM final_engagement 
-) AS final
-WHERE origin._email = final._email
-AND origin._engagement = final._engagement
-AND origin._utm_campaign = final._utm_campaign;
-
-UPDATE `x-marketing.pcs.db_campaign_analysis` origin
-SET origin._dropped = 'True'
-FROM (
-    SELECT 
+  SELECT 
         _campaignID, 
-        _email,_prospectID
+        _email,_prospectID,"True" AS _dropped
     FROM (
         SELECT 
             _campaignID, 
             _email,_prospectID,
-            SUM(CASE WHEN _engagement = 'Opened' THEN 1 END) AS _hasOpened,
-            SUM(CASE WHEN _engagement = 'Clicked' THEN 1 END) AS _hasClicked,
-            SUM(CASE WHEN _engagement IN( 'Soft bounce','Hard bounce','Block bounce') THEN 1 END) AS _hasBounced,
+            SUM(CASE WHEN _event_type = 'Opened' THEN 1 END) AS _hasOpened,
+            SUM(CASE WHEN _event_type = 'Clicked' THEN 1 END) AS _hasClicked,
+            SUM(CASE WHEN _event_type IN( 'Soft bounce','Hard bounce','Block bounce') THEN 1 END) AS _hasBounced,
         FROM 
-            `x-marketing.pcs.db_campaign_analysis`
+            combine_all
         WHERE
-            _engagement IN ('Opened', 'Clicked', 'Soft bounce','Hard bounce','Block bounce')
+            _event_type IN ('Opened', 'Clicked', 'Soft bounce','Hard bounce','Block bounce')
         GROUP BY
             1, 2,3
     )
@@ -2151,30 +2173,35 @@ FROM (
     (_hasClicked IS NOT NULL
     AND _hasBounced IS NOT NULL) OR (_hasOpened IS NOT NULL
     AND _hasBounced IS NOT NULL)
-    ) scenario
-WHERE 
-    origin._email = scenario._email
+
+),_isBot AS ( 
+    SELECT _campaignID, _email, _prospectID,'True' AS _isBot
+    FROM (
+    SELECT _campaignID, _email, _prospectID,SUM(CASE WHEN _linked_clicked LIKE "%DG-EM%" THEN 1
+    WHEN _linked_clicked = "Content_downloaded" THEN 1  END) AS _content_donwloaded,
+    SUM(CASE WHEN _linked_clicked = "Bot"  THEN 1 END) AS _bot
+    FROM combine_all
+    WHERE _event_type = 'Clicked' 
+    GROUP BY 1,2,3
+    ) WHERE _bot IS NULL AND _content_donwloaded IS NOT NULL
+)
+--, main_data AS (
+ SELECT origin.*,
+CASE WHEN _event_type = 'Opened' THEN "Yes"
+WHEN _event_type = 'Clicked' THEN "Yes"
+WHEN _event_type = 'Downloaded' THEN "Yes"
+WHEN _event_type = 'Clicked Downloaded' THEN "Yes"
+END AS _priority,_dropped,_isBot
+FROM combine_all origin 
+LEFT JOIN _dropped scenario ON  (origin._email = scenario._email
 AND origin._campaignID = scenario._campaignID
 AND origin._prospectID = scenario._prospectID
-AND origin._engagement IN('Soft bounce','Hard bounce','Block bounce');
+AND origin._event_type IN('Soft bounce','Hard bounce','Block bounce'))
+LEFT JOIN _isBot scenarios ON (origin._email = scenarios._email 
+AND origin._campaignID = scenarios._campaignID 
+AND origin._prospectID = scenarios._prospectID
+AND origin._event_type = "Clicked" AND _linked_clicked LIKE  "%DG-EM%");
 
-UPDATE `x-marketing.pcs.db_campaign_analysis`  origin 
-SET origin._isBot = 'True'
-FROM (
-SELECT _campaignID, _email, _prospectID
-FROM (
-SELECT _campaignID, _email, _prospectID,SUM(CASE WHEN _linked_clicked LIKE "%DG-EM%" THEN 1
-WHEN _linked_clicked = "Content_downloaded" THEN 1  END) AS _content_donwloaded,
-SUM(CASE WHEN _linked_clicked = "Bot"  THEN 1 END) AS _bot
-FROM `x-marketing.pcs.db_campaign_analysis`
-WHERE _engagement = 'Clicked' 
-GROUP BY 1,2,3
-) WHERE _bot IS NULL AND _content_donwloaded IS NOT NULL
-) scenario
-WHERE origin._email = scenario._email 
-AND origin._campaignID = scenario._campaignID 
-AND origin._prospectID = origin._prospectID
-AND origin._engagement = "Clicked" AND _linked_clicked LIKE  "%DG-EM%";
 
 INSERT INTO `x-marketing.pcs.db_campaign_analysis` (
 _lead_status,
@@ -2206,7 +2233,7 @@ SELECT 'Nurture',TIMESTAMP("2023-02-01 12:34:56+00"),'MQL',"@gopeanut.com"
 UNION ALL
 SELECT 'Archived',TIMESTAMP("2023-02-01 12:34:56+00"),'MQL',"@gopeanut.com";
 
-UPDATE `x-marketing.pcs.db_campaign_analysis` origin
+/*UPDATE `x-marketing.pcs.db_campaign_analysis` origin
 SET origin._target_value = scenario.c,origin._target_per_month = scenario._target_par
 FROM (
 WITH count_prospect AS (
@@ -2228,7 +2255,8 @@ AND origin._emailID = scenario._emailID
 AND origin._sdc_sequence = scenario._sdc_sequence
 AND origin._utm_campaign = scenario._utm_campaign
 AND origin._leadsource = scenario._leadsource
-AND origin._engagement IN ('Web','Downloaded','MQL Score');
+AND origin._engagement IN ('Web','Downloaded','MQL Score');*/
+
 
 CREATE OR REPLACE TABLE `x-marketing.pcs.Lead_Scoring` AS
 WITH _engagement AS (
@@ -6461,4 +6489,7 @@ JOIN (SELECT case
      --when _email = 'peterchemidlin@familyinvestors.com' THEN '00Q5x00001zzbzDEAQ'
     when _email = 'phil@cookandassoc.com' THEN '00Q5x000021XdAUEA0' ELSE _prospectID END AS _prospectID,_timestamp,_utm_campaign,campaignName,_engagement,convertedcontactid,_mql_dates, _lead_score, new_mql_source, salesforce_mastercontactid, new_lead_status, Salesforce_Link, masterrecordid, _email_segment, segment__c, newvalue, oldvalue, field, leadid, convertedaccountid, converteddate, isconverted, convertedopportunityid,  mql_source__c, of_plans_acquired_per_year__c, retirement_aum__c, average_retirement_plan_size_aua__c, number_of_retirement_plans__c, _target_value, _leadsource, _lead_status, _Salesforceownername, _Salesforceownerid, _salesforce_lead_status 
 FROM `x-marketing.pcs.db_campaign_analysis` WHERE _engagement IN ("Web",'Downloaded','MQL Score')) m  ON k.advisor__c= m.convertedcontactid
-LEFT JOIN opps_id ON opps_id.ops_lead_id = m._prospectID
+LEFT JOIN opps_id ON opps_id.ops_lead_id = m._prospectID;
+
+
+
