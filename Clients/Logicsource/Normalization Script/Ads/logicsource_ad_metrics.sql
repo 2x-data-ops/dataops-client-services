@@ -1,4 +1,5 @@
 --CREATE OR REPLACE TABLE `x-marketing.logicsource.ad_metrics` AS
+--ad metrics
 TRUNCATE TABLE `logicsource.ad_metrics`;
 INSERT INTO `logicsource.ad_metrics`
 WITH airtable_ads AS (
