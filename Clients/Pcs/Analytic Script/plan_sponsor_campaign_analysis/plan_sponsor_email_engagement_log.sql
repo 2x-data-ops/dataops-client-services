@@ -607,8 +607,9 @@ _code AS _type,
     '' AS _linked_clicked,utm_campaign
    
     FROM `x-marketing.pcs_sfmc.data_extension_Plan_Sponsor_Lead_Gen_VA`  activity
-    --WHERE email_address NOT LIKE "%2x.marketing%" 
-   ) 
+    --WHERE lead_id = '00Q5x000024YbpUEAS'
+    --NOT LIKE "%2x.marketing%" 
+    ),downloaded AS ( 
     SELECT * EXCEPT (_rownum)
  FROM (
     SELECT * , ROW_NUMBER() OVER(PARTITION BY _email,_campaignID ORDER BY LENGTH(url) DESC)  AS _rownum
@@ -635,7 +636,8 @@ _code AS _type,
     
     REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'content_downloaded=') + 19), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _content_downloaded
      FROM `x-marketing.pcs_sfmc.event`
-     --WHERE sendid = 224947 AND subscriberkey = '00Q5x00001wNfQbEAK'
+     --WHERE sendid = 226204 
+     --AND subscriberkey = '00Q5x000024YeImEAK'
       ) campaignn ON campaignn.subscriberkey = activity.lead_id 
             AND content_downloaded = _content_downloaded
     LEFT JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
@@ -644,6 +646,46 @@ _code AS _type,
     AND 
     url LIKE '%PCSRetirement.accountsvc.com%'
         ))WHERE _rownum = 1
+    ),campaignn AS ( 
+  SELECT * EXCEPT (_rownum)
+  FROM (
+   SELECT event.*,emailname,_code,
+   REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _campaign,
+    
+    REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'content_downloaded=') + 19), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _content_downloaded,
+     ROW_NUMBER() OVER(PARTITION BY subscriberkey,sendid ORDER BY eventdate DESC) AS _rownum
+     FROM `x-marketing.pcs_sfmc.event` event
+     JOIN airtable ON event.sendid  = airtable.id
+     WHERE eventtype = 'Open' 
+  ) WHERE _rownum = 1
+), not_in_click AS (
+   SELECT
+    _scd_sequence AS _scd_sequence,
+    l.id AS _prospectID,
+    CASE WHEN CAST(sendid AS STRING) = '149402' THEN '129927' ELSE CAST(sendid AS STRING) END AS _campaignID,
+    --CAST(sendid AS STRING) AS _campaignID,
+    'Downloaded'AS _event_type ,
+     email_address AS _email,
+    _timestamp,
+    CONCAT(firstname, ' ', lastname ) AS _name, 
+    l.company AS _companyname, 
+    territory__c AS territory__c, 
+    --0 AS categoryid, 
+    state AS state, 
+    --'' AS segment,
+    url AS url,
+    utm_source , utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked
+     FROM activity
+JOIN campaignn ON campaignn.subscriberkey = activity.lead_id 
+            AND activity.content_downloaded = emailname
+   LEFT JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
+    LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON sendid
+ = campaign.id
+) SELECT * FROM downloaded
+UNION ALL 
+    SELECT * FROM not_in_click 
+    WHERE not_in_click._prospectID NOT IN (SELECT DISTINCT _prospectID FROM downloaded)
     
   
 ) 
