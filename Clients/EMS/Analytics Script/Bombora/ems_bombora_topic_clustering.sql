@@ -2,7 +2,7 @@
 CREATE OR REPLACE TABLE ems.topic_clustering AS
 WITH ems_accounts AS (
   SELECT 
-    DISTINCT _shortenedwebsite AS _domain, 
+    DISTINCT LOWER(_shortenedwebsite) AS _domain, 
     _accountname AS _company, "Target" AS _source, 
     _accountid, 
     industry__c AS _industry,  
@@ -47,5 +47,19 @@ WITH ems_accounts AS (
     FROM ( SELECT * FROM `x-marketing.ems_mysql.db_ems_bombora_account`
     )) bomboraAcc USING(_domain)
   ORDER BY _domain 
-) 
+),
+_all AS ( 
 SELECT * FROM target_bombora
+--WHERE _domain = 'zwangerpesiri.com'
+),
+total_topic AS (
+  SELECT *,
+    COUNT(_topicname) OVER (PARTITION BY _date, _domain) AS topic_per_domain
+  FROM _all
+),
+average_surge_score AS (
+  SELECT *, 
+    CASE WHEN topic_per_domain > 0 THEN CAST(_compositescore AS INT64) / topic_per_domain ELSE 0 END AS avg_surge_score
+  FROM total_topic
+)
+SELECT * FROM average_surge_score
