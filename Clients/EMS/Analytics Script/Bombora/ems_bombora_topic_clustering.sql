@@ -1,4 +1,4 @@
-#Bombora Topic Clustering 
+--Bombora Topic Clustering 
 CREATE OR REPLACE TABLE ems.topic_clustering AS
 WITH ems_accounts AS (
   SELECT 
@@ -43,23 +43,23 @@ WITH ems_accounts AS (
           _topicid, 
           _topicname,
           PARSE_DATE('%F',_reportdate) AS _date,
-    --ROW_NUMBER() OVER(PARTITION BY _domain, EXTRACT(DATE FROM _date),_topicid,_segment,account_suppression ORDER BY _compositescore DESC) AS rownum  
     FROM ( SELECT * FROM `x-marketing.ems_mysql.db_ems_bombora_account`
     )) bomboraAcc USING(_domain)
   ORDER BY _domain 
 ),
 _all AS ( 
-SELECT * FROM target_bombora
---WHERE _domain = 'zwangerpesiri.com'
+SELECT *
+FROM target_bombora
 ),
-total_topic AS (
-  SELECT *,
-    COUNT(_topicname) OVER (PARTITION BY _date, _domain) AS topic_per_domain
+total_date AS (
+  SELECT * EXCEPT (_compositescore),
+    CASE WHEN _compositescore IS NULL THEN 0 ELSE CAST(_compositescore AS INT64) END AS _compositescore,
+    COUNT(_topicname) OVER (PARTITION BY _date,_domain) AS topic_count
   FROM _all
 ),
 average_surge_score AS (
   SELECT *, 
-    CASE WHEN topic_per_domain > 0 THEN CAST(_compositescore AS INT64) / topic_per_domain ELSE 0 END AS avg_surge_score
-  FROM total_topic
+    CASE WHEN topic_count > 0 THEN _compositescore / topic_count ELSE 0 END AS avg_surge_score
+  FROM total_date
 )
 SELECT * FROM average_surge_score
