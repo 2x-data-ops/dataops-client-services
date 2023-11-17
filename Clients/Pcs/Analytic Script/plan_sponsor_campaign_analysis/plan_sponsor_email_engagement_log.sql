@@ -88,7 +88,8 @@ INSERT INTO `x-marketing.pcs.plan_sponsor_email_performance` (
    Converted_to_New_Plan__c, 
    Converted_to_New_Plan__c_name, 
    plan_id,
-   _employees
+   _employees,
+   Employee_Range
   --, _salesforce_lead_status,_last_timestamp_sec
   )
 WITH 
@@ -300,7 +301,8 @@ prospect_info AS (
         Converted_to_New_Plan__c,
         Converted_to_New_Plan__c_name,
         plan_id, 
-        _employees
+        _employees,
+        ''
         FROM leads
         LEFT JOIN contact ON leads.convertedcontactid = contact._contactid
         LEFT JOIN status_change ON leads.id = old_id
@@ -767,7 +769,8 @@ SELECT
   WIN_E_mail_Date__c,	
   Converted_to_New_Plan__c,
   Converted_to_New_Plan__c_name,plan_id,
-  _employees
+  _employees,
+  ''
 
 
   FROM (
@@ -866,7 +869,8 @@ SELECT
   Converted_to_New_Plan__c,
   Converted_to_New_Plan__c_name,
   plan_id,
-  _employees
+  _employees,
+  ''
 
 
   FROM (
