@@ -41,10 +41,9 @@ WITH
   ),
   accounts AS (
 
-    SELECT
-      *
-    FROM
-    (
+    WITH accounts AS (
+    SELECT * EXCEPT (rownum)
+    FROM (
       SELECT
         DISTINCT 
         CAST(NULL AS INTEGER) AS _id,
@@ -69,11 +68,20 @@ WITH
         CAST(NULL AS STRING) AS _sfdcleadid, 
         _target_contacts, 
         _target_accounts,
-        _account_type
+        _account_type,
+        ROW_NUMBER() OVER(
+            PARTITION BY _domain
+             ORDER BY _target_accounts DESC
+          ) 
+          AS rownum
       FROM
         contacts
-      UNION DISTINCT
-      SELECT 
+    ) WHERE rownum = 1
+  ), _6sense_segment AS 
+  (
+    SELECT * EXCEPT (rownum)
+    FROM (
+    SELECT 
         DISTINCT 
         CAST(NULL AS INTEGER) AS _id,
         CAST(NULL AS STRING) AS _email,
@@ -96,14 +104,23 @@ WITH
         CAST(NULL AS STRING) AS _sfdcaccountid,
         CAST(NULL AS STRING) AS _sfdcleadid, 
         CAST(NULL AS INT64) AS _target_contacts, 
-        CAST(NULL AS INT64) AS _target_accounts,
-        CAST(NULL AS STRING) AS _account_type
+        CAST(0 AS INT64) AS _target_accounts,
+        CAST(NULL AS STRING) AS _account_type,
+        ROW_NUMBER() OVER(
+            PARTITION BY _6sensedomain
+            ORDER BY LENGTH(_6sensecompanyname) DESC
+          ) 
+          AS rownum
       FROM
         `webtrack_ipcompany.db_6sense_3x_segments`
       WHERE
         _segment != '3X_230109 (Bombora 60+)_Intent Segment'
-      UNION DISTINCT
-      SELECT
+        AND _6sensedomain NOT IN (SELECT DISTINCT _domain FROM accounts)
+    ) WHERE rownum = 1
+  ),_campaign_accounts AS (
+    SELECT * EXCEPT (rownum)
+    FROM (
+     SELECT
         DISTINCT CAST(NULL AS INTEGER) AS _id,
         CAST(NULL AS STRING) AS _email,
         CAST(NULL AS STRING) AS _name,
@@ -125,13 +142,20 @@ WITH
         CAST(NULL AS STRING) AS _sfdcaccountid,
         CAST(NULL AS STRING) AS _sfdcleadid, 
         CAST(NULL AS INT64) AS _target_contacts, 
-        CAST(NULL AS INT64) AS _target_accounts,
-        CAST(NULL AS STRING) AS _account_type
+        CAST(0 AS INT64) AS _target_accounts,
+        CAST(NULL AS STRING) AS _account_type,
+          ROW_NUMBER() OVER(
+            PARTITION BY _6sensedomain
+            ORDER BY LENGTH(_6sensecompanyname) DESC
+          ) 
+          AS rownum
       FROM
         `webtrack_ipcompany.db_6sense_3x_campaign_accounts`
       WHERE
         _6sensedomain NOT IN (SELECT DISTINCT _6sensedomain FROM `webtrack_ipcompany.db_6sense_3x_segments`)
-      UNION DISTINCT
+        AND _6sensedomain NOT IN (SELECT DISTINCT _domain FROM accounts)
+    ) WHERE rownum = 1
+  ), webtrack AS (
       SELECT
         DISTINCT CAST(NULL AS INTEGER) AS _id,
         CAST(NULL AS STRING) AS _email,
@@ -154,9 +178,11 @@ WITH
         CAST(NULL AS STRING) AS _sfdcaccountid,
         CAST(NULL AS STRING) AS _sfdcleadid, 
         CAST(NULL AS INT64) AS _target_contacts, 
-        CAST(NULL AS INT64) AS _target_accounts,
+        CAST(0 AS INT64) AS _target_accounts,
         CAST(NULL AS STRING) AS _account_type
       FROM (
+        SELECT * EXCEPT (rownum)
+        FROM (
         SELECT
           _website,
           _name,
@@ -168,17 +194,29 @@ WITH
           AS rownum
         FROM  
           `webtrack_ipcompany.webtrack_ipcompany_6sense`
+        ) WHERE rownum = 1
       )
       WHERE
         _website NOT IN (
           SELECT DISTINCT _6sensedomain FROM `webtrack_ipcompany.db_6sense_3x_segments`
           UNION DISTINCT
           SELECT DISTINCT _6sensedomain FROM `webtrack_ipcompany.db_6sense_3x_campaign_accounts`
-        )
-      AND rownum = 1
-      ORDER BY 
-        _domain 
-    ) main
+        ) AND _website NOT IN (SELECT DISTINCT _domain FROM accounts)
+  ) 
+  SELECT *
+  FROM (
+  SELECT *
+   FROM accounts
+  UNION ALL 
+  SELECT *
+   FROM _6sense_segment
+  UNION ALL 
+  SELECT *
+   FROM _campaign_accounts
+  UNION ALL 
+  SELECT *
+   FROM webtrack
+  ) 
     -- LEFT JOIN
     --   opps AS opp_w_id ON main._sfdcaccountid IS NOT NULL AND opp_w_id._account_id = main._sfdcaccountid
 
@@ -762,13 +800,7 @@ WHERE
   AND consolidated_engagement._domain NOT LIKE '%pubpng.com%'
   AND  consolidated_engagement._domain NOT LIKE '%2x.marketing%'
   ---AND LOWER(consolidated_engagement._country) IN ('united states', 'us')
+  ---AND consolidated_engagement._domain = '2u.com'
 ORDER BY 
   _week DESC
 ;
-
-
-
-
-
-
-
