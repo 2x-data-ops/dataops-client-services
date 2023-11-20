@@ -1604,7 +1604,7 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
         ))WHERE _rownum = 1
 
  ), lead_universal AS (
-     WITH activity AS (
+   WITH activity AS (
       SELECT
     activity._sdc_sequence AS _scd_sequence,
    CASE WHEN email_address = 'timothy.maher@raymondjames.com' THEN '00Q5x00001wOAH7EAO' ELSE lead_id END  AS lead_id,
@@ -1649,8 +1649,8 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
     '' AS _linked_clicked,
    FROM activity
     JOIN (SELECT *, CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
-    ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _campaign FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
-            AND utm_campaign = _campaign)
+    ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'content_downloaded') + 19), '&')[ORDINAL(1)], '%ModHot_', ' '), '%ModHot_',':') AS _campaign FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
+            AND content_downloaded = _campaign)
     LEFT JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
     LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON TRIM(emailname) = utm_campaign
     --WHERE eventtype = 'Click' AND url LIKE '%PCSRetirement.accountsvc.com%'

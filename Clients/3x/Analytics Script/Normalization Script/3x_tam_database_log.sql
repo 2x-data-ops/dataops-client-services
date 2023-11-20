@@ -1,12 +1,4 @@
---------------------------------------------------------------------------------------------------------------------------------------------
------------------------------------------------------- Database Reporting Script -----------------------------------------------------------
---------------------------------------------------------------------------------------------------------------------------------------------
-
-
-
--- CREATE OR REPLACE TABLE `3x.db_icp_database_log` AS
-TRUNCATE TABLE `3x.db_icp_database_log`;
-INSERT INTO `3x.db_icp_database_log`
+CREATE OR REPLACE TABLE `3x.db_icp_database_log` AS
 WITH
   suppressed_industry AS (
     SELECT _industry, 1 AS _suppressed FROM
@@ -177,7 +169,7 @@ WITH
           property_createdate.value AS _createddate,
           property_salesforceaccountid.value AS _sfdcaccountid,
           property_salesforcecontactid.value AS _sfdccontactid,
-          property_salesforceleadid.value AS _sfdcleadid,
+          property_salesforceleadid.value AS _sfdcleadid,associated_company.company_id,
           ROW_NUMBER() OVER( PARTITION BY property_email.value ORDER BY property_lastmodifieddate.value DESC) AS _rownum,
         FROM 
           `x-marketing.x3x_hubspot.contacts` hs
@@ -208,7 +200,8 @@ WITH
       GROUP BY 
         _account_id, _domain
     )
-  )
+
+),contact AS (
 SELECT 
   DISTINCT _id,
   _email,
@@ -231,6 +224,7 @@ SELECT
   _sfdccontactid,
   _sfdcleadid,
   _country,
+  company_id AS _company_id,
   IF(
       (_suppressed IS NULL AND (_revenue >= 50000000 OR _employee >= 500) AND _country = 'US') 
       AND (NOT REGEXP_CONTAINS(LOWER(_jobtitle), r"content|design|art|product|brand|writer|analyst") OR _jobtitle IS NULL)
@@ -249,57 +243,48 @@ LEFT JOIN
   account_type ON contacts._sfdcaccountid = account_type._account_id
 WHERE
   contacts._domain NOT IN ('3x.marketing', '2x.marketing')  
+  --AND contacts._domain = 'zywave.com'
+) 
+,target_account  AS (
+  SELECT * EXCEPT (rownum)
+    FROM (
+      SELECT
+        DISTINCT 
+        _domain,
+        _target_accounts, 
+        ROW_NUMBER() OVER(
+            PARTITION BY _domain
+             ORDER BY _target_accounts DESC
+          ) 
+          AS rownum
+      FROM
+        contact
+    ) WHERE rownum = 1
+) SELECT _id,
+  _email,
+  _name,
+  contact._domain,
+  _jobtitle,
+  _seniority,
+  _function,
+  _phone,
+  _company,
+  _industry,
+  _revenue,
+  _employee,
+  _city,
+  _state,
+  _persona,
+  _lifecycleStage,
+  _createddate,
+  _sfdcaccountid,
+  _sfdccontactid,
+  _sfdcleadid,
+  _country,
+   _company_id, 
+  _target_contacts,
+  target_account._target_accounts,
+  _account_type
+FROM contact
+LEFT JOIN target_account ON  contact._domain = target_account._domain 
 ;
-
-
--- Standardize the account info (domain, account name, industry)
-
-UPDATE 
-  `3x.db_icp_database_log` AS main
-SET
-  main._company = side._company,
-  main._sfdcaccountid = side._sfdcaccountid,
-  main._industry = side._industry
-FROM (
-  SELECT
-    *,
-    ROW_NUMBER() OVER(
-      PARTITION BY _domain
-      ORDER BY 
-        _domain, 
-        _sfdcaccountid DESC, 
-        _contact_count DESC, 
-        LENGTH(_company) DESC,
-        LENGTH(_industry) DESC 
-    ) AS rownum
-  FROM (
-    SELECT DISTINCT
-      _domain,
-      _company,
-      _sfdcaccountid,
-      CASE 
-        WHEN _industry NOT LIKE '%IT %' THEN INITCAP(REPLACE(_industry, '_', ' ')) 
-        ELSE _industry
-      END AS _industry,
-      COUNT(*) AS _contact_count
-    FROM  
-      `3x.db_icp_database_log`
-    GROUP BY
-      1, 2, 3, 4
-    ORDER BY 
-      _domain,
-      _sfdcaccountid DESC,
-      _contact_count DESC,
-      LENGTH(_company) DESC,
-      LENGTH(_industry) DESC
-  )
-)
-AS side
-WHERE
-  main._domain = side._domain
-AND 
-  side.rownum = 1;
-
-
-
-
