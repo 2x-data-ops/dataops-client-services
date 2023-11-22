@@ -442,68 +442,77 @@ WITH
   ----6sense_click 
   ad_6sense_clicks AS (
 
-    SELECT
-      DISTINCT *EXCEPT(_order)
-    FROM (
-      SELECT
+ SELECT 
+* EXCEPT(_frequency,_previous_click,_order)  ,
+_frequency - COALESCE(_previous_click,0) AS frequency
+FROM (
+SELECT
         DISTINCT CAST(NULL AS STRING) AS _email, 
         _6sensedomain AS _domain, 
         TIMESTAMP(_date) AS _date,
         EXTRACT(WEEK FROM _date) AS _week,  
         EXTRACT(YEAR FROM _date) AS _year, 
-        _campaignname,
+        COALESCE(_campaignname,main._campaignid),
         "6Sense Clicks" AS _engagement,
         CONCAT(_clicks, " (Cumulative)") AS _description,
         "6Sense" AS _utmsource,
-        _campaignname AS _utmcampaign,
+        COALESCE(_campaignname,main._campaignid) AS _utmcampaign,
         CAST(NULL AS STRING) AS _utmmedium,
         CAST(NULL AS STRING) AS _utmcontent,
         CAST(NULL AS STRING) AS _fullurl,
         CAST(_clicks AS INT64) AS _frequency,
-        ROW_NUMBER() OVER(PARTITION BY _6sensedomain, _campaignname,EXTRACT(WEEK FROM _date),EXTRACT(YEAR FROM _date) ORDER BY DATE(_date) DESC) AS _order
+        LAG(CAST(_clicks AS INT64)) OVER(
+                PARTITION BY _6sensedomain, main._campaignid
+                ORDER BY _date
+            )
+            AS _previous_click,
+        ROW_NUMBER() OVER(PARTITION BY _6sensedomain, main._campaignid,EXTRACT(WEEK FROM _date),EXTRACT(YEAR FROM _date) ORDER BY DATE(_date) DESC) AS _order
       FROM
         `webtrack_ipcompany.db_6sense_3x_campaign_accounts` main
-       JOIN
+      LEFT JOIN
         `webtrack_ipcompany.db_airtable_3x_ads` airtable ON main._campaignid = airtable._campaignid
       WHERE
-        CAST(_clicks AS INTEGER) >= 1 
-      )
-    WHERE
-      _order = 1
-    ORDER BY 
-      _domain
+      main._campaignid NOT IN ('147994','147995')
+       -- CAST(_clicks AS INTEGER) >= 1 
+)
+-- WHERE _order = 1
+--WHERE _frequency - COALESCE(_previous_click,0) >= 1
 
   ), linkedin_click AS (
-        SELECT
-      DISTINCT *EXCEPT(_order)
-    FROM (
-     SELECT
+     SELECT 
+* EXCEPT(_frequency,_previous_click,_order)  ,
+_frequency - COALESCE(_previous_click,0) AS frequency
+FROM (
+SELECT
         DISTINCT CAST(NULL AS STRING) AS _email, 
         _6sensedomain AS _domain, 
         TIMESTAMP(_date) AS _date,
         EXTRACT(WEEK FROM _date) AS _week,  
         EXTRACT(YEAR FROM _date) AS _year, 
-        _campaignname,
+        COALESCE(_campaignname,main._campaignid) ,
         "Paid Ads Clicks" AS _engagement,
         CONCAT(_clicks, " (Cumulative)") AS _description,
         "6Sense" AS _utmsource,
-        _campaignname AS _utmcampaign,
+        COALESCE(_campaignname,main._campaignid)AS _utmcampaign,
         CAST(NULL AS STRING) AS _utmmedium,
         CAST(NULL AS STRING) AS _utmcontent,
         CAST(NULL AS STRING) AS _fullurl,
         CAST(_clicks AS INT64) AS _frequency,
-        ROW_NUMBER() OVER(PARTITION BY _6sensedomain, _campaignname,EXTRACT(WEEK FROM _date),EXTRACT(YEAR FROM _date) ORDER BY DATE(_date) DESC) AS _order
+        LAG(CAST(_clicks AS INT64)) OVER(
+                PARTITION BY _6sensedomain, main._campaignid
+                ORDER BY _date
+            )
+            AS _previous_click,
+        ROW_NUMBER() OVER(PARTITION BY _6sensedomain,main._campaignid,EXTRACT(WEEK FROM _date),EXTRACT(YEAR FROM _date) ORDER BY DATE(_date) DESC) AS _order
       FROM
         `webtrack_ipcompany.db_6sense_3x_campaign_accounts` main
-      JOIN
+       JOIN
         `x-marketing.x_mysql.db_airtable_3x_6sense_linkedin` airtable ON main._campaignid = CAST(airtable._6senseid AS STRING)
-      WHERE
-        CAST(_clicks AS INTEGER) >= 1 
-              )
-    WHERE
-      _order = 1
-    ORDER BY 
-      _domain
+      --WHERE
+       -- CAST(_clicks AS INTEGER) >= 1 
+) 
+--WHERE _order = 1
+--WHERE _frequency - COALESCE(_previous_click,0) >= 1
 
   ), 
   content_engagement AS (
