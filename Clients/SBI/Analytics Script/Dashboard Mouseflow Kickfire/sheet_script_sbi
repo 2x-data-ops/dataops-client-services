@@ -1,0 +1,269 @@
+
+// For getting unique values in arrays
+
+function onlyUnique(value, index, self) {
+
+    // Find value using index to see if already exist
+    return self.indexOf(value) === index;
+
+}
+
+// For reading data in spreadsheet
+
+function readSheetData() {
+
+    // Get the sheet
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Extract 1");
+
+    // Get the values (appears row by row)
+    var values = sheet.getDataRange().getValues();
+    // Logger.log('All rows :');
+    // Logger.log(values);
+
+    // Remove the header row
+    values.shift();
+    // Logger.log('All rows without header row :');
+    // Logger.log(values);
+
+    // Return headerless rows
+    return values;
+
+}
+
+// For getting all web_engagements tied to an owner
+
+function groupWebEngagements() {
+
+    // Get sheet data
+    values = readSheetData();
+
+    // Check if sheet is empty 
+    if (values.length == 0) {
+
+        // Skip the rest of the function
+        return;
+
+    }
+
+    /////////////////////////////////////////////////////////////////
+    // PART 1: GET WEB ENGAGEMENTS AS OBJECT
+    /////////////////////////////////////////////////////////////////
+
+    // Initialize arrays for storage
+    var web_engagements = [];
+
+    // Loop each row, place data into objects, and store in arrays
+    values.forEach(function(value) {
+
+        // Create lead object
+        var engagement = {};
+
+        // Add lead properties and values
+        engagement.date = value[0];
+        engagement.company_info = value[1];
+        engagement.engagement = value[2];
+
+        // Place lead object into array
+        web_engagements.push(engagement);
+
+    }) 
+
+    // Check arrays
+    Logger.log('Web Engagements :');
+    Logger.log(web_engagements);
+
+    return web_engagements;
+
+}
+
+// For getting the email template
+
+function getEmailHtml(web_engagements) {
+
+    // Obtain HTML file
+    var template = HtmlService.createTemplateFromFile("Index");
+  
+    // Insert data into template
+    template.web_engagements = web_engagements;
+
+    // Process the data in template
+    var template_with_data = template.evaluate().getContent();
+  
+    // Return template with data
+    return template_with_data;
+
+}
+
+// For sending the email
+
+function sendEmail() {
+
+    // Get the web_engagements data
+    var engagements = groupWebEngagements();
+    // Logger.log('Owners Data :');
+    // Logger.log(owners);
+
+    // Check if there is data
+    if (engagements == null) {
+
+        // Exit
+        return;
+
+    }
+
+    // Check number of owners
+    Logger.log('Total Engagements : ' + engagements.length);
+
+    // Loop through each owner
+    for (let engagement of engagements) {
+
+        // Check owner data
+        Logger.log((engagements.indexOf(engagement) + 1) + ') Current Engagement Data :');
+        Logger.log(engagement);
+
+        // Get owner name
+        // var name = owner.name;
+        // Logger.log('Owner Name : ' + name);
+
+        // Get owner email
+        // var email = owner.email;
+        // Logger.log('Owner Email : ' + email);
+
+        /////////////////////////////////////////////////////////////////
+        // SETTING OF RECIPIENT EMAIL
+        /////////////////////////////////////////////////////////////////
+
+        // Initialize holder
+        var receiver_email = ''
+
+        // Set the receiver email based on the owner name
+        // switch (name) {
+        //     default:
+                receiver_email = 'raden.ameer@2x.marketing';
+                Logger.log('Receiver Email : ' + receiver_email);
+        // }
+
+        /////////////////////////////////////////////////////////////////
+        // SETTING OF RECIPIENT LIST
+        /////////////////////////////////////////////////////////////////
+
+        // Initialize email list
+        var email_list = [];
+
+        // Set the email list based on Max Halberstadt
+        if (receiver_email == 'raden.ameer@2x.marketing') {
+            email_list = [
+                receiver_email,
+                "raden.ameer@2x.marketing"
+            ];
+            Logger.log('Max List = Max is the receiver, dont need to add him.');
+        }
+        else {
+            email_list = [
+                receiver_email,
+                "raden.ameer@2x.marketing"
+            ];
+            Logger.log('Non Max List = Max is not the receiver, need to add him.');
+        }
+
+        // Get owner's leads
+        // var leads = owner.leads;
+        // Logger.log('Owner Leads :');
+        // Logger.log(leads);
+
+        // Check number of web_engagements
+        Logger.log('Total web_engagements : ' + engagements.length);
+
+        // Get email template
+        var template = getEmailHtml(engagements);
+        // Logger.log(template);
+
+        // Send email using Gmail
+        GmailApp.sendEmail(
+
+            recipient = email_list,
+            subject = "REMINDER: New Web Engagement", 
+            body = 'If you are seeing this text, please view the email on a browser for proper rendering of the email.', 
+            options = {
+              'name': '2X Marketing',
+              'htmlBody': template
+            }
+
+        );
+
+    }
+
+}
+
+// For sending the test email
+
+function sendTestEmail() {
+
+    // Get the owners data
+    var owners = groupLeadsByOwners();
+    // Logger.log('Owners Data :');
+    // Logger.log(owners);
+
+    // Check if there is data
+    if (owners == null) {
+
+        // Exit
+        return;
+
+    }
+
+    // Check number of owners
+    Logger.log('Total Owners : ' + owners.length);
+
+    // Loop through each owner
+    for (let owner of owners) {
+
+        // Check owner data
+        Logger.log((owners.indexOf(owner) + 1) + ') Current Owner Data :');
+        Logger.log(owner);
+
+        // Get owner name
+        var name = owner.name;
+        Logger.log('Owner Name : ' + name);
+
+        // Get owner email
+        var email = owner.email;
+        Logger.log('Owner Email : ' + email);
+
+        // Get owner's leads
+        var leads = owner.leads;
+        Logger.log('Owner Leads :');
+        Logger.log(leads);
+
+        // Check number of leads
+        Logger.log('Total Leads : ' + leads.length);
+
+        // Get email template
+        var template = getEmailHtml(name, leads);
+        // Logger.log(template);
+
+        // Send email using Gmail
+        GmailApp.sendEmail(
+
+            recipient = [
+              // "vimal.ramanathan@2x.marketing",
+              // "vincent.quah@2x.marketing"
+              "raden.ameer@2x.marketing"
+            ],
+            subject = "REMINDER: Action Required on Opportunity", 
+            body = 'If you are seeing this text, please view the email on a browser for proper rendering of the email.', 
+            options = {
+              'name': '2X Marketing',
+              'htmlBody': template
+            }
+
+        );
+
+        // Stop at first owner
+        // To avoid sending too many emails
+        // break;
+
+    }
+
+}
+
