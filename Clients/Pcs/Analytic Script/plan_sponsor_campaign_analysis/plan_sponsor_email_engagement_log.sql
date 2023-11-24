@@ -89,7 +89,8 @@ INSERT INTO `x-marketing.pcs.plan_sponsor_email_performance` (
    Converted_to_New_Plan__c_name, 
    plan_id,
    _employees,
-   Employee_Range
+   Employee_Range,
+   _unqualified_reason__c
   --, _salesforce_lead_status,_last_timestamp_sec
   )
 WITH 
@@ -220,7 +221,7 @@ prospect_info AS (
     ELSE mql_date__c 
     END AS _mql_date,
    routable.createddate,
-   CAST(numberofemployees AS STRING) AS _employees
+   CAST(numberofemployees AS STRING) AS _employees,employee_range__c,unqualified_reason__c
     
 
     /*
@@ -302,7 +303,8 @@ prospect_info AS (
         Converted_to_New_Plan__c_name,
         plan_id, 
         _employees,
-        ''
+        employee_range__c,
+        unqualified_reason__c
         FROM leads
         LEFT JOIN contact ON leads.convertedcontactid = contact._contactid
         LEFT JOIN status_change ON leads.id = old_id
@@ -770,7 +772,8 @@ SELECT
   Converted_to_New_Plan__c,
   Converted_to_New_Plan__c_name,plan_id,
   _employees,
-  ''
+  employee_range__c,
+  unqualified_reason__c
 
 
   FROM (
@@ -870,7 +873,8 @@ SELECT
   Converted_to_New_Plan__c_name,
   plan_id,
   _employees,
-  ''
+  employee_range__c,
+  unqualified_reason__c
 
 
   FROM (

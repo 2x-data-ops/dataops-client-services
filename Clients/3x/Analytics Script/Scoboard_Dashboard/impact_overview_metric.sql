@@ -84,7 +84,8 @@ WITH
     ORDER BY
       _timestamp DESC
 
-  ),
+  )
+  ,
   opps_created AS (
 
     SELECT
@@ -92,7 +93,7 @@ WITH
       _account_id,
       _account_name,
       _opportunity_name, 
-      _current_stage,
+      current_stage  AS _current_stage,
       _createdate,
       _close_date,
       _amount,
@@ -101,17 +102,21 @@ WITH
       _type,
       _leadsource,
       _lost_reason,
-      _last_stage_change_date,
-      _previous_stage,
+      _current_stage_change_date	 AS _last_stage_change_date,
+      _previousStage   AS _previous_stage,
       _days_current_stage,
       _total_one_time,
-      _max_amount
+      _max_amount,
+      _orderstage_previous,
+      _orderstage_current_from_previousstage
     FROM
       `x-marketing.3x.db_opportunity_log` main
+    --WHERE _opportunity_id = '0064P000010Y8V1QAK'
     LEFT JOIN
-      account_info ON main._account_id = account_info._accountid
-
-  ),
+    account_info ON main._account_id = account_info._accountid
+    --WHERE current
+  )
+  ,
   combined_data AS (
     
     SELECT
@@ -133,7 +138,7 @@ WITH
         _previous_stage,
         -- _daysCurrentStage,
         CASE
-          WHEN SPLIT(_previous_stage, '.')[OFFSET(0)] > SPLIT(_current_stage, '.')[OFFSET(0)] THEN 'Downward' 
+         WHEN  _orderstage_previous	 > _orderstage_current_from_previousstage THEN 'Downward' 
           ELSE 'Upward'
         END AS _stageMovement,
         _last_stage_change_date AS _oppLastChangeinStage,
@@ -147,26 +152,16 @@ WITH
         _t90_days_score,
         -- _ytd_first_party_score,
         opps_created._type,
+        _max_amount,
 
         -- Label for generated opps
         CASE
           WHEN (
             ( 
-              _leadsource IN ( 
-                'Marketing: Marketo', 
-                'Marketing: Events', 
-                'Inbound: Website', 
-                'Marketing: Webinars', 
-                'Marketing: PR/Social Media', 
-                'Marketing: Forrester/6sense B2B 2023'
-              ) 
+              _leadsource LIKE 
+                '%Marketing:%' 
               AND 
               ( NOT REGEXP_CONTAINS(_current_stage, '0|1') OR _current_stage IS NULL )
-            )
-            OR ( 
-              _leadsource = 'Marketing: 6sense' 
-              AND 
-              ( NOT REGEXP_CONTAINS(_current_stage, '0|1|Closed Lost') OR _current_stage IS NULL ) 
             )
           )
           AND _createdate >= '2023-01-16'     
@@ -180,14 +175,14 @@ WITH
           WHEN 
             _t90_days_score >= 15
             AND 
-            NOT REGEXP_CONTAINS(_leadsource, 'Marketing:|Inbound: Website')
+            NOT REGEXP_CONTAINS(_leadsource, 'Marketing:')
             AND
             DATE(account_engagement._timestamp) <= DATE(opps_created._createdate) 
           THEN 1 
           ELSE 0 
         END
         AS _isInfluence,
-        _max_amount
+        
 
       FROM 
         opps_created
@@ -201,10 +196,7 @@ WITH
       WHERE
         (LOWER(_account_name) NOT LIKE '%3x%' OR _account_name IS NULL)
     )
-    ORDER BY 
-      _isInfluence DESC
-
-  ),
+     ),
   get_accelerated AS (
 
     SELECT 
@@ -217,13 +209,14 @@ WITH
           AND
           _t90_days_score >= 15
           AND 
-          NOT REGEXP_CONTAINS(_leadsource, 'Marketing:|Inbound: Website')
+          NOT REGEXP_CONTAINS(_leadsource, 'Marketing:')
           AND 
           _current_stage NOT LIKE '%Nurture%' 
           AND 
           ( _engagementDate >= _opportunityCreated AND TIMESTAMP(_engagementDate) <= _oppLastChangeinStage )
           AND 
           _opportunityLost IS NULL 
+          AND _stageMovement  = 'Upward'
           -- AND 
           -- _opportunityWon IS NULL 
         THEN 1 
@@ -331,11 +324,11 @@ WITH
       _engagement_activities,
       _description,
       _t90_days_score,
-      _type,
+      _type,_max_amount,
       _isGenerate,
       _isInfluence,
       _isAccelerate,
-      _max_amount,
+      --_max_amount,
       _uniqueID,
     FROM 
       get_accelerated
@@ -351,7 +344,8 @@ WITH
         SELECT DISTINCT _opportunity_id FROM opp_accelerated
       )
   )
-SELECT 
+
+  SELECT 
   * EXCEPT(rownum),
   ROW_NUMBER() OVER(PARTITION BY _opportunity_id ORDER BY _engagementDate DESC) AS rownum
 FROM
@@ -364,153 +358,12 @@ FROM
     UNION DISTINCT
     SELECT * FROM opp_others
 )
+    ORDER BY 
+      _isInfluence DESC
+
+
 ;
 
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------- Marketing Channel Metrics ------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-TRUNCATE TABLE `3x.overview_marketing_channels_metrics`;
-INSERT INTO `3x.overview_marketing_channels_metrics`
-WITH campaigns AS (
-  SELECT
-    *,
-    "Email" AS _channel,
-    "Yes" AS _2x_campaign
-  FROM (
-    SELECT
-      CAST(_campaignID AS INT64) _campaignID,
-      _contentTitle AS _campaign,
-      MIN(_timestamp) AS _sent_timestamp
-    FROM
-      `x-marketing.3x.db_email_engagements_log` activity
-    WHERE
-      LOWER(_engagement) LIKE 'sent'
-      AND _campaignID IS NOT NULL 
-    GROUP BY
-      1, 2
-  )
-)/* ,
-ads AS (
-  SELECT
-    DISTINCT CAST(CONCAT(campaignID, clicks) AS INT64) AS _adid, 
-    adName, 
-    TIMESTAMP(startDate), 
-    "Ads",
-    CAST(NULL AS STRING)
-  FROM
-    `x-marketing.3x_6sense.3x_db_ads_overview2`
-) ,
-contents AS (
-  SELECT 
-    _id AS _contentid,
-    _title AS _contenttitle,
-    TIMESTAMP(_created) AS _created_timestamp,
-    _type AS _channel,
-    "2X"
-  FROM 
-    `3x_mysql.content_wise_mapping`
-) */
-SELECT * FROM (
-  SELECT * FROM campaigns /*  UNION ALL
-  SELECT * FROM ads UNION ALL
-  SELECT * FROM contents */
-)
-WHERE
-    EXTRACT(YEAR FROM _sent_timestamp) IN (2022, 2023)
-;
-
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
---------------------------------------------------------------------- Database Activation ------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-TRUNCATE TABLE `3x.overview_database_activation`;
-INSERT INTO `3x.overview_database_activation`
-WITH 
-  dummy_dates AS (
-    SELECT
-      _date,
-      EXTRACT(WEEK FROM _date) AS _week,
-      EXTRACT(YEAR FROM _date) AS _year
-    FROM 
-      UNNEST(GENERATE_DATE_ARRAY('2022-01-01', CURRENT_DATE(), INTERVAL 1 DAY)) AS _date 
-  ),
-  tam_database AS (
-    SELECT 
-      DISTINCT vid,
-      property_email.value AS email,
-      COALESCE(
-        RIGHT(property_hs_email_domain.value, LENGTH(property_hs_email_domain.value) - STRPOS(property_hs_email_domain.value, "@")),
-          RIGHT(associated_company.properties.domain.value, LENGTH(associated_company.properties.domain.value) - STRPOS(associated_company.properties.domain.value, "www."))
-      ) AS _domain,
-      property_createdate.value AS _createddate,
-    FROM 
-      `x3x_hubspot.contacts`
-    WHERE
-      property_email.value IS NOT NULL
-      AND LOWER(property_email.value) NOT LIKE '%2x.marketing%'
-  ),
-  contacts_created AS (
-    SELECT
-      DISTINCT DATE(_createddate) AS _createddate,
-      COUNT(DISTINCT vid) AS _contacts_created,
-    FROM
-      tam_database
-    GROUP BY 
-      1
-  ),
-  accounts_created AS (
-    SELECT 
-      _createddate,
-      COUNT(DISTINCT _domain) AS _account_created
-    FROM
-    (
-      SELECT
-        DISTINCT MIN(DATE(_createddate)) AS _createddate,
-        _domain
-      FROM
-        tam_database
-      GROUP BY 
-        2
-    )
-    GROUP BY 
-      1
-  ),
-  account_engagement AS (
-    SELECT 
-      _date,
-      COUNT(DISTINCT _domain) AS _engaged_accounts
-    FROM
-    (
-      SELECT 
-        MIN(EXTRACT(DATE FROM _timestamp)) AS _date,
-        _domain
-      FROM
-        (SELECT DISTINCT * FROM `3x.db_consolidated_engagements_log` WHERE _engagement IN ('Email Clicked', 'Email Opened', 'Form Filled'))
-      GROUP BY 
-        2
-    )
-    GROUP BY 
-      1
-  )
-SELECT 
-  DISTINCT dummy_dates._date, 
-  -- SUM(IF(_hasEngaged IS NULL, 0, _hasEngaged)) OVER(PARTITION BY dummy_dates._date) AS _engaged_accounts,
-  COALESCE(_engaged_accounts, 0) AS _engaged_accounts,
-  COALESCE(_contacts_created, 0) AS _contacts_created,
-  COALESCE(_account_created, 0) AS _account_created
-FROM
-  dummy_dates
-LEFT JOIN
-  account_engagement USING(_date)
-LEFT JOIN
-  accounts_created ON dummy_dates._date = DATE(accounts_created._createddate)
-LEFT JOIN
-  contacts_created ON dummy_dates._date = DATE(contacts_created._createddate)
-ORDER BY 
-  _date DESC
-;
---- add max
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------- Account Influence Script ------------------------------------------------------------------------------------
