@@ -1,5 +1,3 @@
-
-
 CREATE OR REPLACE TABLE `x-marketing.gibraltar.db_icp_database_log` AS
 SELECT * EXCEPT(_rownum)
 FROM (
@@ -116,9 +114,7 @@ FROM (
 WHERE _rownum = 1;
 
 
--- GROUP BY properties.which_seminar_would_you_like_to_register_for_.value
--- LEFT JOIN `x-marketing.gibraltar_hubspot.email_events`
--- ON
+--updating the record to get zipcode since some are null, zipcode data is pulled from hubspot itself
 
 UPDATE `x-marketing.gibraltar.db_icp_database_log` origin
 SET origin._zipcode = 
@@ -141,5 +137,3 @@ SET origin._zipcode =
     ELSE origin._zipcode
   END
 WHERE origin._zipcode IS NULL
-
-
