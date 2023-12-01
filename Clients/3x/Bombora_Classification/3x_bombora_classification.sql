@@ -69,8 +69,13 @@ classification_info.* EXCEPT (topicid,_topic)
  FROM bombora_data 
 LEFT JOIN classification_info ON bombora_data._topicid = classification_info.topicid
 ), -- Combine all information together
-combined_data AS (
-SELECT *,
+combined_data_count AS (
+SELECT DISTINCT
+        
+        all_data_combine._date,
+        all_data_combine._domain,
+        all_data_combine._topicname,
+        all_data_combine._bubble,
 COUNT(
             DISTINCT 
                 CASE 
@@ -88,14 +93,13 @@ COUNT(
             DISTINCT 
                 CASE 
                     WHEN _bubble != 'Everyone Under the Sun' 
-                    THEN _topicname
+                    THEN _bubble
                     ELSE NULL 
                 END 
         ) OVER(
             PARTITION BY 
                 _date,
-                _domain,
-                _bubble
+                _domain
         )
         AS _bubble_count,
 
@@ -122,7 +126,15 @@ COUNT(
 
 FROM all_data_combine
 --WHERE _domain = '8451.com' AND _date = '2023-09-13'
-),
+),combined_data AS (
+SELECT all_data_combine.*,_euts_count,_bubble_count,_category_count,_niche_count
+ FROM all_data_combine 
+LEFT JOIN combined_data_count USING (
+        _date,
+        _domain,
+        _topicname,_bubble
+    )
+), 
 -- Label accounts that qualify as EUTS
 evaluate_euts AS (
 SELECT
