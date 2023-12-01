@@ -16,9 +16,10 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   _industry,
   _city,
   _state, 
-  _country
+  _country,
+  _utmcampaign
   -- _contentTitle, 
-  -- _utmcampaign,
+
   -- _utm_source,
   -- _subject, 
   -- _campaignSentDate, 
@@ -222,13 +223,26 @@ engagements AS (
   SELECT * FROM clicked_email
   UNION ALL
   SELECT * FROM unsubscribed_email
+),
+campaign_info AS(
+  SELECT
+    id AS _campaignID,
+    name AS _utmcampaign
+  FROM `x-marketing.thunder_pardot.campaigns`
 )
+--Combine prospect info left join with engagement together with campaign info---
 SELECT
   engagements.*,
-  prospect_info.* EXCEPT(_email, _prospectID)
+  prospect_info.* EXCEPT(_email, _prospectID),
+  campaign_info.* EXCEPT(_campaignID)
 FROM engagements
 LEFT JOIN prospect_info
-ON prospect_info._prospectID = engagements._prospectID
+  ON engagements._prospectID = prospect_info._prospectID 
+LEFT JOIN campaign_info
+  ON engagements._campaignID = CAST(campaign_info._campaignID AS STRING)
+
+
+
 
 
 
