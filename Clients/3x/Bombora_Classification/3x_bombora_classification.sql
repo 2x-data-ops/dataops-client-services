@@ -1,5 +1,34 @@
-CREATE OR REPLACE TABLE `3x.db_bombora_classification` AS 
-WITH bombora_data AS (
+TRUNCATE TABLE `3x.db_bombora_classification`;
+
+INSERT INTO `3x.db_bombora_classification`(
+    _date, 
+    _domain, 
+    _companyname, 
+    _companysize, 
+    _companyrevenue, 
+    _industry, 
+    _compositescore, 
+    _topicname, 
+    _topicid, 
+    _compositescore_num, 
+    _bubble, 
+    _category, 
+    _niche, 
+    _euts_count, 
+    _bubble_count, 
+    _category_count, 
+    _niche_count, 
+    _in_euts, 
+    _in_bubble, 
+    _in_niche, 
+    _topicnames_euts, 
+    _topicnames,
+    _topicnames_Strategy,
+    _topicnames_Content,
+    _topicnames_MarOps,
+    _topicnames_Campaign,
+    _rownum
+)WITH bombora_data AS (
 
     SELECT DISTINCT
 
@@ -132,7 +161,126 @@ evaluate_bubble AS (
 
     FROM 
         evaluate_euts
-), alll_data AS ( SELECT
+), all_data_segement AS (
+  WITH _euts_all AS ( 
+    SELECT DISTINCT _domain, _date ,
+       
+        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
+
+                PARTITION BY 
+                    _date,
+                    _domain,_bubble
+                ORDER BY 
+                    _compositescore DESC
+
+            )
+            AS _topicnames_euts,
+       
+        FROM evaluate_bubble
+
+        WHERE  _bubble = 'Everyone Under the Sun'
+        ), _topic_all AS (
+      SELECT DISTINCT _domain, _date , 
+        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
+
+                PARTITION BY 
+                    _date,
+                    _domain
+                ORDER BY 
+                    _compositescore DESC
+
+            ) 
+            AS _topicnames
+             FROM evaluate_bubble
+
+             WHERE  _bubble != 'Everyone Under the Sun'
+), _topic_Strategy AS (
+      SELECT DISTINCT _domain, _date , 
+        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
+
+                PARTITION BY 
+                    _date,
+                    _domain
+                ORDER BY 
+                    _compositescore DESC
+
+            ) 
+            AS _topicnames_Strategy
+             FROM evaluate_bubble
+
+             WHERE  _bubble = 'Strategy'
+), _topic_Campaign AS (
+      SELECT DISTINCT _domain, _date , 
+        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
+
+                PARTITION BY 
+                    _date,
+                    _domain
+                ORDER BY 
+                    _compositescore DESC
+
+            ) 
+            AS _topicnames_Campaign
+             FROM evaluate_bubble
+ 
+             WHERE  _bubble = 'Campaign'
+), _topic_Content AS (
+      SELECT DISTINCT _domain, _date , 
+        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
+
+                PARTITION BY 
+                    _date,
+                    _domain
+                ORDER BY 
+                    _compositescore DESC
+
+            ) 
+            AS _topicnames_Content
+             FROM evaluate_bubble
+
+             WHERE  _bubble = 'Content'
+), _topic_MarOps AS (
+      SELECT DISTINCT _domain, _date , 
+        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
+
+                PARTITION BY 
+                    _date,
+                    _domain
+                ORDER BY 
+                    _compositescore DESC
+
+            ) 
+            AS _topicnames_MarOps
+             FROM evaluate_bubble
+
+             WHERE  _bubble = 'MarOps'
+) SELECT * EXCEPT (_rownum) 
+FROM (
+SELECT DISTINCT alll_data._domain, 
+alll_data._date ,
+_euts_all._topicnames_euts,
+_topic_all._topicnames,
+_topicnames_Strategy,
+_topicnames_Content,_topicnames_MarOps,_topicnames_Campaign,
+ROW_NUMBER() OVER(
+                PARTITION BY 
+                    alll_data._date,
+                    alll_data._domain
+                ORDER BY _compositescore_num DESC, _topicnames DESC , _topicnames_euts DESC , _topicnames_MarOps DESC ,_topicnames_Strategy DESC,
+_topicnames_Content DESC,_topicnames_Campaign DESC, _in_euts DESC
+            )
+            AS _rownum
+FROM evaluate_bubble alll_data
+LEFT JOIN _euts_all ON alll_data._domain = _euts_all._domain AND alll_data._date = _euts_all._date
+LEFT JOIN _topic_all ON alll_data._domain = _topic_all._domain AND alll_data._date = _topic_all._date
+LEFT JOIN _topic_Strategy ON alll_data._domain = _topic_Strategy._domain AND alll_data._date = _topic_Strategy._date
+LEFT JOIN _topic_Campaign ON alll_data._domain = _topic_Campaign._domain AND alll_data._date = _topic_Campaign._date
+LEFT JOIN _topic_MarOps ON alll_data._domain = _topic_MarOps._domain AND alll_data._date = _topic_MarOps._date
+LEFT JOIN _topic_Content ON alll_data._domain = _topic_Content._domain AND alll_data._date = _topic_Content._date
+WHERE _in_euts = true
+) WHERE _rownum = 1
+), alll_data AS (
+  SELECT
         *,
 
         CASE 
@@ -153,113 +301,16 @@ evaluate_bubble AS (
 
     FROM 
         evaluate_bubble
-), _euts_all AS ( 
-    SELECT DISTINCT _domain, _date ,
-       
-        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
-
-                PARTITION BY 
-                    _date,
-                    _domain,_bubble
-                ORDER BY 
-                    _compositescore DESC
-
-            )
-            AS _topicnames_euts,
-       
-        FROM alll_data 
-        WHERE  _bubble = 'Everyone Under the Sun'
-), _topic_all AS (
-      SELECT DISTINCT _domain, _date , 
-        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
-
-                PARTITION BY 
-                    _date,
-                    _domain
-                ORDER BY 
-                    _compositescore DESC
-
-            ) 
-            AS _topicnames
-             FROM alll_data 
-             WHERE  _bubble != 'Everyone Under the Sun'
-), _topic_Strategy AS (
-      SELECT DISTINCT _domain, _date , 
-        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
-
-                PARTITION BY 
-                    _date,
-                    _domain
-                ORDER BY 
-                    _compositescore DESC
-
-            ) 
-            AS _topicnames_Strategy
-             FROM alll_data 
-             WHERE  _bubble != 'Strategy'
-), _topic_Campaign AS (
-      SELECT DISTINCT _domain, _date , 
-        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
-
-                PARTITION BY 
-                    _date,
-                    _domain
-                ORDER BY 
-                    _compositescore DESC
-
-            ) 
-            AS _topicnames_Campaign
-             FROM alll_data 
-             WHERE  _bubble != 'Campaign'
-), _topic_Content AS (
-      SELECT DISTINCT _domain, _date , 
-        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
-
-                PARTITION BY 
-                    _date,
-                    _domain
-                ORDER BY 
-                    _compositescore DESC
-
-            ) 
-            AS _topicnames_Content
-             FROM alll_data 
-             WHERE  _bubble != 'Content'
-), _topic_MarOps AS (
-      SELECT DISTINCT _domain, _date , 
-        STRING_AGG(CONCAT (_topicname, ' (', _compositescore, ')'), ", ") OVER (
-
-                PARTITION BY 
-                    _date,
-                    _domain
-                ORDER BY 
-                    _compositescore DESC
-
-            ) 
-            AS _topicnames_MarOps
-             FROM alll_data 
-             WHERE  _bubble != 'MarOps'
-), _topic_all_data AS (
-     SELECT alll_data.* ,
-_euts_all._topicnames_euts,
-_topic_all._topicnames,
+) SELECT alll_data.* ,
+all_data_segement.* EXCEPT (_domain, _date),
         ROW_NUMBER() OVER(
                 PARTITION BY 
                     alll_data._date,
                     alll_data._domain
-                ORDER BY _topicnames DESC , _euts_all._topicnames_euts DESC 
+                ORDER BY   _topicnames_euts DESC ,_topicnames DESC , _in_euts DESC, _topicnames_MarOps DESC ,_topicnames_Strategy DESC,
+_topicnames_Content DESC,_topicnames_Campaign DESC
             )
             AS _rownum
 FROM alll_data
-LEFT JOIN _euts_all ON alll_data._domain = _euts_all._domain AND alll_data._date = _euts_all._date
-LEFT JOIN _topic_all ON alll_data._domain = _topic_all._domain AND alll_data._date = _topic_all._date
-) SELECT _topic_all_data.*,
--- _topicnames_Strategy,_topicnames_Content,_topicnames_MarOps,_topicnames_Campaign,
- FROM _topic_all_data
--- LEFT JOIN _topic_Strategy ON _topic_all_data._domain = _topic_Strategy._domain AND _topic_all_data._date = _topic_Strategy._date
--- LEFT JOIN _topic_Campaign ON _topic_all_data._domain = _topic_Campaign._domain AND _topic_all_data._date = _topic_Campaign._date
--- LEFT JOIN _topic_Content ON _topic_all_data._domain = _topic_Content._domain AND _topic_all_data._date = _topic_Content._date
--- LEFT JOIN _topic_MarOps ON _topic_all_data._domain = _topic_MarOps._domain AND _topic_all_data._date = _topic_MarOps._date
--- --WHERE alll_data._domain = 'sungard.com' AND alll_data._date = '2023-11-27'
-
-    
+LEFT OUTER JOIN all_data_segement  ON alll_data._domain = all_data_segement ._domain AND alll_data._date = all_data_segement ._date
+--WHERE alll_data._domain = 'houstonisd.org' AND alll_data._date = '2023-11-27'
