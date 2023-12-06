@@ -9,17 +9,22 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   _engagement,
   _description,
   _name,
-  _title,
+  _jobtitle,
+  _website,
   _phone,
   _company,
-  _revenue,
+  _annualrevenue,
+  _employees,
   _industry,
   _city,
   _state, 
   _country,
+  _createddate,
+  _updateddate,
+  _crm_contact_fid,
+  _crm_lead_fid,
   _utmcampaign
   -- _contentTitle, 
-
   -- _utm_source,
   -- _subject, 
   -- _campaignSentDate, 
@@ -28,9 +33,6 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   -- _classification,
   -- _emailName,
   -- _seniority,
-  -- _website,
-  -- _crmleadfid,
-  -- _crmcontactfid,
   -- _score,
   -- _batch
 )
@@ -41,16 +43,21 @@ WITH prospect_info AS (
     CAST(id AS STRING) AS _prospectID,
     prospect.email AS _email,
     CONCAT(first_name, ' ', last_name) AS _name,
-    job_title AS _title,
-    -- function AS _function,
-    -- website AS _website,
+    job_title AS _jobtitle,
+    website AS _website,
     phone AS _phone,
     INITCAP(company) AS _company,
-    annual_revenue AS _revenue,
+    annual_revenue AS _annualrevenue,
+    employees AS _employees,
     INITCAP(industry) AS _industry,
     city AS _city,
     state AS _state,
-    country AS _country
+    country AS _country,
+    created_at AS _createddate,
+    updated_at AS _updateddate,
+    crm_contact_fid AS _crm_contact_fid,
+    crm_lead_fid AS _crm_lead_fid,
+
   FROM `x-marketing.thunder_pardot.prospects` prospect
 
   --should join with salesforce contact--
@@ -230,6 +237,13 @@ campaign_info AS(
     name AS _utmcampaign
   FROM `x-marketing.thunder_pardot.campaigns`
 )
+-- ,
+-- list AS (
+--   SELECT
+--     id AS _listid,
+--     name AS _listname,
+--   FROM `x-marketing.thunder_pardot.lists` 
+-- )
 --Combine prospect info left join with engagement together with campaign info---
 SELECT
   engagements.*,
@@ -240,13 +254,6 @@ LEFT JOIN prospect_info
   ON engagements._prospectID = prospect_info._prospectID 
 LEFT JOIN campaign_info
   ON engagements._campaignID = CAST(campaign_info._campaignID AS STRING)
-
-
-
-
-
-
-
 
 
 
