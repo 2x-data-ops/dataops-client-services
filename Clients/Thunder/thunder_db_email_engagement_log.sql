@@ -8,18 +8,24 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   _timestamp,
   _engagement,
   _description,
+  _list_email_id,
   _name,
-  _title,
+  _jobtitle,
+  _website,
   _phone,
   _company,
-  _revenue,
+  _annualrevenue,
+  _employees,
   _industry,
   _city,
   _state, 
   _country,
+  _createddate,
+  _updateddate,
+  _crm_contact_fid,
+  _crm_lead_fid,
   _utmcampaign
   -- _contentTitle, 
-
   -- _utm_source,
   -- _subject, 
   -- _campaignSentDate, 
@@ -28,9 +34,6 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   -- _classification,
   -- _emailName,
   -- _seniority,
-  -- _website,
-  -- _crmleadfid,
-  -- _crmcontactfid,
   -- _score,
   -- _batch
 )
@@ -41,16 +44,21 @@ WITH prospect_info AS (
     CAST(id AS STRING) AS _prospectID,
     prospect.email AS _email,
     CONCAT(first_name, ' ', last_name) AS _name,
-    job_title AS _title,
-    -- function AS _function,
-    -- website AS _website,
+    job_title AS _jobtitle,
+    website AS _website,
     phone AS _phone,
     INITCAP(company) AS _company,
-    annual_revenue AS _revenue,
+    annual_revenue AS _annualrevenue,
+    employees AS _employees,
     INITCAP(industry) AS _industry,
     city AS _city,
     state AS _state,
-    country AS _country
+    country AS _country,
+    created_at AS _createddate,
+    updated_at AS _updateddate,
+    crm_contact_fid AS _crm_contact_fid,
+    crm_lead_fid AS _crm_lead_fid,
+
   FROM `x-marketing.thunder_pardot.prospects` prospect
 
   --should join with salesforce contact--
@@ -67,7 +75,8 @@ sent_email AS (
       activity.created_at AS _timestamp,
       'Sent' AS _engagement,
       '' AS _description,
-      ROW_NUMBER() OVER(PARTITION BY prospect.email, prospect.id
+      CAST(list_email_id AS STRING) _list_email_id,
+      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.visitor_activities` activity
     LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
@@ -88,7 +97,8 @@ hardbounced_email AS (
       activity.created_at AS _timestamp,
       'Hard Bounced' AS _engagement,
       '' AS _description,
-      ROW_NUMBER() OVER(PARTITION BY prospect.email, prospect.id
+      CAST(list_email_id AS STRING) _list_email_id,
+      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.visitor_activities` activity
     LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
@@ -108,7 +118,8 @@ softbounced_email AS (
       activity.created_at AS _timestamp,
       'Soft Bounced' AS _engagement,
       '' AS _description,
-      ROW_NUMBER() OVER(PARTITION BY prospect.email, prospect.id
+      CAST(list_email_id AS STRING) _list_email_id,
+      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.visitor_activities` activity
     LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
@@ -133,7 +144,8 @@ opened_email AS (
       activity.created_at AS _timestamp,
       'Opened' AS _engagement,
       '' AS _description,
-      ROW_NUMBER() OVER(PARTITION BY prospect.email, prospect.id
+      CAST(list_email_id AS STRING) _list_email_id,
+      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.visitor_activities` activity
     LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
@@ -153,7 +165,8 @@ clicked_email AS (
       activity.created_at AS _timestamp,
       'Clicked' AS _engagement,
       url AS _description,
-      ROW_NUMBER() OVER(PARTITION BY prospect.email, prospect.id
+      CAST(list_email_id AS STRING) _list_email_id,
+      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.list_email_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.email_clicks` activity
     LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
@@ -172,7 +185,8 @@ unsubscribed_email AS(
       activity.created_at AS _timestamp,
       'Unsubscribed' AS _engagement,
       '' AS _description,
-      ROW_NUMBER() OVER(PARTITION BY prospect.email, prospect.id
+      CAST(list_email_id AS STRING) _list_email_id,
+      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.visitor_activities` activity
     LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
@@ -182,32 +196,51 @@ unsubscribed_email AS(
   WHERE _rownum = 1  
 ),
 delivered_email AS (
-  SELECT
-      origin._sdc_sequence,
-      origin._prospectID,
-      origin._email,
-      origin._campaignID,     
-      origin._timestamp,
-      'Delivered' AS _engagement,
-      origin._description
-  FROM sent_email origin
-  JOIN (
-    SELECT
-      sent_email._prospectID,
-      sent_email._campaignID
-    FROM
-      sent_email
+  -- SELECT
+  --     origin._sdc_sequence,
+  --     origin._prospectID,
+  --     origin._email,
+  --     origin._campaignID,     
+  --     origin._timestamp,
+  --     'Delivered' AS _engagement,
+  --     origin._description,
+  --     origin._list_email_id
+  -- FROM sent_email origin
+  -- JOIN (
+  --   SELECT
+  --     sent_email._prospectID,
+  --     sent_email._campaignID,
+  --     sent_email._list_email_id
+  --   FROM
+  --     sent_email
     
-    EXCEPT DISTINCT 
+  --   EXCEPT DISTINCT 
 
-    SELECT
-      allbounced_email._prospectID,
-      allbounced_email._campaignID
-    FROM
-      allbounced_email
-  ) scenario
-  ON origin._prospectID = scenario._prospectID
-  AND origin._campaignID = scenario._campaignID
+  --   SELECT
+  --     allbounced_email._prospectID,
+  --     allbounced_email._campaignID,
+  --     allbounced_email._list_email_id
+  --   FROM
+  --     allbounced_email
+  -- ) scenario
+  -- ON origin._prospectID = scenario._prospectID
+  -- AND origin._campaignID = scenario._campaignID
+  -- AND origin._list_email_id = scenario._list_email_id
+
+  SELECT
+  sent._sdc_sequence,
+  sent._prospectID,
+  sent._email,
+  sent._campaignID,
+  sent._timestamp,
+  'Delivered' AS _engagement,
+  sent._description,
+  sent._list_email_id
+FROM sent_email AS sent
+LEFT JOIN allbounced_email
+  ON sent._prospectID = allbounced_email._prospectID
+  AND sent._campaignID = allbounced_email._campaignID
+WHERE allbounced_email._prospectID IS NULL 
 ),
 engagements AS (
   SELECT * FROM sent_email
@@ -230,6 +263,13 @@ campaign_info AS(
     name AS _utmcampaign
   FROM `x-marketing.thunder_pardot.campaigns`
 )
+-- ,
+-- list AS (
+--   SELECT
+--     id AS _listid,
+--     name AS _listname,
+--   FROM `x-marketing.thunder_pardot.lists` 
+-- )
 --Combine prospect info left join with engagement together with campaign info---
 SELECT
   engagements.*,
@@ -243,10 +283,19 @@ LEFT JOIN campaign_info
 
 
 
+---OPPS Combined With Email Engagement---
+
+-- SELECT
+--   REGEXP_REPLACE(_website, r'^(http:\/\/www\.|http:\/\/)', '') AS _website
+-- FROM `thunder.db_email_engagements_log` email
+-- JOIN `thunder.db_sf_opportunities` opps
+-- ON email._website = opps.domain
 
 
 
-
+-- SELECT
+--   DISTINCT _website, _name
+-- FROM `thunder.db_email_engagements_log` email
 
 
 
