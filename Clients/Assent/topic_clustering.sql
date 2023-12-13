@@ -1,24 +1,23 @@
 CREATE OR REPLACE TABLE `assent.topic_clustering` AS
-WITH ems_accounts AS (
+WITH accounts AS (
   SELECT 
     DISTINCT LOWER(_domain) AS _domain, 
     _companyname AS _company, "Target" AS _source, 
-    '' AS _accountid, 
+    _salesforceaccountid AS _accountid, 
     _industry AS _industry,  
     INITCAP('') AS _hqcity,
-   _hqstate AS _hqstate,
+    _hqstate AS _hqstate,
     _hqcountry AS _hqcountry,
-   _sic4code1 AS _hqzipcode,
-   _type AS _clienttype
-  FROM `x-marketing.assent_mysql.db_assent_target_company_list` 
-
-  ORDER BY 1
+    _sic4code1 AS _hqzipcode,
+    _type AS _clienttype
+    FROM `x-marketing.assent_mysql.db_assent_target_company_list` 
+    ORDER BY 1
 )
 ,target_bombora AS (
   SELECT DISTINCT _domain, 
     CASE WHEN mainAcc._company IS NOT NULL THEN mainAcc._company ELSE bomboraAcc._companyname END AS _company,
-    --CASE WHEN mainAcc._industry IS NOT NULL THEN mainAcc._industry ELSE bomboraAcc._industry END AS _industry, 
-    bomboraAcc._industry,
+    CASE WHEN mainAcc._industry IS NOT NULL THEN mainAcc._industry ELSE bomboraAcc._industry END AS _industry, 
+    --bomboraAcc._industry,
     CASE WHEN mainAcc._hqcity IS NOT NULL THEN mainAcc._hqcity ELSE bomboraAcc._hqcity END AS _hqcity, 
     CASE WHEN mainAcc._hqstate IS NOT NULL THEN mainAcc._hqstate ELSE bomboraAcc._hqstate END AS _hqstate, 
     CASE WHEN mainAcc._hqcountry IS NOT NULL THEN mainAcc._hqcountry ELSE bomboraAcc._hqcountry END AS _hqcountry, 
@@ -30,9 +29,9 @@ WITH ems_accounts AS (
     _date,
     _clienttype,
     _compositescoredelta
-  FROM ems_accounts mainAcc
+  FROM accounts mainAcc
   FULL JOIN (
-    SELECT DISTINCT _domain, 
+    SELECT DISTINCT  _domain, 
           _companyname, 
           _industry, 
           _hqcity,
@@ -72,7 +71,16 @@ SELECT average_surge_score.*,
 clusters 
  FROM average_surge_score
 LEFT JOIN clustering USING(_topicid)
-) SELECT *,
+), all_bombora_topic_data AS ( 
+  SELECT *,
 COUNT(DISTINCT clusters) OVER (PARTITION BY _date,_domain) AS cluster_count
  FROM all_data 
+) , bombora_summary_report AS (
+  SELECT _domain, _topiccount, _averagescore, _topiccountdelta,
+  PARSE_DATE('%F',_extractdate) AS _date FROM `x-marketing.assent_mysql.db_bombora_reports_summary`
+) SELECT all_bombora_topic_data.* ,
+bombora_summary_report.* EXCEPT (_domain,_date)
+FROM all_bombora_topic_data
+LEFT JOIN bombora_summary_report ON all_bombora_topic_data._domain = bombora_summary_report._domain 
+AND all_bombora_topic_data._date = bombora_summary_report._date 
 --where _domain = 'bmcf.com'

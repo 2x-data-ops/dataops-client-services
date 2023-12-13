@@ -64,8 +64,7 @@ WITH
   ),
   account_engagement AS (
 
-    SELECT 
-      DISTINCT eng._domain, 
+     SELECT DISTINCT eng._domain, 
       _sfdcaccountid AS accountid,
       _company,
       _engagement, 
@@ -75,12 +74,16 @@ WITH
       _seniority, 
       _contentTitle,
       _description,
+      EXTRACT(WEEK FROM _timestamp) AS _week,
+          EXTRACT(YEAR FROM _timestamp) AS _year,
       MD5(CONCAT(eng._domain, _engagement, _timestamp, _contentTitle, _email)) AS _engagementID
     FROM 
       `3x.db_consolidated_engagements_log` eng
     WHERE
-      _engagement NOT IN ('Opportunity Created', 'Opportunity Stage Change') 
+      _engagement NOT IN ('Opportunity Created', 'Opportunity Stage Change','Bombora Report') 
+    
       AND _engagement IS NOT NULL
+      AND _description <> '0 (Cumulative)'
     ORDER BY
       _timestamp DESC
 
@@ -114,7 +117,7 @@ WITH
     --WHERE _opportunity_id = '0064P000010Y8V1QAK'
     LEFT JOIN
     account_info ON main._account_id = account_info._accountid
-    --WHERE current
+   WHERE _previousStage <>current_stage 
   )
   ,
   combined_data AS (
@@ -187,12 +190,17 @@ WITH
       FROM 
         opps_created
       LEFT JOIN
-        account_engagement USING(_domain)
+        account_engagement ON ((opps_created._domain = account_engagement._domain AND ((EXTRACT(WEEK FROM opps_created._last_stage_change_date) = account_engagement._week AND EXTRACT(YEAR FROM opps_created._last_stage_change_date) = account_engagement._year) )  ))
+        OR 
+        ((opps_created._domain = account_engagement._domain AND ((EXTRACT(WEEK FROM opps_created._createdate) = account_engagement._week AND EXTRACT(YEAR FROM opps_created._createdate) = account_engagement._year) )  ))
       LEFT JOIN
       account_score 
         ON 
-          (EXTRACT(WEEK FROM opps_created._createdate) = account_score._week AND EXTRACT(YEAR FROM opps_created._createdate) = account_score._year) 
-          AND opps_created._domain = account_score._domain
+           ((EXTRACT(WEEK FROM opps_created._last_stage_change_date) = account_score._week AND EXTRACT(YEAR FROM opps_created._last_stage_change_date) = account_score._year) 
+          AND opps_created._domain = account_score._domain)
+          OR 
+          ((EXTRACT(WEEK FROM opps_created._createdate) = account_score._week AND EXTRACT(YEAR FROM opps_created._createdate) = account_score._year) 
+          AND opps_created._domain = account_score._domain)
       WHERE
         (LOWER(_account_name) NOT LIKE '%3x%' OR _account_name IS NULL)
     )
@@ -208,7 +216,7 @@ WITH
           _isInfluence = 0 
           AND
           _t90_days_score >= 15
-          AND 
+         AND 
           NOT REGEXP_CONTAINS(_leadsource, 'Marketing:')
           AND 
           _current_stage NOT LIKE '%Nurture%' 
