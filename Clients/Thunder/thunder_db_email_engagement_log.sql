@@ -285,21 +285,24 @@ LEFT JOIN campaign_info
 
 ---OPPS Combined With Email Engagement---
 
--- SELECT
---   REGEXP_REPLACE(_website, r'^(http:\/\/www\.|http:\/\/)', '') AS _website
--- FROM `thunder.db_email_engagements_log` email
--- JOIN `thunder.db_sf_opportunities` opps
--- ON email._website = opps.domain
-
-
-
--- SELECT
---   DISTINCT _website, _name
--- FROM `thunder.db_email_engagements_log` email
+CREATE TABLE `x-marketing.thunder.db_email_opps_combined` AS 
+SELECT
+  email.* EXCEPT(_website),
+  REGEXP_REPLACE(_website, r'^(http:\/\/www\.|http:\/\/)', '') AS _website,
+  opps.*
+FROM `thunder.db_email_engagements_log` email
+JOIN `thunder.db_sf_opportunities` opps
+ON REGEXP_REPLACE(email._website, r'^(http:\/\/www\.|http:\/\/)', '') = opps.domain
 
 
 
 
+SELECT DISTINCT domain
+FROM `thunder.db_sf_opportunities` opps
+
+SELECT DISTINCT
+REGEXP_REPLACE(_website, r'^(http:\/\/www\.|http:\/\/)', '') AS _website
+FROM `thunder.db_email_engagements_log` email
 
 
 
