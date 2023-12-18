@@ -279,13 +279,13 @@ FROM engagements
 LEFT JOIN prospect_info
   ON engagements._prospectID = prospect_info._prospectID 
 LEFT JOIN campaign_info
-  ON engagements._campaignID = CAST(campaign_info._campaignID AS STRING)
+  ON engagements._campaignID = CAST(campaign_info._campaignID AS STRING);
 
 
 
 ---OPPS Combined With Email Engagement---
 
-CREATE TABLE `x-marketing.thunder.db_email_opps_combined` AS 
+CREATE OR REPLACE TABLE `x-marketing.thunder.db_email_opps_combined` AS 
 SELECT
   email.* EXCEPT(_website),
   REGEXP_REPLACE(_website, r'^(http:\/\/www\.|http:\/\/)', '') AS _website,
@@ -297,12 +297,12 @@ ON REGEXP_REPLACE(email._website, r'^(http:\/\/www\.|http:\/\/)', '') = opps.dom
 
 
 
-SELECT DISTINCT domain
-FROM `thunder.db_sf_opportunities` opps
+-- SELECT DISTINCT domain
+-- FROM `thunder.db_sf_opportunities` opps
 
-SELECT DISTINCT
-REGEXP_REPLACE(_website, r'^(http:\/\/www\.|http:\/\/)', '') AS _website
-FROM `thunder.db_email_engagements_log` email
+-- SELECT DISTINCT
+-- REGEXP_REPLACE(_website, r'^(http:\/\/www\.|http:\/\/)', '') AS _website
+-- FROM `thunder.db_email_engagements_log` email
 
 
 
