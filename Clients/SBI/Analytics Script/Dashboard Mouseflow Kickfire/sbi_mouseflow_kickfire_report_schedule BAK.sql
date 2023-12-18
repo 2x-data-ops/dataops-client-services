@@ -4,13 +4,30 @@ WITH new_web_engagements AS (
     SELECT  
         DATE(_timestamp) AS _engagement_date,
         -- CONCAT(_name,"\n",_domain,"\n\n","Location:","\n",COALESCE(_location,"N/A"),"\n\n","Revenue:","\n",COALESCE(_revenue,"N/A"),"\n\n","Industry:","\n",COALESCE(_industry,"N/A"),"\n\n","General Phone:","\n",COALESCE(_phone,"N/A")) AS _company_information,
-        TIMESTAMP(DATETIME(_timestamp,'America/Chicago')) AS _timestamp,
+        -- TIMESTAMP(DATETIME(_timestamp,'America/Chicago')) AS _timestamp,
+        TIMESTAMP(DATETIME(_timestamp,'Asia/Kuala_Lumpur')) AS _timestamp,
         _name AS _companyname,
         _domain AS _companydomain,
-        COALESCE(_location,"N/A") AS _location,
-        COALESCE(_revenue,"N/A") AS _revenue,
-        COALESCE(_industry,"N/A") AS _industry,
-        COALESCE(_phone,"N/A") AS _phone,
+        CASE
+            WHEN _location = ''
+            THEN 'N/A'
+            ELSE COALESCE(_location,"N/A") 
+        END AS _location,
+        CASE
+            WHEN _revenue = ''
+            THEN 'N/A'
+            ELSE COALESCE(_revenue,"N/A") 
+        END AS _revenue,
+        CASE
+            WHEN _industry = ''
+            THEN 'N/A'
+            ELSE COALESCE(_industry,"N/A") 
+        END AS _industry,
+        CASE
+            WHEN _phone = ''
+            THEN 'N/A'
+            ELSE COALESCE(_phone,"N/A") 
+        END AS _phone,
         _webActivity AS _engagements,
         CURRENT_DATE('America/Chicago') AS extract_date,
         TIMESTAMP(CURRENT_DATETIME('Asia/Kuala_Lumpur')) AS run_date
@@ -251,7 +268,7 @@ FROM `x-marketing.sbi.web_engagement_new_snapshot`
 -- WHERE CAST(run_date AS DATE) = CURRENT_DATE('Asia/Kuala_Lumpur')-1
 WHERE
     -- _engagement_date = CURRENT_DATE('America/New_York')-1
-    _engagement_date = CURRENT_DATE('America/Chicago')
+    _engagement_date = CURRENT_DATE('America/Chicago')-1
 -- Exclude running on weekends
     AND EXTRACT(DAYOFWEEK FROM run_date) - 1 NOT IN (0, 6)
 -- Exclude running on public holidays
