@@ -153,6 +153,8 @@ UNION ALL
 SELECT * FROM click_email
 UNION ALL
 SELECT * FROM unsubscribe_email
+UNION ALL
+SELECT * FROM download_email
 )
 SELECT *
 FROM combined_engagement
