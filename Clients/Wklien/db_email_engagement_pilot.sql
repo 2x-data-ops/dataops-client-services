@@ -30,9 +30,9 @@ send_email AS (
       ROW_NUMBER() OVER (PARTITION BY activity.contactid, activity.campaignid
       ORDER BY activitydate DESC) AS rownum
     FROM `x-marketing.wklien_eloqua.activity_email_send` activity
-    WHERE
+    -- WHERE
     -- emaildeploymentid = '30124'
-    campaignid = '751'
+    -- campaignid = '751'
   )
   WHERE rownum = 1
 ),
@@ -51,9 +51,9 @@ open_email AS(
       ROW_NUMBER() OVER (PARTITION BY activity.contactid, activity.campaignid
       ORDER BY activitydate DESC) AS rownum
     FROM `x-marketing.wklien_eloqua.activity_email_open` activity
-    WHERE
+    -- WHERE
     -- emaildeploymentid = '30124'
-    campaignid = '751'
+    -- campaignid = '751'
   )
   WHERE rownum = 1
 ),
@@ -72,9 +72,9 @@ bounce_email AS (
       ROW_NUMBER() OVER (PARTITION BY activity.contactid, activity.campaignid
       ORDER BY activitydate DESC) AS rownum
     FROM `x-marketing.wklien_eloqua.activity_bounceback` activity
-    WHERE
+    -- WHERE
     -- emaildeploymentid = '30124'
-    campaignid = '751'
+    -- campaignid = '751'
   )
   WHERE rownum = 1
 ),
@@ -94,9 +94,9 @@ click_email AS (
       ROW_NUMBER() OVER (PARTITION BY activity.contactid, activity.campaignid
       ORDER BY activitydate DESC) AS rownum
     FROM `x-marketing.wklien_eloqua.activity_email_clickthrough` activity
-    WHERE
+    -- WHERE
     -- emaildeploymentid = '30124'
-    campaignid = '751'
+    -- campaignid = '751'
   )
   WHERE rownum = 1
 ),
@@ -115,11 +115,33 @@ unsubscribe_email AS(
       ROW_NUMBER() OVER (PARTITION BY activity.contactid, activity.campaignid
       ORDER BY activitydate DESC) AS rownum
     FROM `x-marketing.wklien_eloqua.activity_unsubscribe` activity
-    WHERE
+    -- WHERE
     -- emaildeploymentid = '30124'
-    campaignid = '751'
+    -- campaignid = '751'
   )
   WHERE rownum = 1
+),
+download_email AS(
+  SELECT * EXCEPT(rownum)
+  FROM (
+    SELECT 
+      '' AS subjectline,
+      campaignid,
+      campaignname,
+      REPLACE(REGEXP_EXTRACT(rawdata, r'emailAddress=([^&]+)'), '%40', '@') AS emailaddress,
+      contactid,
+      'Downloaded' AS engagement,
+      CAST(NULL AS STRING) AS emaildeploymentid,
+      activitydate,
+      ROW_NUMBER() OVER (PARTITION BY activity.contactid, activity.campaignid
+      ORDER BY activitydate DESC) AS rownum
+    FROM `x-marketing.wklien_eloqua.activity_form_submit` activity
+    -- WHERE
+    -- -- emaildeploymentid = '30124'
+    -- campaignid = '751'
+  )
+  WHERE rownum = 1
+
 ),
 combined_engagement AS (
 SELECT * FROM send_email
@@ -131,6 +153,8 @@ UNION ALL
 SELECT * FROM click_email
 UNION ALL
 SELECT * FROM unsubscribe_email
+UNION ALL
+SELECT * FROM download_email
 )
 SELECT *
 FROM combined_engagement
