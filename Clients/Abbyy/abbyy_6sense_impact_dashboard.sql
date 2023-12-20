@@ -1163,7 +1163,8 @@ intentsify_searched_topics AS (
 
         WHERE 
             side._sdc_deleted_at IS NULL
-
+        AND
+            _topics != '-'
     ),
 
     UNNEST(_topic_list) AS _topic
