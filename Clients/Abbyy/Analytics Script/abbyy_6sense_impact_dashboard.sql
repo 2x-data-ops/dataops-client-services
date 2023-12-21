@@ -50,7 +50,7 @@ sixsense_buying_stage_data AS (
         _6sensecompanyname,
         _6sensecountry,
         _6sensedomain,
-        CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account,
+        CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _account_key,
         '6sense' AS _data_source,
         _buyingstagestart AS _previous_stage,
         _buyingstageend AS _current_stage
@@ -141,7 +141,7 @@ intentsify_buying_stage_data AS (
         CAST(NULL AS STRING) AS _6sensecompanyname,
         CAST(NULL AS STRING) _6sensecountry,
         _account AS _6sensedomain,
-        CAST(NULL AS STRING) AS _country_account,
+        CAST(NULL AS STRING) AS _account_key,
         'Intentsify' AS _data_source,
         _buyerresearchstagelastweek AS _previous_stage,
         _buyerresearchstagethisweek	 AS _current_stage
@@ -238,7 +238,7 @@ WITH target_accounts AS (
 
             '6sense' AS _data_source,
 
-            CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account,
+            CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _account_key,
             
             -- Get the earliest date of appearance of each account
             ROW_NUMBER() OVER(
@@ -288,7 +288,7 @@ reached_related_info AS (
             OVER(
 
                 PARTITION BY 
-                    CONCAT(_6sensecountry, _6sensecompanyname) 
+                    CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain)
             
             )
             AS _first_impressions,
@@ -303,7 +303,7 @@ reached_related_info AS (
             ROW_NUMBER() OVER(
 
                 PARTITION BY 
-                    CONCAT(_6sensecountry, _6sensecompanyname) 
+                    CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) 
                 ORDER BY 
                     CASE 
                         WHEN _extractdate LIKE '%/%'
@@ -315,7 +315,7 @@ reached_related_info AS (
             )
             AS _rownum,
 
-            CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account
+            CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _account_key
 
         FROM 
             `abbyy_mysql.db_campaign_reached_account`
@@ -331,6 +331,7 @@ reached_related_info AS (
             )
 
     )
+
     WHERE 
         _rownum = 1
 
@@ -339,20 +340,47 @@ reached_related_info AS (
 -- Get the date when account first became a 6QA
 six_qa_related_info AS (
 
-    SELECT DISTINCT
+    SELECT
 
-        CASE 
-            WHEN _6qadate LIKE '%/%'
-            THEN PARSE_DATE('%m/%e/%Y', _6qadate)
-            ELSE PARSE_DATE('%F', _6qadate)
-        END 
-        AS _6qa_date,
+        * EXCEPT(_rownum)
 
-        true _is_6qa,
-        CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account
+    FROM (
 
-    FROM 
-        `abbyy_mysql.db_6qa_status`
+        SELECT DISTINCT
+
+            CASE 
+                WHEN _6qadate LIKE '%/%'
+                THEN PARSE_DATE('%m/%e/%Y', _6qadate)
+                ELSE PARSE_DATE('%F', _6qadate)
+            END 
+            AS _6qa_date,
+
+            true _is_6qa,
+
+            ROW_NUMBER() OVER(
+
+                PARTITION BY 
+                    CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) 
+                ORDER BY 
+                    CASE 
+                        WHEN _6qadate LIKE '%/%'
+                        THEN PARSE_DATE('%m/%e/%Y', _6qadate)
+                        ELSE PARSE_DATE('%F', _6qadate)
+                    END 
+                DESC
+
+            )
+            AS _rownum,
+
+            CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _account_key
+
+        FROM 
+            `abbyy_mysql.db_6qa_status`
+    
+    )
+
+    WHERE 
+        _rownum = 1
 
 ),
 
@@ -367,7 +395,7 @@ buying_stage_related_info AS (
         _current_stage_order,
         _movement,
         _activities_on AS _movement_date,
-        _country_account
+        _account_key
 
     FROM
         `abbyy.db_6sense_buying_stages_movement`
@@ -383,30 +411,27 @@ combined_data AS (
     SELECT DISTINCT 
 
         target.*, 
-        reached.* EXCEPT(_country_account),
-        six_qa.* EXCEPT(_country_account),
-        stage.* EXCEPT(_country_account)   
+        reached.* EXCEPT(_account_key),
+        six_qa.* EXCEPT(_account_key),
+        stage.* EXCEPT(_account_key)   
 
     FROM
         target_accounts AS target
 
     LEFT JOIN
         reached_related_info AS reached 
-    USING(
-        _country_account
-    )
+
+    USING (_account_key)
 
     LEFT JOIN
         six_qa_related_info AS six_qa 
-    USING(
-        _country_account
-    ) 
+    
+    USING (_account_key) 
 
     LEFT JOIN
         buying_stage_related_info AS stage
-    USING(
-        _country_account
-    ) 
+    
+    USING (_account_key) 
 
 )
 
@@ -567,7 +592,7 @@ old_engagement_data AS (
 
     SELECT
 
-        CONCAT(main._country, main._accountname) AS _country_account,
+        CONCAT(main._accountname, main._country, main._domain) AS _account_key,
 
         CASE 
             WHEN main._engagementdate LIKE '%/%'
@@ -610,7 +635,7 @@ new_reached_accounts_data AS (
 
     SELECT DISTINCT
         
-        CONCAT(main._6sensecountry, main._6sensecompanyname) AS _country_account,
+        CONCAT(main._6sensecompanyname, main._6sensecountry, main._6sensedomain) AS _account_key,
 
         CASE 
             WHEN main._latestimpression LIKE '%/%'
@@ -662,7 +687,7 @@ campaign_reached AS (
     -- For older data
     SELECT
 
-        _country_account,
+        _account_key,
         _engagementdate AS _timestamp,
         CONCAT(_campaign_type, ' Campaign Reached') AS _engagement,
         _campaign_type AS _channel, 
@@ -689,7 +714,7 @@ campaign_reached AS (
 
         SELECT DISTINCT 
 
-            _country_account,
+            _account_key,
             _latestimpression AS _timestamp,
             CONCAT(_campaign_type, ' Campaign Reached') AS _engagement,
             _campaign_type AS _channel, 
@@ -700,7 +725,7 @@ campaign_reached AS (
             LAG(_impressions) OVER(
 
                 PARTITION BY 
-                    _country_account, 
+                    _account_key, 
                     _campaign_name
                 ORDER BY 
                     _activities_on
@@ -724,7 +749,7 @@ ad_clicks AS (
     -- For older data
     SELECT
 
-        _country_account,
+        _account_key,
         _engagementdate AS _timestamp,
         CONCAT(_campaign_type, ' Ad Clicks') AS _engagement,
         _campaign_type AS _channel, 
@@ -749,7 +774,7 @@ ad_clicks AS (
 
         SELECT DISTINCT 
 
-            _country_account,
+            _account_key,
             _activities_on AS _timestamp,
             CONCAT(_campaign_type, ' Ad Clicks') AS _engagement,
             _campaign_type AS _channel, 
@@ -760,7 +785,7 @@ ad_clicks AS (
             LAG(_clicks) OVER(
 
                 PARTITION BY 
-                    _country_account, 
+                    _account_key, 
                     _campaign_name
                 ORDER BY 
                     _activities_on
@@ -792,7 +817,7 @@ influenced_form_fills AS (
 
         SELECT DISTINCT 
 
-            _country_account,
+            _account_key,
             _activities_on AS _timestamp,
             CONCAT(_campaign_type, ' Influenced Form Filled') AS _engagement,
             _campaign_type AS _channel, 
@@ -803,7 +828,7 @@ influenced_form_fills AS (
             LAG(_influencedformfills) OVER(
 
                 PARTITION BY 
-                    _country_account, 
+                    _account_key, 
                     _campaign_name
                 ORDER BY 
                     _activities_on
@@ -828,7 +853,7 @@ intent_engagements AS (
     -- For older data
     SELECT
 
-        _country_account,
+        _account_key,
         _engagementdate AS _timestamp,
         '6sense Searched Keywords' AS _engagement,
         '6sense' AS _channel,  
@@ -846,7 +871,12 @@ intent_engagements AS (
     -- For newer data
     SELECT
 
-        CONCAT(SPLIT(_companyinfo, ' - ')[ORDINAL(1)], _companyname) AS _country_account,
+        CONCAT(
+            _companyname, 
+            SPLIT(_companyinfo, ' - ')[ORDINAL(1)], 
+            TRIM(SPLIT(_companyinfo, ' -')[ORDINAL(2)])    
+        ) 
+        AS _account_key,
 
         CASE 
             WHEN _extractdate LIKE '%/%'
@@ -880,7 +910,7 @@ combined_data AS (
     SELECT DISTINCT 
 
         target_accounts.*,
-        activities.* EXCEPT(_country_account)
+        activities.* EXCEPT(_account_key)
         
     FROM (
 
@@ -897,7 +927,7 @@ combined_data AS (
     JOIN
         target_accounts
 
-    USING (_country_account)
+    USING (_account_key)
 
 ),
 
@@ -908,15 +938,15 @@ accumulated_engagement_values AS (
         *,
 
         -- The aggregated values
-        SUM(CASE WHEN _engagement = '6sense Campaign Reached' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6s_campaign_reached,
-        SUM(CASE WHEN _engagement = '6sense Ad Clicks' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6s_ad_clicks,
-        SUM(CASE WHEN _engagement = '6sense Influenced Form Filled' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6s_form_fills,  
-        SUM(CASE WHEN _engagement = 'LinkedIn Campaign Reached' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_campaign_reached,
-        SUM(CASE WHEN _engagement = 'LinkedIn Ad Clicks' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_ad_clicks,
-        SUM(CASE WHEN _engagement = 'LinkedIn Influenced Form Filled' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_form_fills,  
-        SUM(CASE WHEN _engagement = '6sense Searched Keywords' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6s_searched_keywords,
-        SUM(CASE WHEN _engagement = '6sense Website Visited' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6s_web_visits,
-        SUM(CASE WHEN _engagement = '6sense Bombora Topics' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6s_bombora_topics,
+        SUM(CASE WHEN _engagement = '6sense Campaign Reached' THEN _notes ELSE 0 END) OVER(PARTITION BY _account_key) AS _total_6s_campaign_reached,
+        SUM(CASE WHEN _engagement = '6sense Ad Clicks' THEN _notes ELSE 0 END) OVER(PARTITION BY _account_key) AS _total_6s_ad_clicks,
+        SUM(CASE WHEN _engagement = '6sense Influenced Form Filled' THEN _notes ELSE 0 END) OVER(PARTITION BY _account_key) AS _total_6s_form_fills,  
+        SUM(CASE WHEN _engagement = 'LinkedIn Campaign Reached' THEN _notes ELSE 0 END) OVER(PARTITION BY _account_key) AS _total_li_campaign_reached,
+        SUM(CASE WHEN _engagement = 'LinkedIn Ad Clicks' THEN _notes ELSE 0 END) OVER(PARTITION BY _account_key) AS _total_li_ad_clicks,
+        SUM(CASE WHEN _engagement = 'LinkedIn Influenced Form Filled' THEN _notes ELSE 0 END) OVER(PARTITION BY _account_key) AS _total_li_form_fills,  
+        SUM(CASE WHEN _engagement = '6sense Searched Keywords' THEN _notes ELSE 0 END) OVER(PARTITION BY _account_key) AS _total_6s_searched_keywords,
+        SUM(CASE WHEN _engagement = '6sense Website Visited' THEN _notes ELSE 0 END) OVER(PARTITION BY _account_key) AS _total_6s_web_visits,
+        SUM(CASE WHEN _engagement = '6sense Bombora Topics' THEN _notes ELSE 0 END) OVER(PARTITION BY _account_key) AS _total_6s_bombora_topics,
 
         -- Create total fields for Intentsify engagements
         CAST(NULL AS INT64) AS _total_int_campaign_reached,
@@ -1133,7 +1163,8 @@ intentsify_searched_topics AS (
 
         WHERE 
             side._sdc_deleted_at IS NULL
-
+        AND
+            _topics != '-'
     ),
 
     UNNEST(_topic_list) AS _topic
@@ -1810,6 +1841,459 @@ FROM
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
 
+
+-- 6sense Ad Performance
+
+CREATE OR REPLACE TABLE `abbyy.db_6sense_ad_performance` AS
+
+-- Get ads data
+WITH ads AS (
+    
+    SELECT
+        * EXCEPT(rownum)
+    FROM (
+
+        SELECT DISTINCT 
+
+            _campaignid,
+            _name AS _advariation,
+            _6senseid AS _adid,
+            CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64) AS _spend,
+            CAST(REPLACE(_clicks, ',', '') AS INTEGER) AS _clicks, 
+            CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions, 
+            PARSE_DATE('%m/%e/%Y', _date) AS _date,
+
+            ROW_NUMBER() OVER(
+                PARTITION BY _campaignid, _6senseid, _date
+                ORDER BY PARSE_DATE('%m/%e/%Y', _extractdate) DESC
+            )
+            AS rownum
+
+        FROM
+            `abbyy_mysql.db_daily_campaign_performance`
+        WHERE
+            _datatype = 'Ad'
+    
+    )
+    WHERE 
+        rownum = 1
+
+),
+
+-- Get campaign level fields
+campaign_fields AS (
+    
+    SELECT
+        * EXCEPT(_date, rownum)
+    FROM (
+
+        SELECT
+
+            _campaignid,
+            PARSE_DATE('%m/%e/%Y', _date) AS _date,
+            PARSE_DATE('%d-%h-%y', _startdate) AS _start_date,
+            _enddate AS _end_date,
+            _status AS _campaignstatus,
+            
+            CASE 
+                WHEN _accountsnewlyengagedlifetime = '-'
+                THEN 0
+                ELSE CAST(_accountsnewlyengagedlifetime AS INT64)
+            END 
+            AS _newly_engaged_accounts,
+
+            CASE 
+                WHEN _accountswithincreasedengagementlifetime = '-'
+                THEN 0
+                ELSE CAST(_accountswithincreasedengagementlifetime AS INT64)
+            END 
+            AS _increased_engagement_accounts,
+
+            ROW_NUMBER() OVER(
+                PARTITION BY _campaignid
+                ORDER BY PARSE_DATE('%m/%e/%Y', _date) DESC
+            ) 
+            AS rownum
+
+        FROM 
+            `abbyy_mysql.db_daily_campaign_performance`
+        WHERE
+            _datatype = 'Campaign'
+
+    )
+    WHERE 
+        rownum = 1
+
+),
+
+-- Get airtable data for 6sense
+airtable_fields AS (
+
+    SELECT 
+        * 
+    FROM (
+
+        SELECT DISTINCT 
+
+            _campaignid, 
+            _campaignname,
+            _campaigntype,  
+            _segmentname AS _segment
+
+        FROM
+            `abbyy_mysql.db_campaign_segment`
+        
+        WHERE 
+            _campaigntype != 'Intentsify'
+
+    ) main
+
+    LEFT JOIN (
+
+        SELECT DISTINCT 
+
+            _adscreenshot,
+            CAST(_advariationid__st AS STRING) AS _adid,
+            CAST(_campaignid AS STRING) AS _campaignid
+
+        FROM 
+            `abbyy_mysql.db_airtable_6sense_campaign` 
+
+    ) side
+
+    USING(_campaignid)
+
+),
+
+-- Combine 6sense ads data with Linkedin ads data
+combined_data AS (
+
+    SELECT
+
+        airtable_fields._campaignname,
+        airtable_fields._campaigntype,
+        campaign_fields._campaignstatus,
+        campaign_fields._start_date,
+        campaign_fields._end_date,
+        ads.*,
+        airtable_fields._adscreenshot,
+        campaign_fields._newly_engaged_accounts,
+        campaign_fields._increased_engagement_accounts
+
+    FROM 
+        ads
+
+    JOIN
+        airtable_fields 
+    ON (
+            ads._adid = airtable_fields._adid
+        AND 
+            ads._campaignid = airtable_fields._campaignid
+    )
+    OR (
+            airtable_fields._adid IS NULL
+        AND 
+            ads._campaignid = airtable_fields._campaignid
+    )
+
+    LEFT JOIN 
+        campaign_fields
+    ON 
+        ads._campaignid = campaign_fields._campaignid
+
+),
+
+-- Add campaign numbers to each ad
+campaign_numbers AS (
+
+    SELECT
+        *
+    FROM
+        combined_data 
+
+    -- Get accounts that are being targeted
+    JOIN (
+        
+        SELECT DISTINCT
+
+            _campaignid,
+            COUNT(*) AS _target_accounts
+
+        FROM (
+
+            SELECT DISTINCT 
+
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
+                main._segmentname,
+                side._campaignid
+
+            FROM 
+                `abbyy_mysql.db_target_account` main
+            
+            JOIN 
+                `abbyy_mysql.db_campaign_segment` side
+            
+            USING(_segmentname)
+
+        )
+        GROUP BY 
+            1
+
+    ) target
+
+    USING(_campaignid)
+
+    -- Get accounts that have been reached
+    JOIN (
+
+        SELECT DISTINCT
+
+            _campaignid,
+            COUNT(*) AS _reached_accounts
+
+        FROM (
+
+            SELECT DISTINCT 
+
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
+                main._segmentname,
+                side._campaignid
+
+            FROM 
+                `abbyy_mysql.db_target_account` main
+            
+            JOIN 
+                `abbyy_mysql.db_campaign_segment` side
+            
+            USING(_segmentname)
+
+            JOIN 
+                `abbyy_mysql.db_campaign_reached_account` extra
+
+            USING(
+                _6sensecompanyname,
+                _6sensecountry,
+                _6sensedomain,
+                _campaignid
+            )
+            
+        )
+        GROUP BY 
+            1
+
+    ) reach
+
+    USING(_campaignid)
+
+    -- Get accounts that have clicks
+    JOIN (
+
+        SELECT DISTINCT
+
+            _campaignid,
+            SUM(CASE WHEN _clicks > 0 THEN 1 ELSE 0 END) AS _clicked_accounts
+
+        FROM (
+
+            SELECT DISTINCT 
+
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
+                main._segmentname,
+                side._campaignid,
+                MAX(CAST(extra._clicks AS INT64)) AS _clicks
+
+            FROM 
+                `abbyy_mysql.db_target_account` main
+            
+            JOIN 
+                `abbyy_mysql.db_campaign_segment` side
+            
+            USING(_segmentname)
+
+            JOIN 
+                `abbyy_mysql.db_campaign_reached_account` extra
+
+            USING(
+                _6sensecompanyname,
+                _6sensecountry,
+                _6sensedomain,
+                _campaignid
+            )
+
+            GROUP BY 
+                1, 2, 3, 4, 5
+            
+        )
+        GROUP BY 
+            1
+
+    ) click
+
+    USING(_campaignid)
+
+    -- Get accounts that are 6QA
+    JOIN (
+
+        SELECT DISTINCT
+            _campaignid,
+            COUNT(*) AS _6qa_accounts
+        FROM (
+            
+            SELECT DISTINCT 
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
+                main._segmentname,
+                side._campaignid,
+
+            FROM 
+                `abbyy_mysql.db_target_account` main
+            
+            JOIN 
+                `abbyy_mysql.db_campaign_segment` side
+            
+            USING(_segmentname)
+
+            JOIN 
+                `abbyy_mysql.db_6qa_status` extra
+            
+            USING(
+                _6sensecompanyname,
+                _6sensecountry,
+                _6sensedomain
+            )
+
+        )
+        GROUP BY 
+            1
+
+    )
+
+    USING(_campaignid)
+
+),
+
+-- Get frequency of ad occurrence of each campaign
+total_ad_occurrence_per_campaign AS (
+
+    SELECT
+    
+        *,
+        
+        COUNT(*) OVER (
+            PARTITION BY _campaignid
+        ) 
+        AS _occurrence
+
+    FROM 
+        campaign_numbers
+
+),
+
+-- Reduced the campaign numbers by the occurrence
+reduced_campaign_numbers AS (
+
+    SELECT
+
+        *,
+        _newly_engaged_accounts / _occurrence AS _reduced_newly_engaged_accounts,
+        _increased_engagement_accounts / _occurrence AS _reduced_increased_engagement_accounts,
+        _target_accounts / _occurrence AS _reduced_target_accounts,
+        _reached_accounts / _occurrence AS _reduced_reached_accounts,
+        _clicked_accounts / _occurrence AS _reduced_clicked_accounts,
+        _6qa_accounts / _occurrence AS _reduced_6qa_accounts
+
+    FROM 
+        total_ad_occurrence_per_campaign
+
+)
+
+SELECT * FROM reduced_campaign_numbers;
+
+
+-------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+
+-- 6sense Account Performance
+
+CREATE OR REPLACE TABLE `abbyy.db_6sense_account_performance` AS
+
+-- Get all target accounts and their campaigns
+WITH target_accounts AS (
+
+    SELECT DISTINCT 
+
+        main._6sensecompanyname,
+        main._6sensecountry,
+        main._6sensedomain,
+        main._segmentname,
+        side._campaignid,
+        side._campaignname
+
+    FROM 
+        `abbyy_mysql.db_target_account` main
+    
+    JOIN 
+        `abbyy_mysql.db_campaign_segment` side
+    
+    USING(_segmentname)
+
+),
+
+-- Mark those target accounts that have been reached by their campaigns
+reached_accounts AS (
+
+    SELECT DISTINCT 
+
+        main.*,
+
+        CASE 
+            WHEN side._campaignid IS NOT NULL 
+            THEN true 
+        END 
+        AS _is_reached,
+
+        CASE 
+            WHEN CAST(REPLACE(side._clicks, ',', '') AS INTEGER) > 0 
+            THEN true 
+        END 
+        AS _has_clicks,
+
+        CASE 
+            WHEN CAST(REPLACE(side._impressions, ',', '') AS INTEGER) > 0 
+            THEN true 
+        END 
+        AS _has_impressions
+
+    FROM 
+        target_accounts AS main
+
+    LEFT JOIN 
+        `abbyy_mysql.db_campaign_reached_account` side 
+
+    USING(
+        _6sensecompanyname,
+        _6sensecountry,
+        _6sensedomain,
+        _campaignid
+    )
+
+)
+
+SELECT * FROM reached_accounts;
+
+
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+
 -- Create a separate table to store Intentsify's ad data 
 
 CREATE OR REPLACE TABLE `abbyy.db_intentsify_ad_performance` AS
@@ -2001,3 +2485,47 @@ add_airtable_fields AS (
 SELECT * FROM add_airtable_fields;
 
 
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+
+
+--CONTENT SYNDICATION--
+
+-- CREATE OR REPLACE TABLE `x-marketing.abbyy.db_content_synd` AS
+TRUNCATE TABLE `x-marketing.abbyy.db_content_synd`;
+INSERT INTO `x-marketing.abbyy.db_content_synd` (
+  _leadsby,
+  _value,
+  _label,
+  _date,
+  _campaign_id,
+  _campaign_name,
+  _campaign_type
+)
+WITH content_synd AS (
+  SELECT
+    _leadsby,
+    _value,
+    _campaignid AS _campaign_id,
+    _label,
+    _date
+  FROM `x-marketing.abbyy_mysql.db_its_content_synd`
+),
+campaign_segment AS (
+  SELECT 
+    _campaignid AS _campaign_id, 
+    _campaignname AS _campaign_name,
+    _campaigntype AS _campaign_type
+  FROM `x-marketing.abbyy_mysql.db_campaign_segment`
+)
+SELECT
+  _leadsby,
+  _value,
+  _label,
+  _date,
+  campaign_segment._campaign_id,
+  campaign_segment._campaign_name,
+  campaign_segment._campaign_type
+FROM content_synd
+LEFT JOIN campaign_segment USING(_campaign_id)
