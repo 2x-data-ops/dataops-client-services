@@ -15,7 +15,7 @@ WITH LI_ads AS (
         cost_in_usd AS _spent, 
         impressions AS _impressions, 
         clicks AS _clicks, 
-        external_website_conversions AS _conversions,
+        -- external_website_conversions AS _conversions,
         total_engagements AS _total_engagements,
         landing_page_clicks,
     FROM 
@@ -31,7 +31,6 @@ ads_title AS (
   FROM
     `ems_linkedin_ads.creatives` c
     LEFT JOIN `ems_linkedin_ads.video_ads` v ON content.reference  = v.content_reference 
-        
 ), 
 campaigns AS (
     SELECT 
@@ -67,11 +66,11 @@ airtable_ads AS (
             _sdc_table_version
         ) 
     FROM 
-        `x-marketing.ems_mysql.db_airtable_ads`
+        `x-marketing.ems_mysql.optimization_airtable_ads_linkedin`
 ),
 combine_all AS (
     SELECT 
-        airtable_ads.* EXCEPT(_adid), 
+        airtable_ads.* EXCEPT(_adid,_campaignname), 
         campaign_group._groupName, 
         campaign_group.status, 
         campaigns._campaignName, 
@@ -98,7 +97,8 @@ combine_all AS (
     JOIN 
         airtable_ads 
     ON 
-        LI_ads.creative_id = airtable_ads._adid
+        -- LI_ads.creative_id = airtable_ads._adid
+        CAST(LI_ads.creative_id AS STRING) = airtable_ads._adid
 ),
  total_ads AS (
     SELECT
