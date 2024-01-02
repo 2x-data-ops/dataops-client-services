@@ -161,6 +161,7 @@ FROM combined_engagement
 LEFT JOIN prospect_info
 ON prospect_info.prospectid = combined_engagement.contactid
 
+-- add relevant field
 
 
 
