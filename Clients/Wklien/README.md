@@ -9,7 +9,7 @@
   
 ![Alt text](image.png)
 
-## Script
+## Script - Email Engagement 
 - [Github](https://github.com/salmanmarizki/2x-dataops/blob/main/Clients/Wklien/db_email_engagement_pilot.sql)
 - Not yet scheduled (still testing)
 - Completed 
