@@ -99,7 +99,7 @@ sent_email AS (
   FROM(
     SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID,     
       activity.created_at AS _timestamp,
@@ -121,7 +121,7 @@ hardbounced_email AS (
   FROM(
       SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
@@ -142,7 +142,7 @@ softbounced_email AS (
   FROM(
       SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
@@ -168,7 +168,7 @@ opened_email AS (
   FROM(
       SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
@@ -189,7 +189,7 @@ clicked_email AS (
   FROM(
       SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(NULL AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
@@ -209,7 +209,7 @@ unsubscribed_email AS(
   FROM(
       SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
@@ -226,37 +226,6 @@ unsubscribed_email AS(
   WHERE _rownum = 1  
 ),
 delivered_email AS (
-  -- SELECT
-  --     origin._sdc_sequence,
-  --     origin._prospectID,
-  --     origin._email,
-  --     origin._campaignID,     
-  --     origin._timestamp,
-  --     'Delivered' AS _engagement,
-  --     origin._description,
-  --     origin._list_email_id
-  -- FROM sent_email origin
-  -- JOIN (
-  --   SELECT
-  --     sent_email._prospectID,
-  --     sent_email._campaignID,
-  --     sent_email._list_email_id
-  --   FROM
-  --     sent_email
-    
-  --   EXCEPT DISTINCT 
-
-  --   SELECT
-  --     allbounced_email._prospectID,
-  --     allbounced_email._campaignID,
-  --     allbounced_email._list_email_id
-  --   FROM
-  --     allbounced_email
-  -- ) scenario
-  -- ON origin._prospectID = scenario._prospectID
-  -- AND origin._campaignID = scenario._campaignID
-  -- AND origin._list_email_id = scenario._list_email_id
-
   SELECT
   sent._sdc_sequence,
   sent._prospectID,
