@@ -2,13 +2,13 @@ TRUNCATE TABLE `x-marketing.thunder.db_email_engagements_log`;
 
 INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   _sdc_sequence,
-  _prospectID,
-  _email,  
+  _prospectID, 
   _campaignID,
   _timestamp,
   _engagement,
   _description,
   _list_email_id,
+  _email,
   _name,
   _jobtitle,
   _website,
@@ -49,29 +49,61 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
 )
 --Getting prospect info details from prospect table--
 WITH prospect_info AS (
-  SELECT
-    CAST(id AS STRING) AS _prospectID,
-    prospect.email AS _email,
-    CONCAT(first_name, ' ', last_name) AS _name,
-    job_title AS _jobtitle,
-    website AS _website,
-    phone AS _phone,
-    INITCAP(company) AS _company,
-    annual_revenue AS _annualrevenue,
-    employees AS _employees,
-    INITCAP(industry) AS _industry,
-    city AS _city,
-    state AS _state,
-    country AS _country,
-    created_at AS _createddate,
-    updated_at AS _updateddate,
-    crm_contact_fid AS _crm_contact_fid,
-    crm_lead_fid AS _crm_lead_fid,
-
-  FROM `x-marketing.thunder_pardot.prospects` prospect
-
-  --should join with salesforce contact--
-  --later--
+  WITH prospect1 AS (
+    SELECT
+        CAST(id AS STRING) AS _prospectID,
+        prospect.email AS _email,
+        CONCAT(first_name, ' ', last_name) AS _name,
+        job_title AS _jobtitle,
+        website AS _website,
+        phone AS _phone,
+        INITCAP(company) AS _company,
+        annual_revenue AS _annualrevenue,
+        employees AS _employees,
+        INITCAP(industry) AS _industry,
+        city AS _city,
+        state AS _state,
+        country AS _country,
+        created_at AS _createddate,
+        updated_at AS _updateddate,
+        crm_contact_fid AS _crm_contact_fid,
+        crm_lead_fid AS _crm_lead_fid
+    FROM `x-marketing.thunder_pardot.prospects` prospect
+),
+prospect2 AS (
+    SELECT
+        _prospectid,
+        _email,
+        CONCAT(_firstname, ' ', _lastname) AS _name,
+        _jobtitle,
+        _website,
+        _phone,
+        INITCAP(_company) AS _company,
+        _annualrevenue,
+        _employees,
+        INITCAP(_industry) AS _industry,
+        _city,
+        _state,
+        _country,
+        PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', _createddate) AS _createddate,
+        PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', _updateddate) AS _updateddate,
+        _crmcontactfid AS _crm_contact_fid,
+        _crmleadfid AS _crm_lead_fid
+    FROM `thunder_mysql.db_thunder_pardot_prospect_list`
+),
+prospect_union AS (
+SELECT * FROM prospect1
+UNION ALL
+SELECT * FROM prospect2
+),
+distinct_prospect AS (
+SELECT *,
+    ROW_NUMBER() OVER(PARTITION BY _prospectID, _email) AS rownum
+FROM prospect_union
+)
+SELECT * EXCEPT (rownum)
+FROM distinct_prospect
+WHERE rownum = 1
 ),
 airtable_info AS (
   SELECT
@@ -100,7 +132,7 @@ sent_email AS (
     SELECT
       activity._sdc_sequence,
       CAST(activity.prospect_id AS STRING) AS _prospectID,
-      prospect.email AS _email,
+      -- prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID,     
       activity.created_at AS _timestamp,
       'Sent' AS _engagement,
@@ -122,7 +154,7 @@ hardbounced_email AS (
       SELECT
       activity._sdc_sequence,
       CAST(activity.prospect_id AS STRING) AS _prospectID,
-      prospect.email AS _email,
+      -- prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
       'Hard Bounced' AS _engagement,
@@ -143,7 +175,7 @@ softbounced_email AS (
       SELECT
       activity._sdc_sequence,
       CAST(activity.prospect_id AS STRING) AS _prospectID,
-      prospect.email AS _email,
+      -- prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
       'Soft Bounced' AS _engagement,
@@ -169,7 +201,7 @@ opened_email AS (
       SELECT
       activity._sdc_sequence,
       CAST(activity.prospect_id AS STRING) AS _prospectID,
-      prospect.email AS _email,
+      -- prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
       'Opened' AS _engagement,
@@ -190,7 +222,7 @@ clicked_email AS (
       SELECT
       activity._sdc_sequence,
       CAST(activity.prospect_id AS STRING) AS _prospectID,
-      prospect.email AS _email,
+      -- prospect.email AS _email,
       CAST(NULL AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
       'Clicked' AS _engagement,
@@ -210,7 +242,7 @@ unsubscribed_email AS(
       SELECT
       activity._sdc_sequence,
       CAST(activity.prospect_id AS STRING) AS _prospectID,
-      prospect.email AS _email,
+      -- prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
       'Unsubscribed' AS _engagement,
@@ -229,7 +261,7 @@ delivered_email AS (
   SELECT
   sent._sdc_sequence,
   sent._prospectID,
-  sent._email,
+  -- sent._email,
   sent._campaignID,
   sent._timestamp,
   'Delivered' AS _engagement,
@@ -272,7 +304,7 @@ campaign_info AS(
 --Combine prospect info left join with engagement together with campaign info---
 SELECT
   engagements.*,
-  prospect_info.* EXCEPT(_email, _prospectID),
+  prospect_info.* EXCEPT(_prospectID),
   campaign_info.* EXCEPT(_campaignID),
   airtable_info.* EXCEPT(_list_email_id)
 FROM engagements
