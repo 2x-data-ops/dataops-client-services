@@ -24,21 +24,30 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   _updateddate,
   _crm_contact_fid,
   _crm_lead_fid,
-  _utmcampaign
+  _utmcampaign,
+  _screenshot,
+  _assettitle,
+  -- _mql,
+  _subject,
+  -- _emailproof,
+  -- _whatwedo,
+  _lists,
+  _assettype,
+  -- _senddate,
+  -- _livedate,
+  _asseturl,
+  _emailname,
+  _contenttype,
+  _landingpage
+
   -- _contentTitle, 
   -- _utm_source,
-  -- _subject, 
-  -- _campaignSentDate, 
-  -- _screenshot, 
-  -- _landingPage,
   -- _classification,
-  -- _emailName,
   -- _seniority,
   -- _score,
   -- _batch
 )
 --Getting prospect info details from prospect table--
---No airtable at the moment--
 WITH prospect_info AS (
   SELECT
     CAST(id AS STRING) AS _prospectID,
@@ -64,12 +73,33 @@ WITH prospect_info AS (
   --should join with salesforce contact--
   --later--
 ),
+airtable_info AS (
+  SELECT
+     _screenshot,
+     _assettitle,
+    --  _mql,
+     _subject,
+    --  _airtableid,
+    --  _emailproof,
+    --  _whatwedo,
+    --  _campaignid,
+     _code AS _lists,
+     _emailid AS _list_email_id,
+     _assettype,
+    --  _senddate,
+     _livedate,
+     _asseturl,
+    --  _emailname,
+     _subscriptiontype AS _contenttype,
+     _landingpage
+  FROM thunder_mysql.db_airtable_email
+),
 sent_email AS (
   SELECT * EXCEPT(_rownum)
   FROM(
     SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID,     
       activity.created_at AS _timestamp,
@@ -91,7 +121,7 @@ hardbounced_email AS (
   FROM(
       SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
@@ -112,7 +142,7 @@ softbounced_email AS (
   FROM(
       SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
@@ -138,7 +168,7 @@ opened_email AS (
   FROM(
       SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
@@ -159,7 +189,7 @@ clicked_email AS (
   FROM(
       SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(NULL AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
@@ -179,7 +209,7 @@ unsubscribed_email AS(
   FROM(
       SELECT
       activity._sdc_sequence,
-      CAST(prospect.id AS STRING) AS _prospectID,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
       prospect.email AS _email,
       CAST(activity.campaign_id AS STRING) AS _campaignID, 
       activity.created_at AS _timestamp,
@@ -196,37 +226,6 @@ unsubscribed_email AS(
   WHERE _rownum = 1  
 ),
 delivered_email AS (
-  -- SELECT
-  --     origin._sdc_sequence,
-  --     origin._prospectID,
-  --     origin._email,
-  --     origin._campaignID,     
-  --     origin._timestamp,
-  --     'Delivered' AS _engagement,
-  --     origin._description,
-  --     origin._list_email_id
-  -- FROM sent_email origin
-  -- JOIN (
-  --   SELECT
-  --     sent_email._prospectID,
-  --     sent_email._campaignID,
-  --     sent_email._list_email_id
-  --   FROM
-  --     sent_email
-    
-  --   EXCEPT DISTINCT 
-
-  --   SELECT
-  --     allbounced_email._prospectID,
-  --     allbounced_email._campaignID,
-  --     allbounced_email._list_email_id
-  --   FROM
-  --     allbounced_email
-  -- ) scenario
-  -- ON origin._prospectID = scenario._prospectID
-  -- AND origin._campaignID = scenario._campaignID
-  -- AND origin._list_email_id = scenario._list_email_id
-
   SELECT
   sent._sdc_sequence,
   sent._prospectID,
@@ -274,13 +273,15 @@ campaign_info AS(
 SELECT
   engagements.*,
   prospect_info.* EXCEPT(_email, _prospectID),
-  campaign_info.* EXCEPT(_campaignID)
+  campaign_info.* EXCEPT(_campaignID),
+  airtable_info.* EXCEPT(_list_email_id)
 FROM engagements
 LEFT JOIN prospect_info
   ON engagements._prospectID = prospect_info._prospectID 
 LEFT JOIN campaign_info
-  ON engagements._campaignID = CAST(campaign_info._campaignID AS STRING);
-
+  ON engagements._campaignID = CAST(campaign_info._campaignID AS STRING)
+LEFT JOIN airtable_info
+  ON engagements._list_email_id = airtable_info._list_email_id;
 
 
 ---OPPS Combined With Email Engagement---
