@@ -201,7 +201,7 @@ SELECT * EXCEPT (rownum) FROM (
     LEFT JOIN `x-marketing.epam.db_country` c ON marketo.country = c.country
     LEFT JOIN `x-marketing.epam_mysql.epam_db_customfields_lead` l ON l._leadid = CAST(marketo.id AS STRING)
     WHERE 
-        marketo.email  NOT LIKE '%@2x.marketing%' AND marketo.email NOT LIKE '%2X%' AND marketo.email NOT LIKE '%@epam.com' AND marketo.email NOT LIKE 'skylarulry@yahoo.com' AND marketo.email NOT LIKE '%test%' AND marketo.email <> 'sonam.gupta@capgemini.com' AND LOWER(company) <> 'Endava'
+        marketo.email  NOT LIKE '%@2x.marketing%' AND marketo.email NOT LIKE '%2X%' AND marketo.email NOT LIKE '%@epam.com' AND marketo.email NOT LIKE 'skylarulry@yahoo.com' AND marketo.email NOT LIKE '%test%' AND marketo.email <> 'sonam.gupta@capgemini.com'
         AND (emailinvalid IS FALSE OR unsubscribed IS FALSE)
         )
         WHERE rownum = 1
