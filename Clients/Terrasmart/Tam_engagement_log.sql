@@ -100,7 +100,8 @@ WITH
   contacts AS (
     SELECT 
       * EXCEPT( _rownum, _country),
-      CASE WHEN LOWER(_country) IN ('us',  'usa', 'united states', 'united states of america') THEN 'US' ELSE _country END AS _country
+      CASE WHEN LOWER(_country) IN ('us',  'usa', 'united states', 'united states of america') THEN 'US' ELSE _country END AS _country,
+      sfcontact.accountid  AS _sfdcaccountid,
     FROM (
       SELECT 
           id AS _id,
@@ -176,16 +177,21 @@ WITH
           "" AS _persona,
           "" AS _lifecycleStage,
           created_at AS _createddate,
-          CAST(NULL AS STRING) AS _sfdcaccountid,
-          CAST(NULL AS STRING) AS _sfdccontactid,
-          CAST(NULL AS STRING) AS _sfdcleadid,
-          ROW_NUMBER() OVER( PARTITION BY email ORDER BY updated_at DESC) AS _rownum,
+          crm_contact_fid AS _sfdccontactid,
+          crm_lead_fid AS _sfdcleadid,
+          CASE 
+          WHEN crm_contact_fid IS NOT NULL THEN "Contact"
+          WHEN crm_contact_fid IS NULL THEN "Lead"
+        END AS _contact_type,
+          COALESCE(crm_contact_fid, crm_lead_fid) AS _leadorcontactid,
+          ROW_NUMBER() OVER( PARTITION BY email ORDER BY _sdc_received_at DESC) AS _rownum,
         FROM 
           `x-marketing.terrasmart_pardot.prospects` 
         WHERE 
-          email IS NOT NULL 
-          AND email NOT LIKE '%2x.marketing%'
-        )
+         NOT REGEXP_CONTAINS(email, 'terrasmart|2x.marketing') 
+        ) main
+        LEFT JOIN
+    (SELECT id, accountid FROM terrasmart_salesforce.Contact) sfcontact ON (sfcontact.id = main._leadorcontactid AND main._contact_type = 'Contact')
     WHERE 
       _rownum = 1
   )
@@ -210,6 +216,8 @@ SELECT
   _sfdcaccountid,
   _sfdccontactid,
   _sfdcleadid,
+  _leadorcontactid,
+  _contact_type,
   _country,
   -- To be enabled when the airtable is updated > update the values accordingly 
   /* IF(
