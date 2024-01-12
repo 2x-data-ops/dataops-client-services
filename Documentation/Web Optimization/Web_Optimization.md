@@ -15,7 +15,7 @@ To increase website ability to generate additional engagement via improved user 
 
 # ERD Process
 
-![Untitled](Web%20Optimization%20ff1a81314e52479395f4f82757a32460/Untitled.png)
+![Untitled](Web%20Optimization%20Images/Untitled.png)
 
 # Data Dictionary
 
