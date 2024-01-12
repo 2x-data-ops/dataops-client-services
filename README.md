@@ -1,5 +1,12 @@
 # 2x-dataops
-Centralized Repository
+
+### 👋 Hello welcome to 2X - Data Ops **Centralized Repository** 👋
+`Here we store all kinds of scripts and documentations for convenience and transparency. Feel free to browse our directories to find what you seek for 👀`
+
+## 🗂️ Directories
+### 📁 - [Clients](Clients)
+### 📄 - [Documentations](Documentation)
+
 
 ## Clients List
 - [3x](https://github.com/salmanmarizki/2x-dataops/tree/f3defaee4e51d1688b4bfed0b28b904e140f15de/Clients/3x)
