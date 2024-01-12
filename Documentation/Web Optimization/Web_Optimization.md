@@ -13,9 +13,9 @@ To increase website ability to generate additional engagement via improved user 
 
 [Dashboard Link](https://lookerstudio.google.com/reporting/8b18471d-3d49-417b-b357-7de99444f68b)
 
-# ERD Process
+# Data Flow
 
-![Untitled](Web%20Optimization%20Images/Untitled.png)
+![Data Flow](image1.png)
 
 # Data Dictionary
 
