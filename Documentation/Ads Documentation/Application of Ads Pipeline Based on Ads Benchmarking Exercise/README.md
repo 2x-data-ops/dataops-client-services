@@ -8,11 +8,11 @@
 
 ### How the data gathered?
 
-![Untitled](Campaign%20Benchmarking%20Exercise%203572e2f50465495ca5d034447fe3f470/Untitled.png)
+![Untitled](Campaign%20Benchmarking%20Exercise/Untitled.png)
 
 ### Summary of data extracted via Big Query
 
-![Untitled](Campaign%20Benchmarking%20Exercise%203572e2f50465495ca5d034447fe3f470/Untitled%201.png)
+![Untitled](Campaign%20Benchmarking%20Exercise/Untitled%201.png)
 
 ### Data Dictionary
 
@@ -44,7 +44,7 @@
 
 https://docs.google.com/presentation/d/1YPDxa90pUb9sXvkILzFGGpg7F0S_4BwE3ImPHGAPJnY/edit?usp=sharing
 
-![Untitled](Campaign%20Benchmarking%20Exercise%203572e2f50465495ca5d034447fe3f470/Untitled%202.png)
+![Untitled](Campaign%20Benchmarking%20Exercise/Untitled%202.png)
 
 ### Expected Questions
 
