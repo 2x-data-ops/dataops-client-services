@@ -5,7 +5,7 @@
 
 ## 🗂️ Directories
 ### 📁 - [Clients](Clients)
-- [3x](https://github.com/salmanmarizki/2x-dataops/tree/f3defaee4e51d1688b4bfed0b28b904e140f15de/Clients/3x)
+- [3x](Clients/3x)
 - [Abby](https://github.com/salmanmarizki/2x-dataops/tree/f3defaee4e51d1688b4bfed0b28b904e140f15de/Clients/Abbyy)
 - [Agiloft](https://github.com/salmanmarizki/2x-dataops/tree/main/Clients/Agiloft/Normalization%20Script)
 - [Assent](https://github.com/salmanmarizki/2x-dataops/tree/main/Clients/Assent)
@@ -25,7 +25,7 @@
 - [Syniti](https://github.com/salmanmarizki/2x-dataops/tree/f3defaee4e51d1688b4bfed0b28b904e140f15de/Clients/Syniti)
 - [Terrasmart](https://github.com/salmanmarizki/2x-dataops/tree/main/Clients/Terrasmart)
 - [Thelogicfactory](https://github.com/salmanmarizki/2x-dataops/tree/f3defaee4e51d1688b4bfed0b28b904e140f15de/Clients/Thelogicfactory)
-- [Thunder](https://github.com/salmanmarizki/2x-dataops/tree/f3defaee4e51d1688b4bfed0b28b904e140f15de/Clients/Thunder)
+- [Thunder](Clients/Thunder)
 - [Wklien](https://github.com/salmanmarizki/2x-dataops/tree/f3defaee4e51d1688b4bfed0b28b904e140f15de/Clients/Wklien)
 
 ### 📄 - [Documentations](Documentation)
