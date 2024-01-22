@@ -2,10 +2,9 @@ CREATE
 OR
 REPLACE
 TABLE
-    'syniti.db_6sense_account_current_state' AS
+    `syniti.db_6sense_account_current_state` AS
 WITH target_accounts AS (
-        SELECT DISTINCT
-            main.*
+        SELECT DISTINCT *
 
         FROM (
                 SELECT DISTINCT
@@ -23,10 +22,9 @@ WITH target_accounts AS (
 
                     CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account
                 FROM
-                    `syniti_mysql.db_target_account`
+                    `syniti_mysql.syniti_db_target_accounts` 
             )
-        WHERE
-            _rownum = 1
+
     ),
     reached_related_info AS (
         SELECT *
@@ -41,7 +39,7 @@ WITH target_accounts AS (
                     ) OVER (
                         PARTITION BY CONCAT(
                             _6sensecompanyname,
-                            _6sensecountry,
+                            _6sensecountry
                         )
                     ) AS _first_impressions,
                     CASE
@@ -51,8 +49,7 @@ WITH target_accounts AS (
                     ROW_NUMBER() OVER (
                         PARTITION BY CONCAT(
                             _6sensecompanyname,
-                            _6sensecountry,
-                            _6sensedomain
+                            _6sensecountry
                         )
                         ORDER BY
                             CASE
@@ -62,10 +59,10 @@ WITH target_accounts AS (
                     ) AS _rownum,
                     CONCAT(
                         _6sensecompanyname,
-                        _6sensecountry,
+                        _6sensecountry
                     ) AS _country_account
         FROM
-            `syniti_mysql.db_campaign_reached_account`
+            `syniti_mysql.syniti_db_campaign_reached_accounts`
         )
     WHERE _rownum = 1
 ),
@@ -81,9 +78,9 @@ six_qa_related_info AS (
         SELECT DISTINCT
 
             CASE 
-                WHEN _6qadate LIKE '%/%'
-                THEN PARSE_DATE('%m/%e/%Y', _6qadate)
-                ELSE PARSE_DATE('%F', _6qadate)
+                WHEN _extractdate LIKE '%/%'
+                THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                ELSE PARSE_DATE('%F', _extractdate)
             END 
             AS _6qa_date,
 
@@ -92,22 +89,22 @@ six_qa_related_info AS (
             ROW_NUMBER() OVER(
 
                 PARTITION BY 
-                    CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) 
+                    CONCAT(_6sensecompanyname, _6sensecountry) 
                 ORDER BY 
                     CASE 
-                        WHEN _6qadate LIKE '%/%'
-                        THEN PARSE_DATE('%m/%e/%Y', _6qadate)
-                        ELSE PARSE_DATE('%F', _6qadate)
+                        WHEN _extractdate LIKE '%/%'
+                        THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                        ELSE PARSE_DATE('%F', _extractdate)
                     END 
                 DESC
 
             )
             AS _rownum,
 
-            CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _account_key
+            CONCAT(_6sensecompanyname, _6sensecountry) AS _country_account
 
         FROM 
-            `abbyy_mysql.db_6qa_status`
+            `syniti_mysql.syniti_db_6qa_accounts_list`
     
     )
 
@@ -126,10 +123,10 @@ buying_stage_related_info AS (
 
         SELECT DISTINCT
 
-            _prev_stage,
-            _prev_order,
+            _previous_stage,
+            _previous_stage_order,
             _current_stage,
-            _curr_order,
+            _current_stage_order,
             _movement,
             _activities_on AS _movement_date,
             _country_account,

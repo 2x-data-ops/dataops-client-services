@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE `syniti.db_6sense_ad_performance` AS
+-- CREATE OR REPLACE TABLE `syniti.db_6sense_ad_performance` AS
 
 WITH ads AS (
 SELECT *
@@ -8,10 +8,10 @@ SELECT *
             _campaignid AS _campaign_id,
             _name AS _advariation,
             _6senseid AS _adid,
-            CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64
+            SAFE_CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64
                 ) AS _spend,
-            CAST(REPLACE(_clicks, ',', '') AS INTEGER) AS _clicks,
-            CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
+            SAFE_CAST(REPLACE(_clicks, ',', '') AS INTEGER) AS _clicks,
+            SAFE_CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
             CASE 
                         WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _extractdate)
                         WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
@@ -72,14 +72,14 @@ campaign_fields AS (
             CASE 
                 WHEN _accountsnewlyengagedlifetime = '-'
                 THEN 0
-                ELSE CAST(_accountsnewlyengagedlifetime AS INT64)
+                ELSE SAFE_CAST(_accountsnewlyengagedlifetime AS INT64)
             END 
             AS _newly_engaged_accounts,
 
             CASE 
                 WHEN _accountswithincreasedengagementlifetime = '-'
                 THEN 0
-                ELSE CAST(_accountswithincreasedengagementlifetime AS INT64)
+                ELSE SAFE_CAST(_accountswithincreasedengagementlifetime AS INT64)
             END 
             AS _increased_engagement_accounts,
 
@@ -234,51 +234,51 @@ campaign_numbers AS (
 
     USING(_campaign_id)
 
-    -- Get accounts that are 6QA
-    LEFT JOIN (
+    -- -- Get accounts that are 6QA
+    -- LEFT JOIN (
 
-        SELECT DISTINCT
+    --     SELECT DISTINCT
 
-            _campaignid AS _campaign_id,
-            COUNT(*) AS _6qa_accounts
+    --         _campaignid AS _campaign_id,
+    --         COUNT(*) AS _6qa_accounts
         
-        FROM (
+    --     FROM (
             
-            SELECT DISTINCT 
-                main._6sensecompanyname,
-                main._6sensecountry,
-                main._6sensedomain,
-                main._segmentname,
-                side._campaignid,
+    --         SELECT DISTINCT 
+    --             main._6sensecompanyname,
+    --             main._6sensecountry,
+    --             main._6sensedomain,
+    --             main._segmentname,
+    --             side._campaignid,
 
-            FROM 
-                `syniti_mysql.syniti_db_target_accounts` main
+    --         FROM 
+    --             `syniti_mysql.syniti_db_target_accounts` main
             
-            JOIN 
-                `syniti_mysql.syniti_optimization_airtable_ads_6sense` side
+    --         JOIN 
+    --             `syniti_mysql.syniti_optimization_airtable_ads_6sense` side
             
-            ON 
-                main._segmentname = side._segment
+    --         ON 
+    --             main._segmentname = side._segment
 
-            -- JOIN 
-            --     `syniti.db_6sense_account_current_state` extra
+    --         JOIN 
+    --             `syniti.db_6sense_account_current_state` extra
             
-            -- USING(
-            --     _6sensecompanyname,
-            --     _6sensecountry,
-            --     _6sensedomain
-            -- )
+    --         USING(
+    --             _6sensecompanyname,
+    --             _6sensecountry,
+    --             _6sensedomain
+    --         )
 
-            -- WHERE 
-            --     extra._6qa_date IS NOT NULL
+    --         WHERE 
+    --             extra._6qa_date IS NOT NULL
 
-        )
-        GROUP BY 
-            1
+    --     )
+    --     GROUP BY 
+    --         1
 
-    )
+    -- )
 
-    USING(_campaign_id)
+    -- USING(_campaign_id)
 
 ),
 
@@ -309,7 +309,7 @@ reduced_campaign_numbers AS (
         _increased_engagement_accounts / _occurrence AS _reduced_increased_engagement_accounts,
         _target_accounts / _occurrence AS _reduced_target_accounts,
         _reached_accounts / _occurrence AS _reduced_reached_accounts,
-        _6qa_accounts / _occurrence AS _reduced_6qa_accounts
+        -- _6qa_accounts / _occurrence AS _reduced_6qa_accounts
 
     FROM 
         total_ad_occurrence_per_campaign
