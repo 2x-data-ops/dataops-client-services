@@ -206,7 +206,7 @@ CREATE OR REPLACE TABLE thunder.db_sf_campaign_leads_contacts_opps AS
 WITH sf_campaign_members AS (
 SELECT
   campaign_name,
-  campaign_id
+  campaign_id,
   created_date,
   first_responded_date,
   lead_or_contact_id
