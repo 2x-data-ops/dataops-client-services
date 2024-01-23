@@ -5,9 +5,9 @@ DECLARE date_ranges ARRAY<STRUCT<max_date DATE, min_date DATE>>;
 SET date_ranges = ARRAY(
   SELECT AS STRUCT
     DATE_SUB(_date, INTERVAL 1 DAY)  AS max_date, DATE_SUB(_date, INTERVAL 1 MONTH) AS min_date
-  FROM 
-    UNNEST(GENERATE_DATE_ARRAY('2022-01-01',CURRENT_DATE(), INTERVAL 1 MONTH)) AS _date 
-  ORDER BY 
+  FROM
+    UNNEST(GENERATE_DATE_ARRAY('2022-01-01',DATE_ADD(CURRENT_DATE(), INTERVAL 1 MONTH), INTERVAL 1 MONTH)) AS _date
+  ORDER BY
     1 DESC
 );
 
@@ -24,7 +24,13 @@ LOOP
 
     INSERT INTO  `terrasmart.account_90days_score` 
 WITH all_accounts AS (
-        SELECT DISTINCT _domain FROM `terrasmart.db_consolidated_engagements_log` WHERE _domain IS NOT NULL
+         SELECT _domain, _ebos, _utilityprojects, _tracker, _linkedinurl, _canopy, _prospect, _fixedtilt, _account, _persona, _rep, _midwest ,"Key Account" AS _account_segment
+        FROM `x-marketing.terrasmart_mysql.db_key_accounts`
+        WHERE _linkedinurl <> 'www.linkedin.com/company/centrica-business-solutions/'
+        UNION DISTINCT 
+        SELECT _domain, _ebos, _utilityprojects, _tracker, _acc_linkedinurl, _canopy, _prospect, _fixedtilt, _account, _acc_persona, _rep, _midwest ,"Other Account"  AS _account_segment
+        FROM `terrasmart.db_consolidated_engagements_log` 
+        WHERE _domain NOT IN (SELECT DISTINCT _domain FROM `x-marketing.terrasmart_mysql.db_key_accounts`)
 )
 , quarterly_contact_engagement AS (
   SELECT 
@@ -322,7 +328,7 @@ CASE WHEN    (
 
           #form filled
           (CASE --- 1 additional 
-              WHEN _distinct_contactus_form >= 1 THEN 15
+              WHEN _distinct_contactus_form >= 1 THEN _distinct_contactus_form*15
               ELSE 0
           END) AS _form_filled_score
 
@@ -349,6 +355,7 @@ CASE WHEN    (
  )
  ,final_scoring AS (
    SELECT all_accounts._domain,
+   _ebos, _utilityprojects, _tracker, _linkedinurl, _canopy, _prospect, _fixedtilt, _account, _persona, _rep, _midwest ,_account_segment,
  COALESCE(_distinct_email_delivered, 0 ) AS _distinct_email_delivered,
  COALESCE(_distinct_email_open, 0 ) AS _distinct_email_open,
  COALESCE(_distinct_email_click, 0 ) AS _distinct_email_click,

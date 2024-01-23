@@ -202,7 +202,25 @@ FROM  quarterly_contact_scoring
           --(NOT REGEXP_CONTAINS(LOWER(_utmsource), '6sense|linkedin|google|email') OR _utmsource IS NULL)
           --AND (NOT REGEXP_CONTAINS(_utmmedium, 'cpc|social') OR _utmmedium IS NULL)
           --AND 
-          NOT REGEXP_CONTAINS(LOWER(_page), 'unsubscribe|career')
+        (NOT REGEXP_CONTAINS(LOWER(_page), 'unsubscribe|career')
+        OR 
+        NOT REGEXP_CONTAINS(LOWER(_page), '/privacy-statement/')
+        OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/careers/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/careers/#jobs-section') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/about-us/faces-of-tlf/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-herbert-van-der-meij/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-claudia-mulder/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-avani-v-prajapati/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-wouter/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-darshan-panchal/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-dhrumandaxini/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-jess-ulan/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-luke-retout/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-malou-de-koning/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-nirav-parikh/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-prasat-mathawan/') OR
+        NOT REGEXP_CONTAINS(LOWER(_page), '/faces-of-tlf-rahul-dolia/"') )
         ORDER BY
           _timestamp DESC, _totalsessionviews DESC
 ) SELECT

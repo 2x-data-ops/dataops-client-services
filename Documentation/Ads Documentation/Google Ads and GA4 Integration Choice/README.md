@@ -16,7 +16,7 @@ More on Google Analytics: [Click Here](https://2xmarketing.sharepoint.com/:p:/s/
 
 ### **Differentiation in data flow**
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled.png)
 
 ### Direct Connection vs Stitch Integration
 
@@ -32,11 +32,11 @@ More on Google Analytics: [Click Here](https://2xmarketing.sharepoint.com/:p:/s/
 | <li> Google SEM (Search) Campaign </li> <li> Google Display Campaign </li> <li> Google Search Keyword </li> <li> Google Display Keyword </li> <li> Google Ads Variation Search </li> <li> Google Ads Variation Display </li> <li> Google Video Performance </li> <li> Google Search Query | Report Type | <li> Google SEM (Search) Campaign </li> <li> Google Display Campaign </li> <li> Google Search Keyword </li> <li> Google Ads Variation Search </li> <li> Google Video Performance </li> <li> Google Search Query <ul> |
 | Available performance report for all ads, campaign and ad group level | Google Display performance report | Only available for campaign and ad group level |
 
-![Direct Connection](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%201.png)
+![Direct Connection](Google%20Ads%20and%20Google%20Analytics%204/Untitled%201.png)
 
 Direct Connection
 
-![Stitch Integration to BigQuery](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%202.png)
+![Stitch Integration to BigQuery](Google%20Ads%20and%20Google%20Analytics%204/Untitled%202.png)
 
 Stitch Integration to BigQuery
 
@@ -82,9 +82,9 @@ Choice 2: Stitch Integration to BigQuery
 
 ### Differentiation in data flow
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%203.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%203.png)
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%204.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%204.png)
 
 ### Choice 1: GA4 Direct Connection
 
@@ -92,12 +92,12 @@ Choice 2: Stitch Integration to BigQuery
 
 1. Template from Google is available (Cover on Summary & Trends, Device Category, Top Traffic Sources, Events & Landing Pages, Conversions & Top Pages and eCommerce)
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%205.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%205.png)
 
 1. The result and outcome was directly from GA4
 2. Data freshness is on 12 hours interval (it can be customized)
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%206.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%206.png)
 
 1. Does not consume credit or additional cost
 
@@ -105,15 +105,15 @@ Choice 2: Stitch Integration to BigQuery
 
 1. Having a quota error issue especially when having too many charts at one data source
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%207.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%207.png)
 
 2. The daily token limit is set at 25,000. Therefore, making too many requests or accessing the system simultaneously may exceed this limit, resulting in quota errors
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%208.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%208.png)
 
 3. If GA4 does not display the data or if there is a discrepancy, it will also impact the direct connection in the dashboard. In such cases, please contact your campaign team for assistance
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%209.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%209.png)
 
 ### GA4 Stitch Integration
 
@@ -121,17 +121,17 @@ Choice 2: Stitch Integration to BigQuery
 
 1. The historical data being store in tabulated
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%2010.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%2010.png)
 
 2. Can integrate the custom report based on GA4
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%2011.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%2011.png)
 
 **Con(s)**
 
 1. Can only select up to 10 metrics and 9 dimensions per report. Hence only simple report may be works
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%2012.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%2012.png)
 
 2. Metric and dimension combinations are subject to Google’s compatibility rules
 
@@ -139,11 +139,11 @@ Refer this link to check the compatibility rules: [ga-dev-tools.google/ga4/dimen
 
 3. Only 1 account per integration is allowed
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%2013.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%2013.png)
 
 4. There tends to be a daily quota limit, which can result in delays in updating the data
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%2014.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%2014.png)
 
 ### GA4 Big Query Integration
 
@@ -151,7 +151,7 @@ Refer this link to check the compatibility rules: [ga-dev-tools.google/ga4/dimen
 
 1. Can retrieved the daily performance data (but minus 1 day)
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%2015.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%2015.png)
 
 2. Consume less credit compared to Stitch integration
 3. Suitable to be used if you want to obtain extended information by joining with other CRM tools such as Salesforce
@@ -160,11 +160,11 @@ Refer this link to check the compatibility rules: [ga-dev-tools.google/ga4/dimen
 
 1. The historical data is only available from the day it is integrated. Integration requires admin access from the super admin account in Big Query. The Data Ops manager needs access to the client's Google Analytics account for integration
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%2016.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%2016.png)
 
 2. Naming convention issue
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%2017.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%2017.png)
 
 ### Recommendation
 
@@ -173,7 +173,7 @@ Refer this link to check the compatibility rules: [ga-dev-tools.google/ga4/dimen
 | If want to create an overview dashboard for GA4 including (Summary, Device Category, Top Traffic Sources, Events & Landing Pages, Conversions & Top Pages, eCommerce etc.) | Direct Connection |
 | If want to create a detail dashboard via connection with CRM | Big Query Integration |
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%2018.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%2018.png)
 
 ### Dashboard Example
 
@@ -198,4 +198,4 @@ Refer this link to check the compatibility rules: [ga-dev-tools.google/ga4/dimen
 
 The End!
 
-![Untitled](Google%20Ads%20and%20Google%20Analytics%204%20421f0e376c2644b1a0db90d1b199b570/Untitled%2019.png)
+![Untitled](Google%20Ads%20and%20Google%20Analytics%204/Untitled%2019.png)
