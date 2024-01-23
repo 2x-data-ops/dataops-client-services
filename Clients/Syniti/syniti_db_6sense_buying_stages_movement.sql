@@ -45,9 +45,8 @@ WITH sixsense_stage_order AS (
             _6sensedomain,
             CONCAT(
                 _6sensecompanyname,
-                _6sensecountry,
-                _6sensedomain
-            ) AS _account_key,
+                _6sensecountry
+            ) AS _country_account,
             '6sense' AS _data_source,
             _buyingstagestart AS _previous_stage,
             _buyingstageend AS _current_stage
@@ -70,6 +69,3 @@ WITH sixsense_stage_order AS (
 SELECT *
 FROM
     latest_sixsense_buying_stage_with_order_and_movement;
-
----6sense Account Current State
-
