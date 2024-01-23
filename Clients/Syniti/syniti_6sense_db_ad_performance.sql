@@ -1,4 +1,4 @@
--- CREATE OR REPLACE TABLE `syniti.db_6sense_ad_performance` AS
+CREATE OR REPLACE TABLE `syniti.db_6sense_ad_performance` AS
 
 WITH ads AS (
 SELECT *
@@ -8,10 +8,10 @@ SELECT *
             _campaignid AS _campaign_id,
             _name AS _advariation,
             _6senseid AS _adid,
-            SAFE_CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64
+            CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64
                 ) AS _spend,
-            SAFE_CAST(REPLACE(_clicks, ',', '') AS INTEGER) AS _clicks,
-            SAFE_CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
+            CAST(REPLACE(_clicks, '.0', '') AS INTEGER) AS _clicks,
+            CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
             CASE 
                         WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _extractdate)
                         WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
@@ -316,8 +316,4 @@ reduced_campaign_numbers AS (
 
 )
 
-SELECT * FROM reduced_campaign_numbers;
-
-
-
-    
+SELECT * FROM reduced_campaign_numbers
