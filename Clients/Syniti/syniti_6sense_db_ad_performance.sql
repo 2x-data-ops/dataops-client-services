@@ -13,19 +13,19 @@ SELECT *
             CAST(REPLACE(_clicks, '.0', '') AS INTEGER) AS _clicks,
             CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
             CASE 
-                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _extractdate)
-                        WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
-                    END AS _extractdate,
+                        WHEN _date LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _date)
+                        WHEN _date LIKE '%-%' THEN PARSE_DATE('%F', _date)
+                    END AS _date,
             ROW_NUMBER() OVER (
                     PARTITION BY _campaignid,
                     _6senseid,
-                    _extractdate
+                    _date
                     ORDER BY CASE 
                         WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _extractdate)
                         WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
                     END
                 ) AS _rownum
-        FROM `syniti_mysql.syniti_db_campaign_performance`
+        FROM `syniti_mysql.syniti_db_daily_campaign_performance`
         WHERE _datatype = 'Ad'
     )
     WHERE _rownum = 1
