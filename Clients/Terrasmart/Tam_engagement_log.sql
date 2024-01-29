@@ -234,9 +234,3 @@ FROM
 /* LEFT JOIN
   suppressed_industry USING(_industry) */
 ;
-  
-
-
-
-
-
