@@ -114,6 +114,7 @@ WITH
       _leadsource,
       _lost_reason,
       _current_stage_change_date	 AS _last_stage_change_date,
+      _last_stage_change_date AS _last_stage_change_dates,
       _previousStage   AS _previous_stage,
       _days_current_stage,
       _total_one_time,
@@ -147,8 +148,11 @@ WITH
           AND 
           ( _engagementDate >= _opportunityCreated AND TIMESTAMP(_engagementDate) <= _oppLastChangeinStage )
           AND 
+          DATE_DIFF(DATE(_oppLastChangeinStage) ,DATE(_engagementDate),DAY)  <= 90
+          AND 
           _opportunityLost IS NULL 
-          AND _stageMovement  = 'Upward'
+          AND 
+          _stageMovement  = 'Upward'
           -- AND 
           -- _opportunityWon IS NULL 
         THEN 1 
@@ -222,6 +226,7 @@ WITH
           ELSE 'Upward'
         END AS _stageMovement,
         _last_stage_change_date AS _oppLastChangeinStage,
+        _last_stage_change_date,
         account_engagement._timestamp AS _engagementDates,
         DATE(account_engagement._timestamp) AS _engagementDate,
         _email,
@@ -357,6 +362,7 @@ SELECT
       _previous_stage,
       _stageMovement,
       _oppLastChangeinStage,
+      _last_stage_change_date,
       _engagementDates,
       _engagementDate,
       _email,
@@ -414,7 +420,7 @@ FROM
 
 TRUNCATE TABLE `x-marketing.3x.overview_account_opportunity`;
 INSERT INTO `x-marketing.3x.overview_account_opportunity`
--- CREATE OR REPLACE TABLE `x-marketing.3x.overview_account_opportunity` AS 
+--CREATE OR REPLACE TABLE `x-marketing.3x.overview_account_opportunity` AS 
 WITH 
 account_info AS (
   SELECT * EXCEPT( _rownum) 
@@ -607,6 +613,6 @@ WITH
     ORDER BY
       _timestamp DESC
 
-  )SELECT account_engagement.*,opps. _isGenerate, _isInfluence, _isAccelerate, _uniqueID,_opportunity_name, rownum
+  )SELECT account_engagement.*,opps. _isGenerate, _isInfluence, _isAccelerate, _opportunity_name, rownum
    FROM account_engagement
-   JOIN (SELECT DISTINCT _opportunity_id, _account_id, _domain, _opportunity_name,_isGenerate, _isInfluence, _isAccelerate, _uniqueID, rownum FROM `x-marketing.3x.overview_engagement_opportunity`) opps ON account_engagement._domain = opps._domain;
+   JOIN (SELECT DISTINCT _opportunity_id, _account_id, _domain, _opportunity_name,_isGenerate, _isInfluence, _isAccelerate,  rownum FROM `x-marketing.3x.overview_engagement_opportunity`) opps ON account_engagement._domain = opps._domain;
