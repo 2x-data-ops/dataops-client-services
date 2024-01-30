@@ -20,7 +20,7 @@ WITH target_accounts AS (
                     END AS _added_on,
                     '6sense' AS _data_source,
 
-                    CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account
+                    CONCAT(_6sensecompanyname, _6sensecountry) AS _country_account
                 FROM
                     `syniti_mysql.syniti_db_target_accounts` 
             )

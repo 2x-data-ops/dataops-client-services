@@ -13,19 +13,19 @@ SELECT *
             CAST(REPLACE(_clicks, '.0', '') AS INTEGER) AS _clicks,
             CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
             CASE 
-                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _extractdate)
-                        WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
-                    END AS _extractdate,
+                        WHEN _date LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _date)
+                        WHEN _date LIKE '%-%' THEN PARSE_DATE('%F', _date)
+                    END AS _date,
             ROW_NUMBER() OVER (
                     PARTITION BY _campaignid,
                     _6senseid,
-                    _extractdate
+                    _date
                     ORDER BY CASE 
                         WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _extractdate)
                         WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
                     END
                 ) AS _rownum
-        FROM `syniti_mysql.syniti_db_campaign_performance`
+        FROM `syniti_mysql.syniti_db_daily_campaign_performance`
         WHERE _datatype = 'Ad'
     )
     WHERE _rownum = 1
@@ -106,8 +106,20 @@ campaign_fields AS (
 
 ),
 
---airtable later
+airtable_fields AS (
 
+    SELECT DISTINCT 
+
+        _campaignid AS _campaign_id, 
+        _adid AS _ad_id,
+        _adgroup AS _ad_group,
+        _screenshot
+        
+    FROM
+        `syniti_mysql.syniti_optimization_airtable_ads_6sense`
+    WHERE 
+        _campaignid != ''
+),
 combined_data AS (
 
     SELECT
@@ -118,26 +130,26 @@ combined_data AS (
         campaign_fields._start_date,
         campaign_fields._end_date,
         ads.*,
-        -- airtable_fields._ad_group,
-        -- airtable_fields._screenshot,
+        airtable_fields._ad_group,
+        airtable_fields._screenshot,
         campaign_fields._newly_engaged_accounts,
         campaign_fields._increased_engagement_accounts
 
     FROM 
         ads
 
-    -- LEFT JOIN
-    --     airtable_fields 
-    -- ON (
-    --         ads._ad_id = airtable_fields._ad_id
-    --     AND 
-    --         ads._campaign_id = airtable_fields._campaign_id
-    -- )
-    -- OR (
-    --         airtable_fields._ad_id IS NULL
-    --     AND 
-    --         ads._campaign_id = airtable_fields._campaign_id
-    -- )
+    LEFT JOIN
+        airtable_fields 
+    ON (
+            ads._adid = airtable_fields._ad_id
+        AND 
+            ads._campaign_id = airtable_fields._campaign_id
+    )
+    OR (
+            airtable_fields._ad_id IS NULL
+        AND 
+            ads._campaign_id = airtable_fields._campaign_id
+    )
 
     LEFT JOIN 
         campaign_fields
@@ -234,51 +246,51 @@ campaign_numbers AS (
 
     USING(_campaign_id)
 
-    -- -- Get accounts that are 6QA
-    -- LEFT JOIN (
+    -- Get accounts that are 6QA
+    LEFT JOIN (
 
-    --     SELECT DISTINCT
+        SELECT DISTINCT
 
-    --         _campaignid AS _campaign_id,
-    --         COUNT(*) AS _6qa_accounts
+            _campaignid AS _campaign_id,
+            COUNT(*) AS _6qa_accounts
         
-    --     FROM (
+        FROM (
             
-    --         SELECT DISTINCT 
-    --             main._6sensecompanyname,
-    --             main._6sensecountry,
-    --             main._6sensedomain,
-    --             main._segmentname,
-    --             side._campaignid,
+            SELECT DISTINCT 
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
+                main._segmentname,
+                side._campaignid,
 
-    --         FROM 
-    --             `syniti_mysql.syniti_db_target_accounts` main
+            FROM 
+                `syniti_mysql.syniti_db_target_accounts` main
             
-    --         JOIN 
-    --             `syniti_mysql.syniti_optimization_airtable_ads_6sense` side
+            JOIN 
+                `syniti_mysql.syniti_optimization_airtable_ads_6sense` side
             
-    --         ON 
-    --             main._segmentname = side._segment
+            ON 
+                main._segmentname = side._segment
 
-    --         JOIN 
-    --             `syniti.db_6sense_account_current_state` extra
+            JOIN 
+                `syniti.db_6sense_account_current_state` extra
             
-    --         USING(
-    --             _6sensecompanyname,
-    --             _6sensecountry,
-    --             _6sensedomain
-    --         )
+            USING(
+                _6sensecompanyname,
+                _6sensecountry,
+                _6sensedomain
+            )
 
-    --         WHERE 
-    --             extra._6qa_date IS NOT NULL
+            WHERE 
+                extra._6qa_date IS NOT NULL
 
-    --     )
-    --     GROUP BY 
-    --         1
+        )
+        GROUP BY 
+            1
 
-    -- )
+    )
 
-    -- USING(_campaign_id)
+    USING(_campaign_id)
 
 ),
 
@@ -309,11 +321,12 @@ reduced_campaign_numbers AS (
         _increased_engagement_accounts / _occurrence AS _reduced_increased_engagement_accounts,
         _target_accounts / _occurrence AS _reduced_target_accounts,
         _reached_accounts / _occurrence AS _reduced_reached_accounts,
-        -- _6qa_accounts / _occurrence AS _reduced_6qa_accounts
+        _6qa_accounts / _occurrence AS _reduced_6qa_accounts
 
     FROM 
         total_ad_occurrence_per_campaign
 
 )
 
-SELECT * FROM reduced_campaign_numbers
+SELECT * FROM reduced_campaign_numbers;
+
