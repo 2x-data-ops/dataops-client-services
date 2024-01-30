@@ -179,6 +179,17 @@ WITH target_accounts AS (
                     ) AS _country_account
         FROM
             `syniti_mysql.syniti_db_campaign_reached_accounts`
+        WHERE 
+            _campaignid IN (
+
+                SELECT DISTINCT 
+                    _campaignid 
+                FROM 
+                    `syniti_mysql.syniti_optimization_airtable_ads_6sense`
+                WHERE 
+                    _campaignid != ''
+
+            )
         )
     WHERE _rownum = 1
 ),
