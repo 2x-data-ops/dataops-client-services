@@ -29,6 +29,7 @@ SELECT
     member.campaignid AS campaign_id,
     campaign.name AS campaign_name,
     campaign.type AS campaign_type,
+    campaign.startdate AS campaign_startdate,
     member.accountid AS account_id,
     account.name AS account_name,
     account.annualrevenue AS annual_revenue,
@@ -84,7 +85,8 @@ WITH all_contacts AS (
         owner.name AS owner_name,
         owner.userroleid AS owner_role_id,
         role.name AS owner_role_name,
-        contact.linkedin_profile__c AS linkedin_url
+        contact.linkedin_profile__c AS linkedin_url,
+        contact.createddate AS lead_or_contact_createddate
     
     FROM 
         `thunder_salesforce.Contact` contact
@@ -128,7 +130,8 @@ all_leads AS (
         owner.name AS owner_name,
         owner.userroleid AS owner_role_id,
         role.name AS owner_role_name,
-        lead.linkedin_url__c AS linkedin_url
+        lead.linkedin_url__c AS linkedin_url,
+        lead.createddate AS lead_or_contact_createddate
     
     FROM 
         `thunder_salesforce.Lead` lead
