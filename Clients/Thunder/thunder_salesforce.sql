@@ -247,7 +247,7 @@ opp_contact_role AS (
     oppcontact.contactid,
     opp.opp_createddate,
     opp.opp_closedate,
-    opp.stage,
+    opp.stage, 
     opp.amount
   FROM oppcontact
   JOIN opp
