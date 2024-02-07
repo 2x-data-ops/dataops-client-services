@@ -321,11 +321,11 @@ LEFT JOIN airtable_info
 CREATE OR REPLACE TABLE `x-marketing.thunder.db_email_opps_combined` AS 
 SELECT
   email.* EXCEPT(_website),
-  REGEXP_REPLACE(_website, r'^(http:\/\/www\.|http:\/\/)', '') AS _website,
+  REGEXP_REPLACE(REGEXP_REPLACE(_website, '^http://', ''), '^.*?\\.([^\\.]+\\.[^\\.]+)$', '\\1') AS _website,
   opps.*
 FROM `thunder.db_email_engagements_log` email
 JOIN `thunder.db_sf_opportunities` opps
-ON REGEXP_REPLACE(email._website, r'^(http:\/\/www\.|http:\/\/)', '') = opps.domain
+ON REGEXP_REPLACE(REGEXP_REPLACE(_website, '^http://', ''), '^.*?\\.([^\\.]+\\.[^\\.]+)$', '\\1') = opps.domain
 
 
 
