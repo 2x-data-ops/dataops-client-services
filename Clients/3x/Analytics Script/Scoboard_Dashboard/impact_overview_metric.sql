@@ -1,4 +1,3 @@
-
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------- Pipeline Metrics Overview ------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -80,15 +79,21 @@ WITH
       EXTRACT(WEEK FROM _timestamp) AS _week,
           EXTRACT(YEAR FROM _timestamp) AS _year,
       MD5(CONCAT(eng._domain, _engagement, _timestamp)) AS _engagementID,
+      _frequency,_utmcontent, _utmmedium, _utmsource
       --_latest_account_score AS _t90_days_score 
     FROM 
-      `3x.db_consolidated_engagements_log` eng
+    ( SELECT * FROM(SELECT *,CASE
+WHEN _frequency is null then "-"
+ELSE CONCAT(_frequency, _engagement)
+END AS _frequency_dummy FROM `3x.db_consolidated_engagements_log` )
+WHERE _frequency_dummy  NOT LIKE "%0%" )eng
     WHERE
       _engagement NOT IN ('Opportunity Created', 'Opportunity Stage Change','Bombora Report') 
     
       AND _engagement IS NOT NULL
       AND _description <> '0 (Cumulative)' 
-      ---AND _domain = 'samba.tv'
+      --AND  
+      --AND _domain = 'samba.tv'
     ORDER BY
       _timestamp DESC
       ) eng
@@ -105,6 +110,7 @@ WITH
       _account_name,
       _opportunity_name, 
       current_stage  AS _current_stage,
+      _current_stage AS _opportunity_current_stage,
       _createdate,
       _close_date,
       _amount,
@@ -170,7 +176,9 @@ WITH
               _leadsource LIKE 
                 '%Marketing:%' 
               AND 
-              ( NOT REGEXP_CONTAINS(_current_stage, '0|1') OR _current_stage IS NULL )
+              ( NOT REGEXP_CONTAINS(_current_stage, '0') OR _current_stage IS NULL )
+              AND
+              DATE(_engagementDate) <= DATE(_opportunityCreated)
             )
           )
           AND _opportunityCreated >= '2023-01-16'     
@@ -220,8 +228,10 @@ WITH
         _total_one_time,
         _current_stage,
         _previous_stage,
+        _opportunity_current_stage,
         -- _daysCurrentStage,
         CASE
+        WHEN  _orderstage_previous	 IS NULL OR _orderstage_current_from_previousstage  IS NULL  THEN 'Created'
          WHEN  _orderstage_previous	 > _orderstage_current_from_previousstage THEN 'Downward' 
           ELSE 'Upward'
         END AS _stageMovement,
@@ -239,6 +249,7 @@ WITH
         -- _ytd_first_party_score,
         opps_created._type,
         _max_amount,
+        _frequency,_utmcontent, _utmmedium, _utmsource
 
         -- Label for generated opps
        
@@ -247,11 +258,12 @@ WITH
       FROM 
         opps_created
       LEFT JOIN
-        account_engagement ON ((opps_created._domain = account_engagement._domain AND ((EXTRACT(WEEK FROM opps_created._last_stage_change_date) = account_engagement._week AND EXTRACT(YEAR FROM opps_created._last_stage_change_date) = account_engagement._year) )  ))
-        OR 
-        ((opps_created._domain = account_engagement._domain AND ((EXTRACT(WEEK FROM opps_created._createdate) = account_engagement._week AND EXTRACT(YEAR FROM opps_created._createdate) = account_engagement._year) )  ))
-        OR 
-        ((opps_created._domain = account_engagement._domain AND ( EXTRACT(YEAR FROM opps_created._createdate) = account_engagement._year) )  )
+        account_engagement ON opps_created._domain = account_engagement._domain 
+        -- ((opps_created._domain = account_engagement._domain AND ((EXTRACT(WEEK FROM opps_created._last_stage_change_date) = account_engagement._week AND EXTRACT(YEAR FROM opps_created._last_stage_change_date) = account_engagement._year) )  ))
+        -- OR 
+        -- ((opps_created._domain = account_engagement._domain AND ((EXTRACT(WEEK FROM opps_created._createdate) = account_engagement._week AND EXTRACT(YEAR FROM opps_created._createdate) = account_engagement._year) )  ))
+        -- OR 
+        -- ((opps_created._domain = account_engagement._domain AND ( EXTRACT(YEAR FROM opps_created._createdate) = account_engagement._year) )  )
       -- LEFT JOIN
       -- account_score 
       --   ON 
@@ -270,18 +282,19 @@ WITH
   ) 
 ,
   opp_influenced AS (
-  SELECT
-      *
-    FROM 
-      combined_data
-    JOIN
-      ( SELECT 
-          DISTINCT _opportunity_id, 
-          _account_id, 
-          MIN(rownum) AS rownum 
-          FROM (  
+  -- SELECT
+  --     *
+  --   FROM 
+  --     combined_data
+  --   JOIN
+  --     ( 
+  --       SELECT 
+  --         DISTINCT _opportunity_id, 
+  --         _account_id, 
+  --         MIN(rownum) AS rownum 
+  --         FROM (  
   SELECT 
-          *
+          combined_data.*
           --_opportunity_id, 
           --_account_id, 
           -- MIN(rownum) AS rownum 
@@ -289,20 +302,20 @@ WITH
           combined_data
         WHERE 
         (_isInfluence = 1 ) 
-        ) GROUP BY 1, 2
-        ) USING(_opportunity_id, _account_id, rownum)
+        -- ) GROUP BY 1, 2
+        -- ) USING(_opportunity_id, _account_id, rownum)
 ), 
   opp_generated AS (
-  SELECT
-      *
-    FROM 
-      combined_data
-    JOIN
-      ( SELECT 
-          DISTINCT _opportunity_id, 
-          _account_id, 
-          MIN(rownum) AS rownum 
-          FROM (  
+  -- SELECT
+  --     combined_data.*
+  --   FROM 
+  --     combined_data
+  --   JOIN
+  --     ( SELECT 
+  --         DISTINCT _opportunity_id, 
+  --         _account_id, 
+  --         MIN(rownum) AS rownum 
+  --         FROM (  
   SELECT 
           *
           --_opportunity_id, 
@@ -312,22 +325,23 @@ WITH
           combined_data
         WHERE 
         (_isGenerate = 1)
-        ) GROUP BY 1, 2
-        ) USING(_opportunity_id, _account_id, rownum)
-),
+        -- ) GROUP BY 1, 2
+        -- ) USING(_opportunity_id, _account_id, rownum)
+)
+,
   opp_accelerated AS (
-SELECT
-      *
-    FROM 
-      combined_data
-    JOIN
-      ( SELECT 
-          DISTINCT _opportunity_id, 
-          _account_id, 
-          MIN(rownum) AS rownum 
-          FROM (  
+    --         SELECT
+    --   combined_data.*
+    -- FROM 
+    --   combined_data
+    -- JOIN
+    --   ( SELECT 
+    --       DISTINCT _opportunity_id, 
+    --       _account_id, 
+    --       MIN(rownum) AS rownum 
+    --       FROM (  
   SELECT 
-          *
+          combined_data.*
           --_opportunity_id, 
           --_account_id, 
           -- MIN(rownum) AS rownum 
@@ -335,10 +349,10 @@ SELECT
           combined_data
         WHERE 
          (_isAccelerate = 1 ) 
-        ) GROUP BY 1, 2
-        ) USING(_opportunity_id, _account_id, rownum)
-        WHERE 
-      (_isAccelerate = 1) 
+      --   ) GROUP BY 1, 2
+      --   ) USING(_opportunity_id, _account_id, rownum)
+      --   WHERE 
+      -- (_isAccelerate = 1) 
       AND _opportunity_id NOT IN (SELECT DISTINCT _opportunity_id FROM opp_influenced)
 )
 ,opp_others AS (
@@ -346,8 +360,7 @@ SELECT
     SELECT
       DISTINCT 
        _opportunity_id,
-      _account_id,
-      rownum,
+      _account_id,   
       _domain,
       _opportunity_name,
       _leadsource,
@@ -360,6 +373,7 @@ SELECT
       _total_one_time,
       _current_stage,
       _previous_stage,
+      _opportunity_current_stage,
       _stageMovement,
       _oppLastChangeinStage,
       _last_stage_change_date,
@@ -374,12 +388,14 @@ SELECT
       _t90_days_score,
       _type,
       _max_amount,
+      _frequency,_utmcontent, _utmmedium, _utmsource,
       _isGenerate,
       _isInfluence,
       _isAccelerate,
       --_max_amount,
       --_uniqueID,
-       _date_diff
+       _date_diff,
+       rownum,
     FROM 
       combined_data
     WHERE
@@ -401,18 +417,16 @@ SELECT
 FROM
   (
     SELECT * FROM (
-    SELECT * FROM opp_generated
-   UNION DISTINCT
-    SELECT * FROM opp_influenced
-    UNION DISTINCT
+  SELECT * FROM opp_generated
+  UNION ALL
+  SELECT * FROM opp_influenced
+    UNION ALL
      SELECT * FROM opp_accelerated
-     UNION DISTINCT
-     SELECT * FROM opp_others
+    UNION ALL
+    SELECT * FROM opp_others
     ) 
 
-)
---WHERE _opportunity_id = '0064P000011R0q8QAC'
-;
+);
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------- Account Influence Script ------------------------------------------------------------------------------------
@@ -613,6 +627,6 @@ WITH
     ORDER BY
       _timestamp DESC
 
-  )SELECT account_engagement.*,opps. _isGenerate, _isInfluence, _isAccelerate, _opportunity_name, rownum
+  )SELECT account_engagement.*,opps. _isGenerate, _isInfluence, _isAccelerate, _opportunity_name,_opportunitycreate, _opportunity_current_stage, rownum
    FROM account_engagement
-   JOIN (SELECT DISTINCT _opportunity_id, _account_id, _domain, _opportunity_name,_isGenerate, _isInfluence, _isAccelerate,  rownum FROM `x-marketing.3x.overview_engagement_opportunity`) opps ON account_engagement._domain = opps._domain;
+   JOIN (SELECT DISTINCT _opportunity_id, _account_id, _domain, _opportunity_name,_isGenerate, _isInfluence, _isAccelerate,  rownum,_opportunitycreate,_opportunity_current_stage FROM `x-marketing.3x.overview_engagement_opportunity`) opps ON account_engagement._domain = opps._domain;
