@@ -14,9 +14,9 @@ Account scoring, a part of [account-based marketing](https://www.factors.ai/blo
 
 # Criteria of account scoring
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled.png)
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled%201.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled%201.png)
 
 First party Intent Data
 
@@ -24,35 +24,35 @@ Prospective buyer activity tracked on websites and digital properties that you *
 
 # Account Scoring/ Engagements Scoring Model
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled%202.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled%202.png)
 
 # Engagements Scoring Rubrics
 
 **Example of rubrics**
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled%203.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled%203.png)
 
 **TLF Engagements Scoring** 
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled%204.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled%204.png)
 
 **3x Engagement  Scoring**
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled%205.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled%205.png)
 
 **Terrasmart account engagement scoring**
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled%206.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled%206.png)
 
 # Data flow of account scoring
 
 High Level of account scoring
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled%207.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled%207.png)
 
 Detail of scoring
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled%208.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled%208.png)
 
 # BigQuery Script Preparation
 
@@ -61,7 +61,7 @@ Engagement consolidation table preparation.
 1. Create Engagement consolidation table where we combine all engagement from different platforms into 1 table. 
 2. List of data inside engagement consolidation
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled%209.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled%209.png)
 
 - Data Ops : all low level table such as email engagement log, web engagement long, tam and opportunity already being prepared.
 - Know what type engagement that being score and where is the data coming from.
@@ -84,7 +84,7 @@ Account scoring table preparation
 1. Every action in every category is being calculate according to the score. 
 2. Each action is correspond to every domain in the engagement consolidation. 
 
-![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring%202c7313075fa84664b94e1f83f96a4570/Untitled%2010.png)
+![Untitled](Intent%20Driven%20Marketing%20-%20Account%20Scoring/Untitled%2010.png)
 
 ## pseudo code
 
