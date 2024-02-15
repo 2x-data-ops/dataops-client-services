@@ -1430,11 +1430,11 @@ set_influencing_activity AS (
                         DATE_SUB(_created_date, INTERVAL 90 DAY) 
                     AND 
                         DATE(_created_date)
-                AND 
-                    REGEXP_CONTAINS(
-                        _engagement, 
-                        '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
-                    )                     
+                -- AND 
+                --     REGEXP_CONTAINS(
+                --         _engagement, 
+                --         '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
+                    -- )                     
             THEN true 
         END 
         AS _is_influencing_activity
@@ -1478,11 +1478,11 @@ set_accelerating_activity AS (
                 _eng_timestamp <= _historical_stage_change_date
             AND 
                 _stage_movement = 'Upward'
-            AND 
-                REGEXP_CONTAINS(
-                    _engagement, 
-                    '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
-                )
+            -- AND 
+            --     REGEXP_CONTAINS(
+            --         _engagement, 
+            --         '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
+            --     )
 
             THEN true
         END 
@@ -1527,11 +1527,11 @@ set_accelerating_activity_for_influenced_opportunity AS (
                 _eng_timestamp <= _historical_stage_change_date
             AND 
                 _stage_movement = 'Upward'
-            AND 
-                REGEXP_CONTAINS(
-                    _engagement, 
-                    '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
-                )
+            -- AND 
+            --     REGEXP_CONTAINS(
+            --         _engagement, 
+            --         '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
+            --     )
             THEN true
         END 
         AS _is_later_accelerating_activity
