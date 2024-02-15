@@ -579,12 +579,16 @@ sales_intelligence_engagements AS (
                 'Page Clicked'
             WHEN 
                 _activitytype IN (
-                    'Form Fill'/* ,
+                    'Form Fill',
                     'Email Open',
-                    'Email Click' */
+                    'Email Click'
                 )
             THEN 
                 CONCAT(_activitytype, 'ed')
+            WHEN
+                _activitytype LIKE '%Email Reply%'
+            THEN
+                'Email Replied'
             ELSE 
                 _activitytype
 
@@ -628,32 +632,11 @@ sales_intelligence_engagements AS (
     WHERE
         _activitytype != ''
     
-    -- Exclude email events from sales intelligence
-    AND 
-        _activitytype NOT LIKE '%Email%'
+    -- -- Exclude email events from sales intelligence
+    -- AND 
+    --     _activitytype NOT LIKE '%Email%'
 
 ),
-
--- Get email engagements from Hubspot
--- hubspot_email_engagements AS (
-
---     SELECT  
-
---         CONCAT(_country, _company) AS _country_account,
---         _email,
---         DATE(_timestamp) AS _timestamp,
---         CONCAT('Email ', _engagement) AS _engagement,
---         'Hubspot' AS _engagement_data_source,
---         _utmcampaign AS _description,
---         1 AS _notes
-
---     FROM 
---         `syniti.db_email_engagements_log` 
-
---     WHERE 
---         _engagement IN('Opened', 'Clicked')
-
--- ),
 
 -- Only activities involving target accounts are considered
 combined_data AS (
