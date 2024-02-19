@@ -579,16 +579,12 @@ sales_intelligence_engagements AS (
                 'Page Clicked'
             WHEN 
                 _activitytype IN (
-                    'Form Fill',
+                    'Form Fill'/* ,
                     'Email Open',
-                    'Email Click'
+                    'Email Click' */
                 )
             THEN 
                 CONCAT(_activitytype, 'ed')
-            WHEN
-                _activitytype LIKE '%Email Reply%'
-            THEN
-                'Email Replied'
             ELSE 
                 _activitytype
 
@@ -632,11 +628,32 @@ sales_intelligence_engagements AS (
     WHERE
         _activitytype != ''
     
-    -- -- Exclude email events from sales intelligence
-    -- AND 
-    --     _activitytype NOT LIKE '%Email%'
+    -- Exclude email events from sales intelligence
+    AND 
+        _activitytype NOT LIKE '%Email%'
 
 ),
+
+-- Get email engagements from Hubspot
+-- hubspot_email_engagements AS (
+
+--     SELECT  
+
+--         CONCAT(_country, _company) AS _country_account,
+--         _email,
+--         DATE(_timestamp) AS _timestamp,
+--         CONCAT('Email ', _engagement) AS _engagement,
+--         'Hubspot' AS _engagement_data_source,
+--         _utmcampaign AS _description,
+--         1 AS _notes
+
+--     FROM 
+--         `syniti.db_email_engagements_log` 
+
+--     WHERE 
+--         _engagement IN('Opened', 'Clicked')
+
+-- ),
 
 -- Only activities involving target accounts are considered
 combined_data AS (
@@ -1133,49 +1150,131 @@ WITH target_account_engagements AS (
 -- Get all generated opportunities
 -- Wont be having the current stage and stage change date in this CTE
 opps_created AS (
-
-    SELECT DISTINCT 
-
-        opp.accountid AS _account_id, 
-        act.name AS _account_name,
-        act.website AS _domain,
-        
-        COALESCE(
-            act.shippingcountry, 
-            act.billingcountry
-        )
-        AS _country,
-        
-        opp.id AS _opp_id,
-        opp.name AS _opp_name,
-        own.name AS _opp_owner_name,
-        opp.type AS _opp_type,
-        DATE(opp.createddate) AS _created_date,
-        DATE(opp.closedate) AS _closed_date,
-        opp.amount AS _amount,
-
-        -- For filling up those opps with missing first stage in the opp history
-        opp.stagename AS _current_stage,
-        DATE(opp.laststagechangedate) AS _stage_change_date
-
-    FROM 
-        `syniti_salesforce.Opportunity` opp
-    
-    LEFT JOIN
-        `syniti_salesforce.Account` act
-    ON 
-        opp.accountid = act.id 
-    
-    LEFT JOIN
-        `syniti_salesforce.User` own
-    ON 
-        opp.ownerid = own.id 
-    
+  WITH closedConversionRate AS (
+    SELECT DISTINCT
+      opp.id,
+      isocode,
+      opp.closedate,
+      rate.conversionrate,
+      opp.amount / rate.conversionrate AS converted
+    FROM `x-marketing.syniti_salesforce.DatedConversionRate` rate
+    LEFT JOIN `x-marketing.syniti_salesforce.Opportunity` opp
+    ON rate.isoCode = opp.currencyisocode
+      AND opp.closedate >= rate.startDate
+      AND opp.closedate < rate.nextStartDate
     WHERE 
-        opp.isdeleted = false
-    AND 
-        EXTRACT(YEAR FROM opp.createddate) >= 2023 
+      opp.isclosed = true
+    -- ORDER BY rate.startDate DESC
+  ),
+  openConversionRate AS (
+    SELECT 
+      * EXCEPT(rownum)
+    FROM (
+      SELECT DISTINCT
+        opp.id,
+        isocode,
+        rate.conversionrate,
+        rate.lastmodifieddate,
+        opp.closedate,
+        -- opp.total_price__c,
+        ROW_NUMBER() OVER(PARTITION BY isocode ORDER BY rate.lastmodifieddate DESC) AS rownum
+      FROM `x-marketing.syniti_salesforce.DatedConversionRate` rate
+      LEFT JOIN `x-marketing.syniti_salesforce.Opportunity` opp
+      ON opp.currencyisocode = rate.isocode
+      WHERE opp.isclosed = false
+      AND opp.currencyisocode != 'USD'
+    )
+    WHERE rownum = 1
+    ORDER BY isocode 
+  ),
+  opps_main AS (
 
+      SELECT DISTINCT 
+
+          opp.accountid AS _account_id, 
+          act.name AS _account_name,
+          act.website AS _domain,
+          
+          COALESCE(
+              act.shippingcountry, 
+              act.billingcountry
+          )
+          AS _country,
+          
+          opp.id AS _opp_id,
+          opp.name AS _opp_name,
+          own.name AS _opp_owner_name,
+          opp.type AS _opp_type,
+          DATE(opp.createddate) AS _created_date,
+          DATE(opp.closedate) AS _closed_date,
+          opp.amount AS _amount,
+          opp.currencyisocode,
+          opp.isclosed,
+
+          -- For filling up those opps with missing first stage in the opp history
+          opp.stagename AS _current_stage,
+          DATE(opp.laststagechangedate) AS _stage_change_date
+
+      FROM 
+          `syniti_salesforce.Opportunity` opp
+      
+      LEFT JOIN
+          `syniti_salesforce.Account` act
+      ON 
+          opp.accountid = act.id 
+      
+      LEFT JOIN
+          `syniti_salesforce.User` own
+      ON 
+          opp.ownerid = own.id 
+      
+      WHERE 
+          opp.isdeleted = false
+      AND 
+          EXTRACT(YEAR FROM opp.createddate) >= 2023 
+
+  )
+  SELECT
+    *
+  FROM (
+    SELECT DISTINCT
+      opps_main.* EXCEPT(_amount),
+      -- Opportunity.opportunityID,
+      -- Opportunity.createddate,
+      -- Opportunity.isclosed,
+      -- Opportunity.currencyisocode,
+      _amount AS original_amount,
+      CASE 
+        WHEN isclosed = true AND currencyisocode != 'USD'
+        THEN (
+          closedConversionRate.conversionRate
+        )
+        WHEN isclosed = false AND currencyisocode != 'USD'
+        THEN (
+          openConversionRate.conversionRate 
+        )
+      END AS conversionRate,
+      CASE 
+        WHEN isclosed = true AND currencyisocode != 'USD'
+        THEN (
+
+          closedConversionRate.converted
+        )
+        WHEN isclosed = false AND currencyisocode != 'USD'
+        THEN (
+          (_amount / openConversionRate.conversionrate) 
+        )
+        ELSE _amount
+      END AS _amount_converted,
+      -- sfdc_activity_casesafeid__c,
+      -- application_specialist__c,
+      -- Event_Status__c,
+      -- Web_Location__c
+    FROM opps_main
+    LEFT JOIN closedConversionRate ON closedConversionRate.id = opps_main._opp_id
+    LEFT JOIN openConversionRate ON openConversionRate.isocode = opps_main.currencyisocode
+  )
+  WHERE EXTRACT(YEAR FROM _created_date) >= 2023
 ),
 
 -- Get all historical stages of opp
@@ -1219,7 +1318,7 @@ opps_historical_stage AS (
         FROM
             `syniti_salesforce.OpportunityFieldHistory`
         WHERE
-            field = 'Probability'
+            field = 'ForecastProbability__c'
         AND 
             isdeleted = false
 
@@ -1434,7 +1533,7 @@ set_influencing_activity AS (
                 --     REGEXP_CONTAINS(
                 --         _engagement, 
                 --         '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
-                    -- )                     
+                --     )                     
             THEN true 
         END 
         AS _is_influencing_activity
@@ -1652,7 +1751,7 @@ SELECT DISTINCT
     _opp_type,
     _created_date,
     _closed_date,
-    _amount,
+    _amount_converted,
     _stage_change_date,
     _current_stage,
     _stage_history,
