@@ -1210,6 +1210,7 @@ opps_created AS (
           opp.amount AS _amount,
           opp.currencyisocode,
           opp.isclosed,
+          opp.region__c AS _region,
 
           -- For filling up those opps with missing first stage in the opp history
           opp.stagename AS _current_stage,
@@ -1752,6 +1753,7 @@ SELECT DISTINCT
     _created_date,
     _closed_date,
     _amount_converted,
+    _region,
     _stage_change_date,
     _current_stage,
     _stage_history,
