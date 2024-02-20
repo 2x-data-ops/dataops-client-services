@@ -90,96 +90,63 @@ WITH all_accounts AS (
 ,
  quarterly_contact_scoring AS (
 
-  SELECT
+ SELECT
         DISTINCT *,
         ( 
           (CASE --- 2 click
-              --WHEN _distinct_email_click >= 4 THEN 10
+              WHEN _distinct_email_click = 1 THEN 10
               WHEN _distinct_email_click >= 2 THEN _distinct_email_click*5
               ELSE 0
-          END ) + 
-          (CASE --- 1 click
-              --WHEN _distinct_email_click >= 4 THEN 10
-              WHEN _distinct_email_click >= 1 THEN 10
-              ELSE 0
-          END ) #Email Click
+          END ) 
           ) AS _click_score, 
         (
-          (CASE -- 2 - 3 open
+          (CASE WHEN   _distinct_email_open = 1 THEN 5 -- 2 - 3 open
               WHEN _distinct_email_open >= 2 THEN _distinct_email_open*5
               --WHEN _distinct_email_open BETWEEN 1 AND 3 THEN 3
               ELSE 0
-          END) + 
-           (CASE --- 1-3 open
-              --WHEN _distinct_email_open >= 4 THEN 5
-              WHEN   _distinct_email_open >= 1 THEN 5
-              ELSE 0
-          END)) AS _open_score,
+          END) 
+        ) AS _open_score,
     #Calculating total email score
           (
-             (CASE -- 2 - 3 open
-              WHEN _distinct_email_open >= 2 THEN _distinct_email_open*5
-              --WHEN _distinct_email_open BETWEEN 1 AND 3 THEN 3
-              ELSE 0
-          END) + 
            (CASE --- 1-3 open
               --WHEN _distinct_email_open >= 4 THEN 5
-              WHEN   _distinct_email_open >= 1 THEN 5
+              WHEN   _distinct_email_open = 1 THEN 5
+              WHEN _distinct_email_open >= 2 THEN _distinct_email_open*5
               ELSE 0
           END) + #Email click
           (CASE --- 2 click
               --WHEN _distinct_email_click >= 4 THEN 10
+              WHEN _distinct_email_click = 1 THEN 10
               WHEN _distinct_email_click >= 2 THEN _distinct_email_click*5
               ELSE 0
-          END ) + 
-          (CASE --- 1 click
-              --WHEN _distinct_email_click >= 4 THEN 10
-              WHEN _distinct_email_click >= 1 THEN 10
-              ELSE 0
-          END ) #Email Click
+          END ) 
+          #Email Click
         ) AS _email_score,
-CASE WHEN    (
-             (CASE -- 2 - 3 open
+        CASE WHEN    (
+             (CASE WHEN   _distinct_email_open = 1 THEN 5 -- 2 - 3 open
               WHEN _distinct_email_open >= 2 THEN _distinct_email_open*5
               --WHEN _distinct_email_open BETWEEN 1 AND 3 THEN 3
               ELSE 0
-          END) + 
-           (CASE --- 1-3 open
-              --WHEN _distinct_email_open >= 4 THEN 5
-              WHEN   _distinct_email_open >= 1 THEN 5
-              ELSE 0
-          END) + #Email click
+          END) +  #Email click
           (CASE --- 2 click
-              --WHEN _distinct_email_click >= 4 THEN 10
+              WHEN _distinct_email_click = 1 THEN 10 --WHEN _distinct_email_click >= 4 THEN 10
               WHEN _distinct_email_click >= 2 THEN _distinct_email_click*5
               ELSE 0
-          END ) + 
-          (CASE --- 1 click
-              --WHEN _distinct_email_click >= 4 THEN 10
-              WHEN _distinct_email_click >= 1 THEN 10
-              ELSE 0
-          END ) #Email Click
+          END )  #Email Click
         ) > 0 AND _distinct_email_delivered > 0 THEN    (
             ( (CASE -- 2 - 3 open
+              WHEN   _distinct_email_open = 1 THEN 5 
               WHEN _distinct_email_open >= 2 THEN _distinct_email_open*5
               --WHEN _distinct_email_open BETWEEN 1 AND 3 THEN 3
               ELSE 0
-          END) + 
-           (CASE --- 1-3 open
-              --WHEN _distinct_email_open >= 4 THEN 5
-              WHEN   _distinct_email_open >= 1 THEN 5
-              ELSE 0
-          END) + #Email click
+          END)  + #Email click
           (CASE --- 2 click
               --WHEN _distinct_email_click >= 4 THEN 10
-              WHEN _distinct_email_click >= 2 THEN _distinct_email_click*5
+               WHEN _distinct_email_click = 1 THEN 10 
+               WHEN _distinct_email_click >= 2 THEN _distinct_email_click*5
               ELSE 0
-          END ) + 
-          (CASE --- 1 click
-              --WHEN _distinct_email_click >= 4 THEN 10
-              WHEN _distinct_email_click >= 1 THEN 10
-              ELSE 0
-          END ) #Email Click
+          END )  
+         #Email Click
         )) / _distinct_email_delivered
         ELSE 
            0 END AS _monthly_email_score,
@@ -339,18 +306,24 @@ CASE WHEN    (
  )
  ,contact_score_limit AS (
    SELECT * ,
- ( -- Setting of threshold for max of email score
-            IF(_monthly_email_score > 15, 15, _monthly_email_score) ) AS _quarterly_email_score,
-( -- Setting of threshold for max of email score
-            IF(_paid_social_score > 4, 4, _paid_social_score ) ) AS _quarterly_paid_social,
-( -- Setting of threshold for max of email score
-            IF(_organic_social_score > 8, 8, _organic_social_score) ) AS _quarterly_organic_social,
-( -- Setting of threshold for max of email score
-            IF(_webinar_score > 37, 37, _webinar_score) ) AS _quarterly_webinar,
-( -- Setting of threshold for max of email score
-            IF(_event_score > 42, 42, _event_score) ) AS _quarterly_event_score,
- ( -- Setting of threshold for max of email score
-            IF(_form_filled_score > 42, 42,_form_filled_score) ) AS _quarterly_form_filled_score,
+ --( -- Setting of threshold for max of email score
+           -- IF(_monthly_email_score > 15, 15, _monthly_email_score) ) 
+           _monthly_email_score AS _quarterly_email_score,
+-- ( -- Setting of threshold for max of email score
+--             IF(_paid_social_score > 4, 4, _paid_social_score ) ) 
+            _paid_social_score AS _quarterly_paid_social,
+-- ( -- Setting of threshold for max of email score
+--             IF(_organic_social_score > 8, 8, _organic_social_score) ) 
+            _organic_social_score AS _quarterly_organic_social,
+-- ( -- Setting of threshold for max of email score
+--             IF(_webinar_score > 37, 37, _webinar_score) )
+            _webinar_score AS _quarterly_webinar,
+-- ( -- Setting of threshold for max of email score
+--             IF(_event_score > 42, 42, _event_score) ) 
+            _event_score AS _quarterly_event_score,
+--  ( -- Setting of threshold for max of email score
+--             IF(_form_filled_score > 42, 42,_form_filled_score) ) 
+            _form_filled_score AS _quarterly_form_filled_score,
  FROM quarterly_contact_scoring
  )
  ,final_scoring AS (
