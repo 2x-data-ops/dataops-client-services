@@ -1,3 +1,12 @@
+-- SCRIPT CONTEXT AND OVERVIEW
+-- Analyst needs to build ads performance pages only for the 6sense impact dashboard
+-- Currently only ads performance and account performance table is connected in the dashboard
+
+
+
+
+
+
 CREATE OR REPLACE TABLE `smartcom.db_6sense_buying_stages_movement` AS
 
 WITH sixsense_stage_order AS (
