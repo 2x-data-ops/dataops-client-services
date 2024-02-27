@@ -544,8 +544,13 @@ campaign_numbers AS (
             ON 
                 main.segment_name = side.segment_name
 
-            -- JOIN 
-            --     `x-marketing.smartcom_6sense.reached_account` extra
+            JOIN 
+                `x-marketing.smartcom_6sense.reached_account` extra
+
+            ON main._6sense_company_name = extra._6sense_company_name
+            AND main._6sense_country = extra._6sense_country
+            AND main._6sense_domain = extra._6sense_domain
+            AND side.campaign_id__nu = extra.campaign_id
 
             -- USING(
             --     _6sense_company_name,
@@ -589,17 +594,17 @@ campaign_numbers AS (
             ON 
                 main.segment_name = side.segment_name
 
-            -- JOIN 
-            --     `smartcom.db_6sense_account_current_state` extra
+            JOIN 
+                `smartcom.db_6sense_account_current_state` extra
             
-            -- USING(
-            --     _6sensecompanyname,
-            --     _6sensecountry,
-            --     _6sensedomain
-            -- )
+            USING(
+                _6sense_company_name,
+                _6sense_country,
+                _6sense_domain
+            )
 
-            -- WHERE 
-            --     extra._6qa_date IS NOT NULL
+            WHERE 
+                extra._6qa_date IS NOT NULL
 
         )
         GROUP BY 
