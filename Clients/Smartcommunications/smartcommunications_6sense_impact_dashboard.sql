@@ -1,3 +1,327 @@
+-- SCRIPT CONTEXT AND OVERVIEW
+-- Analyst needs to build ads performance pages only for the 6sense impact dashboard
+-- Currently only ads performance and account performance table is connected in the dashboard
+
+
+
+
+
+
+CREATE OR REPLACE TABLE `smartcom.db_6sense_buying_stages_movement` AS
+
+WITH sixsense_stage_order AS (
+        SELECT
+            'Target' AS _buying_stage,
+            1 AS _order
+        UNION ALL
+        SELECT
+            'Awareness' AS _buying_stage,
+            2 AS _order
+        UNION ALL
+        SELECT
+            'Consideration' AS _buying_stage,
+            3 AS _order
+        UNION ALL
+        SELECT
+            'Decision' AS _buying_stage,
+            4 AS _order
+        UNION ALL
+        SELECT
+            'Purchase' AS _buying_stage,
+            5 AS _order
+    ),
+    sixsense_buying_stage_data AS (
+        SELECT
+            DISTINCT ROW_NUMBER() OVER (
+                PARTITION BY _6sense_company_name,
+                _6sense_country,
+                _6sense_domain
+                ORDER BY
+                    CASE
+                        WHEN extract_date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', extract_date)
+                        ELSE PARSE_DATE('%F', extract_date)
+                    END DESC
+            ) AS _rownum,
+            CASE
+                WHEN extract_date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', extract_date)
+                ELSE PARSE_DATE('%F', extract_date)
+            END AS _activities_on,
+            _6sense_company_name,
+            _6sense_country,
+            _6sense_domain,
+            CONCAT(
+                _6sense_company_name,
+                _6sense_country,
+                _6sense_domain
+            ) AS _country_account,
+            '6sense' AS _data_source,
+            buying_stage__start AS _previous_stage,
+            buying_stage__end AS _current_stage
+        FROM
+            `smartcom_6sense.buying_stage`
+    ),
+    latest_sixsense_buying_stage_with_order_and_movement AS (
+        SELECT main.*
+            EXCEPT (_rownum),
+            prev._order AS _previous_stage_order,
+            curr._order AS _current_stage_order,
+                CASE
+                    WHEN curr._order > prev._order THEN '+ve'
+                    WHEN prev._order > curr._order THEN '-ve'
+                    ELSE 'Stagnant'
+                END AS _movement
+        FROM
+            sixsense_buying_stage_data AS main
+            LEFT JOIN sixsense_stage_order AS prev
+                ON main._previous_stage = prev._buying_stage
+            LEFT JOIN sixsense_stage_order AS curr
+                ON main._current_stage = curr._buying_stage
+        WHERE main._rownum = 1
+    )
+SELECT *
+FROM
+    latest_sixsense_buying_stage_with_order_and_movement;
+
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+-------------------------- ACCOUNT CURRENT STATE
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+
+
+CREATE OR REPLACE TABLE `smartcom.db_6sense_account_current_state` AS
+
+WITH target_accounts AS (
+        SELECT DISTINCT main.*
+
+        FROM (
+                SELECT DISTINCT
+                    _6sense_company_name,
+                    _6sense_country,
+                    _6sense_domain,
+                    industry__legacy_ AS _6senseindustry,
+                    _6sense_employee_range,
+                    _6sense_revenue_range,
+                    CASE
+                        WHEN extract_date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', extract_date)
+                        ELSE PARSE_DATE('%F', extract_date)
+                    END AS _added_on,
+                    '6sense' AS _data_source,
+
+                    CONCAT(_6sense_company_name, _6sense_country, _6sense_domain) AS _country_account
+                FROM
+                    `smartcom_6sense.target_account` 
+            ) main
+
+                            -- Get the earliest date of appearance of each account
+                JOIN (
+
+                    SELECT DISTINCT 
+
+                        MIN(
+                            CASE 
+                                WHEN extract_date LIKE '%/%'
+                                THEN PARSE_DATE('%m/%e/%Y', extract_date)
+                                ELSE PARSE_DATE('%F', extract_date)
+                            END 
+                        ) 
+                        AS _added_on,
+
+                        CONCAT(_6sense_company_name, _6sense_country, _6sense_domain) AS _country_account
+                        
+                    FROM
+                        `smartcom_6sense.target_account`
+                    GROUP BY 
+                        2
+                    ORDER BY 
+                        1 DESC
+
+                ) scenario 
+
+                ON 
+                    main._country_account = scenario._country_account 
+                AND 
+                    main._added_on = scenario._added_on
+
+    ),
+    reached_related_info AS (
+        SELECT *
+        EXCEPT (_rownum)
+        FROM (
+                SELECT
+                    DISTINCT MIN(
+                        CASE
+                            WHEN extract_date LIKE '%/%'
+                            THEN PARSE_DATE('%m/%e/%Y', latest_impression)
+                            ELSE PARSE_DATE('%F', latest_impression)
+                        END
+                    ) OVER (
+                        PARTITION BY CONCAT(
+                            _6sense_company_name,
+                            _6sense_country,
+                            _6sense_domain
+                        )
+                    ) AS _first_impressions,
+                    CASE
+                        WHEN website_engagement = '-' THEN CAST(NULL AS STRING)
+                        ELSE website_engagement
+                    END AS _website_engagement,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY CONCAT(
+                            _6sense_company_name,
+                            _6sense_country,
+                            _6sense_domain
+                        )
+                        ORDER BY
+                            CASE
+                                WHEN extract_date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', latest_impression)
+                                ELSE PARSE_DATE('%F', latest_impression)
+                            END DESC
+                    ) AS _rownum,
+                    CONCAT(
+                        _6sense_company_name,
+                        _6sense_country,
+                        _6sense_domain
+                    ) AS _country_account
+        FROM
+            `smartcom_6sense.reached_account`
+        WHERE 
+            CAST(campaign_id AS STRING) IN (
+
+                SELECT DISTINCT 
+                    CAST(campaign_id__nu AS STRING) AS _campaignid
+                FROM 
+                    `smartcom_6sense.airtable`
+                WHERE 
+                    CAST(campaign_id__nu AS STRING) != ''
+
+            )
+        )
+    WHERE _rownum = 1
+),
+
+six_qa_related_info AS (
+
+    SELECT
+
+        * EXCEPT(_rownum)
+
+    FROM (
+
+        SELECT DISTINCT
+
+            CASE 
+                WHEN _extractdate LIKE '%/%'
+                THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                ELSE PARSE_DATE('%F', _extractdate)
+            END 
+            AS _6qa_date,
+
+            true _is_6qa,
+
+            ROW_NUMBER() OVER(
+
+                PARTITION BY 
+                    CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) 
+                ORDER BY 
+                    CASE 
+                        WHEN _extractdate LIKE '%/%'
+                        THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                        ELSE PARSE_DATE('%F', _extractdate)
+                    END 
+                DESC
+
+            )
+            AS _rownum,
+
+            CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
+
+        FROM 
+            `smartcomm_mysql.smartcommunications_db_6qa_account`
+    
+    )
+
+    WHERE 
+        _rownum = 1
+
+),
+
+-- Get buying stage info for each account
+
+buying_stage_related_info AS (
+
+    SELECT DISTINCT 
+        * EXCEPT(rownum)
+    FROM (
+
+        SELECT DISTINCT
+
+            _previous_stage,
+            _previous_stage_order,
+            _current_stage,
+            _current_stage_order,
+            _movement,
+            _activities_on AS _movement_date,
+            _country_account,
+
+            ROW_NUMBER() OVER(
+                PARTITION BY _country_account 
+                ORDER BY _activities_on DESC 
+            ) 
+            AS rownum
+
+        FROM
+            `smartcom.db_6sense_buying_stages_movement`
+
+    )
+    WHERE 
+        rownum = 1
+
+),
+
+-- Attach all other data parts to target accounts
+combined_data AS (
+
+    SELECT DISTINCT 
+
+        target.*, 
+        reached.* EXCEPT(_country_account),
+        six_qa.* EXCEPT(_country_account),
+        stage.* EXCEPT(_country_account)   
+
+    FROM
+        target_accounts AS target
+
+    LEFT JOIN
+        reached_related_info AS reached 
+    USING(
+        _country_account
+    )
+
+    LEFT JOIN
+        six_qa_related_info AS six_qa 
+    USING(
+        _country_account
+    ) 
+
+    LEFT JOIN
+        buying_stage_related_info AS stage
+    USING(
+        _country_account
+    ) 
+
+)
+
+SELECT * FROM combined_data;
+
+----------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------
+-- ADS PERFORMANCES
+----------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------
+
+
 CREATE OR REPLACE TABLE `smartcom.db_6sense_ad_performance` AS
 
 WITH ads AS (
@@ -229,8 +553,13 @@ campaign_numbers AS (
             ON 
                 main.segment_name = side.segment_name
 
-            -- JOIN 
-            --     `x-marketing.smartcom_6sense.reached_account` extra
+            JOIN 
+                `x-marketing.smartcom_6sense.reached_account` extra
+
+            ON main._6sense_company_name = extra._6sense_company_name
+            AND main._6sense_country = extra._6sense_country
+            AND main._6sense_domain = extra._6sense_domain
+            AND side.campaign_id__nu = extra.campaign_id
 
             -- USING(
             --     _6sense_company_name,
@@ -274,17 +603,17 @@ campaign_numbers AS (
             ON 
                 main.segment_name = side.segment_name
 
-            -- JOIN 
-            --     `smartcom.db_6sense_account_current_state` extra
+            JOIN 
+                `smartcom.db_6sense_account_current_state` extra
             
-            -- USING(
-            --     _6sensecompanyname,
-            --     _6sensecountry,
-            --     _6sensedomain
-            -- )
+            USING(
+                _6sense_company_name,
+                _6sense_country,
+                _6sense_domain
+            )
 
-            -- WHERE 
-            --     extra._6qa_date IS NOT NULL
+            WHERE 
+                extra._6qa_date IS NOT NULL
 
         )
         GROUP BY 
