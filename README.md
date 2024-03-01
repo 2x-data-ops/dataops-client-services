@@ -35,3 +35,6 @@
 - [Google Ads and GA4 Integration Choice](Documentation/Ads%20Documentation/Google%20Ads%20and%20GA4%20Integration%20Choice)
 - [Web Optimization](Documentation/Web%20Optimization)
 
+### Internal Sharing Sessions
+- [06/02/2024 - Google Ads Budget & Cost (API vs Platform), Book: Atomic Habits & 30 Days Intent Scoring Window.](https://2xmarketing-my.sharepoint.com/:v:/g/personal/raden_ameer_2x_marketing/EQRgxiWCmNdKo7rsKi3ZXukBlylXmFfqgz7oJD6jtj7nig?referrer=Teams.TEAMS-ELECTRON&referrerScenario=MeetingChicletGetLink.view.view)
+- [20/02/2024 - UNPIVOT Function, Content Analytics & Facebooks Ads VS everybody](https://2xmarketing-my.sharepoint.com/:v:/g/personal/hafiz_asyraf_2x_marketing/EarbOVH5vZRLpP2jspzwU3QBkgQzujqIeq_tAnAk5chyYg?referrer=Teams.TEAMS-ELECTRON&referrerScenario=MeetingChicletGetLink.view.view)
