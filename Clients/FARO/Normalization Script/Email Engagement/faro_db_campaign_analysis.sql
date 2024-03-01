@@ -237,7 +237,7 @@ clicked_email_cta AS (
     WHERE
       activity.type_name IN ('Email', 'Email Tracker')
     AND activity.type = 1   /* Click */
-    AND details LIKE '%utm_%' 
+    -- AND details LIKE '%utm_%' 
     /*AND (
       (email NOT LIKE '%2x.marketing%'
       AND email NOT LIKE '%faro.com%'
@@ -509,6 +509,48 @@ downloaded_email AS ( #Check with client
   )
   WHERE rownum = 1
 ),
+spam_email AS (
+  SELECT * EXCEPT(rownum)
+  FROM (
+    SELECT
+      activity._sdc_sequence,
+      CAST(activity.prospect_id AS STRING) AS _prospectID,
+      prospect.email AS _email,
+      CAST(activity.campaign_id AS STRING) AS _campaignID,
+      campaign.name AS _contentTitle,
+      activity.created_at AS _timestamp,
+      activity.details AS _description,
+      'Spam' AS _engagement,
+      CAST(activity.list_email_id AS STRING) AS _email_id,
+      activity.email_template_id AS email_template_id,
+      ROW_NUMBER() OVER(
+        PARTITION BY activity.prospect_id, activity.email_template_id
+        ORDER BY activity.created_at DESC
+      ) AS rownum
+    FROM
+      `x-marketing.faro_pardot.visitor_activities` activity
+    LEFT JOIN
+      `x-marketing.faro_pardot.prospects` prospect
+    ON
+      activity.prospect_id = prospect.id
+    LEFT JOIN
+      `x-marketing.faro_pardot.campaigns` campaign
+    ON
+      activity.campaign_id = campaign.id
+    WHERE
+      activity.type_name = 'Email'
+    AND
+      activity.type = 14   /* SPAM COMPLAINT */
+    /*AND (
+      (email NOT LIKE '%2x.marketing%'
+      AND email NOT LIKE '%faro.com%'
+      AND email NOT LIKE '%faroeurope.com%')
+      OR
+      email IS NULL
+    )*/
+  )
+  WHERE rownum = 1 
+),
 campaign_sent_date AS ( #added since the airtable isnt updated
   SELECT 
     DISTINCT email_template_id, EXTRACT(DATE FROM MIN(_timestamp)) AS _email_sent_date 
@@ -546,6 +588,8 @@ FROM
     SELECT * FROM unsubscribed_email_non_form_fill
     UNION ALL
     SELECT * FROM bounced_email
+    UNION ALL
+    SELECT * FROM spam_email
   ) AS engagements
   JOIN
     email_template
