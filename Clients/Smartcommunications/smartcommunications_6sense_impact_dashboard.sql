@@ -4,9 +4,6 @@
 
 
 
-
-
-
 CREATE OR REPLACE TABLE `smartcom.db_6sense_buying_stages_movement` AS
 
 WITH sixsense_stage_order AS (
@@ -33,32 +30,32 @@ WITH sixsense_stage_order AS (
     sixsense_buying_stage_data AS (
         SELECT
             DISTINCT ROW_NUMBER() OVER (
-                PARTITION BY _6sense_company_name,
-                _6sense_country,
-                _6sense_domain
+                PARTITION BY _6sensecompanyname,
+                _6sensecountry,
+                _6sensedomain
                 ORDER BY
                     CASE
-                        WHEN extract_date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', extract_date)
-                        ELSE PARSE_DATE('%F', extract_date)
+                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                        ELSE PARSE_DATE('%F', _extractdate)
                     END DESC
             ) AS _rownum,
             CASE
-                WHEN extract_date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', extract_date)
-                ELSE PARSE_DATE('%F', extract_date)
+                WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                ELSE PARSE_DATE('%F', _extractdate)
             END AS _activities_on,
-            _6sense_company_name,
-            _6sense_country,
-            _6sense_domain,
+            _6sensecompanyname,
+            _6sensecountry,
+            _6sensedomain,
             CONCAT(
-                _6sense_company_name,
-                _6sense_country,
-                _6sense_domain
+                _6sensecompanyname,
+                _6sensecountry,
+                _6sensedomain
             ) AS _country_account,
             '6sense' AS _data_source,
-            buying_stage__start AS _previous_stage,
-            buying_stage__end AS _current_stage
+            _buyingstagestart AS _previous_stage,
+            _buyingstageend AS _current_stage
         FROM
-            `smartcom_6sense.buying_stage`
+            `smartcomm_mysql.smartcommunications_db_buying_stage`
     ),
     latest_sixsense_buying_stage_with_order_and_movement AS (
         SELECT main.*
@@ -152,49 +149,49 @@ WITH target_accounts AS (
                 SELECT
                     DISTINCT MIN(
                         CASE
-                            WHEN extract_date LIKE '%/%'
-                            THEN PARSE_DATE('%m/%e/%Y', latest_impression)
-                            ELSE PARSE_DATE('%F', latest_impression)
+                            WHEN _extractdate LIKE '%/%'
+                            THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
+                            ELSE PARSE_DATE('%F', _latestimpression)
                         END
                     ) OVER (
                         PARTITION BY CONCAT(
-                            _6sense_company_name,
-                            _6sense_country,
-                            _6sense_domain
+                            _6sensecompanyname,
+                            _6sensecountry,
+                            _6sensedomain
                         )
                     ) AS _first_impressions,
                     CASE
-                        WHEN website_engagement = '-' THEN CAST(NULL AS STRING)
-                        ELSE website_engagement
-                    END AS _website_engagement,
+                        WHEN _websiteengagement = '-' THEN CAST(NULL AS STRING)
+                        ELSE _websiteengagement
+                    END AS _websiteengagement,
                     ROW_NUMBER() OVER (
                         PARTITION BY CONCAT(
-                            _6sense_company_name,
-                            _6sense_country,
-                            _6sense_domain
+                            _6sensecompanyname,
+                            _6sensecountry,
+                            _6sensedomain
                         )
                         ORDER BY
                             CASE
-                                WHEN extract_date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', latest_impression)
-                                ELSE PARSE_DATE('%F', latest_impression)
+                                WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
+                                ELSE PARSE_DATE('%F', _latestimpression)
                             END DESC
                     ) AS _rownum,
                     CONCAT(
-                        _6sense_company_name,
-                        _6sense_country,
-                        _6sense_domain
+                        _6sensecompanyname,
+                        _6sensecountry,
+                        _6sensedomain
                     ) AS _country_account
         FROM
-            `smartcom_6sense.reached_account`
+            `smartcomm_mysql.smartcommunications_db_reached_account`
         WHERE 
-            CAST(campaign_id AS STRING) IN (
+            _campaignid IN (
 
                 SELECT DISTINCT 
-                    CAST(campaign_id__nu AS STRING) AS _campaignid
+                    _campaignid
                 FROM 
-                    `smartcom_6sense.airtable`
+                    `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense`
                 WHERE 
-                    CAST(campaign_id__nu AS STRING) != ''
+                    _campaignid != ''
 
             )
         )
@@ -434,15 +431,15 @@ airtable_fields AS (
 
     SELECT DISTINCT 
 
-        CAST(campaign_id__nu AS STRING) AS _campaign_id, 
-        -- _adid AS _ad_id,
+        _campaignid AS _campaign_id, 
+        _adid AS _ad_id,
         ad_group AS _ad_group,
-        -- screenshot AS _screenshot
+        screenshot AS _screenshot
         
     FROM
-        `x-marketing.smartcom_6sense.airtable`
+        `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense`
     WHERE 
-        CAST(campaign_id__nu AS STRING) != ''
+        _campaignid != ''
 ),
 combined_data AS (
 
@@ -455,7 +452,7 @@ combined_data AS (
         campaign_fields._end_date,
         ads.*,
         airtable_fields._ad_group,
-        -- airtable_fields._screenshot,
+        airtable_fields._screenshot,
         campaign_fields._newly_engaged_accounts,
         campaign_fields._increased_engagement_accounts
 
@@ -465,15 +462,15 @@ combined_data AS (
     LEFT JOIN
         airtable_fields 
     ON (
-        --     ads._adid = airtable_fields._ad_id
-        -- AND 
+            ads._adid = airtable_fields._ad_id
+        AND 
             ads._campaign_id = airtable_fields._campaign_id
     )
-    -- OR (
-    --         airtable_fields._ad_id IS NULL
-    --     AND 
-    --         ads._campaign_id = airtable_fields._campaign_id
-    -- )
+    OR (
+            airtable_fields._ad_id IS NULL
+        AND 
+            ads._campaign_id = airtable_fields._campaign_id
+    )
 
     LEFT JOIN 
         campaign_fields
@@ -509,10 +506,10 @@ campaign_numbers AS (
                 side.campaign_id__nu AS _campaignid
 
             FROM 
-                `x-marketing.smartcom_6sense.target_account` main
+                `smartcom_6sense.target_account` main
             
             JOIN 
-                `x-marketing.smartcom_6sense.airtable` side
+                `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
             
             ON 
                 main.segment_name = side.segment_name
