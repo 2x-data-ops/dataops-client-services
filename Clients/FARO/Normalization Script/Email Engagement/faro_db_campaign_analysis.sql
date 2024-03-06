@@ -62,8 +62,10 @@ email_template AS ( #Manually updated - to be changed to db_airtable_email from 
 market_segment AS (
   SELECT * EXCEPT(rownum) 
   FROM (
-    SELECT leadorcontactid, pull_market_segment__c,
-    ROW_NUMBER() OVER(PARTITION BY leadorcontactid, pull_market_segment__c ORDER BY lastmodifieddate DESC) AS rownum
+    SELECT 
+      leadorcontactid, 
+      pull_market_segment__c,
+      ROW_NUMBER() OVER(PARTITION BY leadorcontactid, pull_market_segment__c ORDER BY lastmodifieddate DESC) AS rownum
     FROM `faro_salesforce.CampaignMember` main
   ) WHERE rownum = 1
 ),
@@ -90,19 +92,6 @@ prospect_info AS (
       COALESCE(cnt.waterfall_stage__c, ld.waterfall_stage__c) AS _waterfall_stage,
       COALESCE(cnt.division_region__c, ld.division_region__c) AS _division_region,
       pull_market_segment__c AS _market_segment,
-      /* 
-      campaign name DONE
-      2. lead/contact ID from salesforce* DONE
-      3. name* DONE
-      4. division/region* DONE
-      5. market segment* DONE
-      6. email* DONE
-      7. company DONE
-      8.title DONE
-      9. country* DONE
-      10.lead source DONE
-      11.waterfall stage DONE
-      */
       ROW_NUMBER() OVER(
         PARTITION BY prospect.email
         ORDER BY prospect.email DESC

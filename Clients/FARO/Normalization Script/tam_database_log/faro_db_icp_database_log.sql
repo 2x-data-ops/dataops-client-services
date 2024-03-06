@@ -3,9 +3,9 @@
 --------------------------------------------------------------------------------------------------------------------------------------------
 
 -- No bombora report so it's being excluded.
--- CREATE OR REPLACE TABLE spirion.db_icp_database_log;
-TRUNCATE TABLE `spirion.db_icp_database_log` ;
-INSERT INTO `spirion.db_icp_database_log`
+-- CREATE OR REPLACE TABLE faro.db_icp_database_log;
+TRUNCATE TABLE `faro.db_icp_database_log` ;
+INSERT INTO `faro.db_icp_database_log`
 WITH
   -- To be filled up if required
   /* suppressed_industry AS (
@@ -97,101 +97,57 @@ WITH
       SELECT "Wholesale Trade" 
     )
   ), */
-  contacts AS (
-    SELECT 
-      * EXCEPT( _rownum, _country),
-      CASE WHEN LOWER(_country) IN ('us',  'usa', 'united states', 'united states of america') THEN 'US' ELSE _country END AS _country
+  market_segment AS (
+    SELECT * EXCEPT(rownum) 
     FROM (
       SELECT 
-          marketo.id AS _id,
-          marketo.email AS _email,
-          CONCAT(marketo.firstname,' ', marketo.lastname) AS _name,
-          COALESCE(marketo.email_domain__c , RIGHT(marketo.email,LENGTH(marketo.email)-STRPOS(marketo.email,'@')) )
-          AS _domain,
-          marketo.title AS _jobtitle,
-          CASE 
-            WHEN marketo.title LIKE '%Senior Counsel%' THEN "VP"
-            WHEN marketo.title LIKE '%Assistant General Counsel%' THEN "VP" 
-            WHEN marketo.title LIKE '%General Counsel%' THEN "C-Level" 
-            WHEN marketo.title LIKE '%Founder%' THEN "C-Level" 
-            WHEN marketo.title LIKE '%C-Level%' THEN "C-Level" 
-            WHEN marketo.title LIKE '%CDO%' THEN "C-Level" 
-            WHEN marketo.title LIKE '%CIO%' THEN "C-Level"
-            WHEN marketo.title LIKE '%CMO%' THEN "C-Level"
-            WHEN marketo.title LIKE '%CFO%' THEN "C-Level" 
-            WHEN marketo.title LIKE '%CEO%' THEN "C-Level"
-            WHEN marketo.title LIKE '%Chief%' THEN "C-Level" 
-            WHEN marketo.title LIKE '%coordinator%' THEN "Non-Manager"
-            WHEN marketo.title LIKE '%COO%' THEN "C-Level" 
-            WHEN marketo.title LIKE '%Sr. V.P.%' THEN "Senior VP"
-            WHEN marketo.title LIKE '%Sr.VP%' THEN "Senior VP"  
-            WHEN marketo.title LIKE '%Senior-Vice Pres%' THEN "Senior VP"  
-            WHEN marketo.title LIKE '%srvp%' THEN "Senior VP" 
-            WHEN marketo.title LIKE '%Senior VP%' THEN "Senior VP" 
-            WHEN marketo.title LIKE '%SR VP%' THEN "Senior VP"  
-            WHEN marketo.title LIKE '%Sr Vice Pres%' THEN "Senior VP" 
-            WHEN marketo.title LIKE '%Sr. VP%' THEN "Senior VP" 
-            WHEN marketo.title LIKE '%Sr. Vice Pres%' THEN "Senior VP"  
-            WHEN marketo.title LIKE '%S.V.P%' THEN "Senior VP" 
-            WHEN marketo.title LIKE '%Senior Vice Pres%' THEN "Senior VP"  
-            WHEN marketo.title LIKE '%Exec Vice Pres%' THEN "Senior VP" 
-            WHEN marketo.title LIKE '%Exec Vp%' THEN "Senior VP"  
-            WHEN marketo.title LIKE '%Executive VP%' THEN "Senior VP" 
-            WHEN marketo.title LIKE '%Exec VP%' THEN "Senior VP"  
-            WHEN marketo.title LIKE '%Executive Vice President%' THEN "Senior VP" 
-            WHEN marketo.title LIKE '%EVP%' THEN "Senior VP"  
-            WHEN marketo.title LIKE '%E.V.P%' THEN "Senior VP" 
-            WHEN marketo.title LIKE '%SVP%' THEN "Senior VP" 
-            WHEN marketo.title LIKE '%V.P%' THEN "VP" 
-            WHEN marketo.title LIKE '%VP%' THEN "VP" 
-            WHEN marketo.title LIKE '%Vice Pres%' THEN "VP"
-            WHEN marketo.title LIKE '%V P%' THEN "VP"
-            WHEN marketo.title LIKE '%President%' THEN "C-Level"
-            WHEN marketo.title LIKE '%Director%' THEN "Director"
-            WHEN marketo.title LIKE '%CTO%' THEN "C-Level"
-            WHEN marketo.title LIKE '%Dir%' THEN "Director"
-            WHEN marketo.title LIKE '%MDR%' THEN "Non-Manager"
-            WHEN marketo.title LIKE '%MD%' THEN "Director"
-            WHEN marketo.title LIKE '%GM%' THEN "Director"
-            WHEN marketo.title LIKE '%Head%' THEN "VP"
-            WHEN marketo.title LIKE '%Manager%' THEN "Manager"
-            WHEN marketo.title LIKE '%escrow%' THEN "Non-Manager"
-            WHEN marketo.title LIKE '%cross%' THEN "Non-Manager"
-            WHEN marketo.title LIKE '%crosse%' THEN "Non-Manager"
-            WHEN marketo.title LIKE '%Assistant%' THEN "Non-Manager"
-            WHEN marketo.title LIKE '%Partner%' THEN "C-Level"
-            WHEN marketo.title LIKE '%CRO%' THEN "C-Level"
-            WHEN marketo.title LIKE '%Chairman%' THEN "C-Level"
-            WHEN marketo.title LIKE '%Owner%' THEN "C-Level"
-          END AS _seniority,
-          sf.dscorgpkg__job_function__c AS _function,
-          marketo.phone AS _phone,
-          marketo.company AS _company,
-          marketo.annualrevenue AS _revenue,
-          marketo.industry AS _industry,
-          marketo.numberofemployees AS _employee,
-          marketo.city AS _city,
-          marketo.state AS _state, 
-          marketo.country AS _country,
-          marketo.region__c AS _region,
-          "" AS _persona,
-          marketo.stage__c AS _lifecycleStage,
-          createdat AS _createddate,
-          leadscore AS _leadscore,
-          sfdcaccountid AS _sfdcaccountid,
-          sfdccontactid AS _sfdccontactid,
-          sfdcleadid AS _sfdcleadid,
-          sfac.target_account__c AS _targetAccount,
-          ROW_NUMBER() OVER( PARTITION BY marketo.email ORDER BY updatedat DESC) AS _rownum,
-        FROM `x-marketing.spirion_marketo.leads` marketo
-        LEFT JOIN `x-marketing.spirion_salesforce.Contact` sf ON marketo.sfdccontactid = sf.id 
-        LEFT JOIN `x-marketing.spirion_salesforce.Account` sfac ON marketo.sfdcaccountid = sfac.id 
-        WHERE 
-          marketo.email IS NOT NULL 
-          --AND marketo.email NOT LIKE '%2x.marketing%'
-        )
-    WHERE 
-      _rownum = 1 
+        leadorcontactid, 
+        pull_market_segment__c,
+        ROW_NUMBER() OVER(PARTITION BY leadorcontactid, pull_market_segment__c ORDER BY lastmodifieddate DESC) AS rownum
+      FROM `faro_salesforce.CampaignMember` main
+    ) WHERE rownum = 1
+  ),
+  contacts AS (
+    SELECT * EXCEPT(rownum)
+    FROM (
+      SELECT
+        prospect.email AS _email,
+        CONCAT(prospect.first_name, ' ', prospect.last_name) AS _name,
+        prospect.job_title AS _title,
+        CAST(NULL AS STRING) AS _seniority,
+        prospect.company AS _company,
+        prospect.industry AS _industry,
+        prospect.annual_revenue AS _revenuerange,
+        prospect.employees AS _employees,
+        prospect.city AS _city,
+        prospect.state AS _state,
+        prospect.country AS _country,
+        prospect.crm_lead_fid AS _sfdcLeadid,
+        prospect.crm_contact_fid AS _sfdcContactid,
+        prospect.crm_owner_fid AS _sfdcOwnerid,
+        prospect.source AS _source,
+        COALESCE(cnt.leadsource, ld.leadsource) AS _lead_source,
+        COALESCE(cnt.waterfall_stage__c, ld.waterfall_stage__c) AS _waterfall_stage,
+        COALESCE(cnt.division_region__c, ld.division_region__c) AS _division_region,
+        pull_market_segment__c AS _market_segment,
+        ROW_NUMBER() OVER(
+          PARTITION BY prospect.email
+          ORDER BY prospect.email DESC
+        ) AS rownum
+      FROM
+        `x-marketing.faro_pardot.prospects` prospect
+      LEFT JOIN 
+        `faro_salesforce.Contact` cnt ON prospect.crm_contact_fid = cnt.id
+      LEFT JOIN 
+        `faro_salesforce.Lead` ld ON prospect.crm_lead_fid = ld.id
+      LEFT JOIN 
+        market_segment ON COALESCE(crm_contact_fid, crm_lead_fid) = market_segment.leadorcontactid
+      -- LEFT JOIN
+      --   seniority
+      -- ON
+      --   prospect.job_title LIKE CONCAT ('%',seniority.title,'%')
+    )
+    WHERE rownum = 1
   )
 SELECT 
   DISTINCT 

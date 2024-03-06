@@ -183,17 +183,17 @@ all_mouseflow_web_visit AS (
 
     SELECT DISTINCT 
 
-        _visitorid AS _source_id,
+        _recordingID AS _source_id,
         _name AS _accountname,
         _domain,
         DATE(_timestamp) AS _timestamp,
-        'Webtrack' AS _source,
+        'Mouseflow' AS _source,
         'Web Visit' AS _engagement,
         _entryURL AS _description,
         _totalPages AS _notes
 
     FROM 
-        `x-marketing.sandler.dashboard_webtrack_kickfire` 
+        `x-marketing.sandler.dashboard_mouseflow_kickfire` 
     WHERE 
         _name IS NOT NULL  
     AND 
@@ -223,14 +223,18 @@ combined_engagements AS (
 
         SELECT
             
-            _visitorid AS _source_id,
+            _recordingID AS _source_id,
             _webActivityURL AS _pages_viewed,
+            _engagementtime AS _engagement_time,
+            _timespent AS _duration,
+            IF(_timespent < 10, 'Yes', 'No') AS _quick_exit,
+            _recordingURL AS _recording,
             _utmcampaign AS _utm_campaign,
             _utmmedium AS _utm_medium,
             _utmsource AS _utm_source
 
         FROM 
-            `x-marketing.sandler.dashboard_webtrack_kickfire` 
+            `x-marketing.sandler.dashboard_mouseflow_kickfire` 
         WHERE 
             _name IS NOT NULL  
         AND 
