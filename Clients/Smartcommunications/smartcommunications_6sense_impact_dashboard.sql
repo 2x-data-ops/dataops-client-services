@@ -346,7 +346,7 @@ SELECT *
                         WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
                     END
                 ) AS _rownum
-        FROM `x-marketing.smartcomm_mysql.smartcommunications_db_campaign_performance`
+        FROM `smartcomm_mysql.smartcommunications_db_campaign_performance`
         WHERE _datatype = 'Ad'
     )
     WHERE _rownum = 1
@@ -417,7 +417,7 @@ campaign_fields AS (
             AS _rownum
 
         FROM 
-            `x-marketing.smartcomm_mysql.smartcommunications_db_campaign_performance`
+            `smartcomm_mysql.smartcommunications_db_campaign_performance`
         WHERE
             _datatype = 'Campaign'
 
@@ -433,8 +433,8 @@ airtable_fields AS (
 
         _campaignid AS _campaign_id, 
         _adid AS _ad_id,
-        ad_group AS _ad_group,
-        screenshot AS _screenshot
+        _adgroup AS _ad_group,
+        _screenshot
         
     FROM
         `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense`
@@ -503,7 +503,7 @@ campaign_numbers AS (
                 main._6sense_country,
                 main._6sense_domain,
                 main.segment_name AS _segmentname,
-                side.campaign_id__nu AS _campaignid
+                side._campaignid
 
             FROM 
                 `smartcom_6sense.target_account` main
@@ -512,7 +512,7 @@ campaign_numbers AS (
                 `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
             
             ON 
-                main.segment_name = side.segment_name
+                main.segment_name = side._segmentname
 
         )
         GROUP BY 
@@ -539,24 +539,24 @@ campaign_numbers AS (
                 main._6sense_country,
                 main._6sense_domain,
                 main.segment_name AS _segmentname,
-                side.campaign_id__nu AS _campaignid
+                side._campaignid
 
             FROM 
-                `x-marketing.smartcom_6sense.target_account` main
+                `smartcom_6sense.target_account` main
             
             JOIN 
-                `x-marketing.smartcom_6sense.airtable` side
+                `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
             
             ON 
-                main.segment_name = side.segment_name
+                main.segment_name = side._segmentname
 
             JOIN 
-                `x-marketing.smartcom_6sense.reached_account` extra
+                `smartcomm_mysql.smartcommunications_db_reached_account` extra
 
-            ON main._6sense_company_name = extra._6sense_company_name
-            AND main._6sense_country = extra._6sense_country
-            AND main._6sense_domain = extra._6sense_domain
-            AND side.campaign_id__nu = extra.campaign_id
+            ON main._6sense_company_name = extra._6sensecompanyname
+            AND main._6sense_country = extra._6sensecountry
+            AND main._6sense_domain = extra._6sensedomain
+            AND side._campaignid = extra._campaignid
 
             -- USING(
             --     _6sense_company_name,
@@ -589,16 +589,16 @@ campaign_numbers AS (
                 main._6sense_country,
                 main._6sense_domain,
                 main.segment_name AS _segmentname,
-                side.campaign_id AS _campaignid,
+                side._campaignid,
 
             FROM 
-                `x-marketing.smartcom_6sense.target_account` main
+                `smartcom_6sense.target_account` main
             
             JOIN 
-                `x-marketing.smartcom_6sense.airtable` side
+                `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
             
             ON 
-                main.segment_name = side.segment_name
+                main.segment_name = side._segmentname
 
             JOIN 
                 `smartcom.db_6sense_account_current_state` extra
