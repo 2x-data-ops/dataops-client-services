@@ -41,6 +41,7 @@ INSERT INTO `x-marketing.sandler.db_web_engagements_log` (
     _region,
     _country
 )
+-- CREATE OR REPLACE TABLE `x-marketing.sandler.db_web_engagements_log` AS
 WITH
     mouseflow AS (
         SELECT 

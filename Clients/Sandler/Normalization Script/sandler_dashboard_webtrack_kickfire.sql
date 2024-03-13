@@ -1,37 +1,9 @@
 ---------------------------------------------------------------------------------------------------------------------------------------
------------------------------------------------------------- Dashboard Mouseflow Kickfire ---------------------------------------------
+------------------------------------------------------------ Dashboard Webtrack Kickfire ---------------------------------------------
 ---------------------------------------------------------------------------------------------------------------------------------------
 
--- This is a mouseflow based script + 6sense buying stage
+-- This is a webtrack based script + 6sense buying stage
 
--- TRUNCATE TABLE `x-marketing.sandler.dashboard_mouseflow_kickfire`;
-
--- INSERT INTO `x-marketing.sandler.dashboard_mouseflow_kickfire`  (
---   _visitorID,
---   _entrypage,
---   _entryURL,
---   _totalsessionviews,
---   _timestamp,
---   _stage,
---   _utmsource,
---   _utmcampaign,
---   _utmmedium,
---   _utmcontent,
---   _domain,
---   _name,
---   _ipaddr,
---   _region, 
---   _city, 
---   _country,
---   _ipAddr,
---   _industry,
---   _revenue,
---   _phone,
---   _employees,
---   _webActivity,
---   _webActivityURL,
---   _totalPages
--- )
 CREATE OR REPLACE TABLE `x-marketing.sandler.dashboard_webtrack_kickfire`
 WITH 
   mouseflow_recording AS (
@@ -58,7 +30,7 @@ WITH
         _country,
         ROW_NUMBER() OVER(PARTITION BY _domain, _visitorid, EXTRACT(DATE FROM _timestamp) ORDER BY _timestamp) AS _order
       FROM
-        `x-marketing.sandler.db_web_engagements_log`
+        `x-marketing.sandler.db_webtrack_engagements_log`
     )
 ),
   webtrack_6sense AS (
