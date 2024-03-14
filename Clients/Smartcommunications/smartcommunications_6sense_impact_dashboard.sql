@@ -1,7 +1,38 @@
+CREATE OR REPLACE TABLE smartcom.db_6sense_reached_account AS 
+
+
+-- SELECT
+--   reached.*,
+--   '' AS 
+-- FROM  reached
+-- airtable
+
+
+WITH reached AS (
+   SELECT * EXCEPT (_spend),
+    CAST(REGEXP_REPLACE(_spend, r'\$', '') AS FLOAT64) AS _spend
+   FROM
+  smartcomm_mysql.smartcommunications_db_reached_account
+),
+airtable AS (
+SELECT DISTINCT
+  _campaignid,
+  _campaignname,
+  '' AS _campaigntype
+FROM `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` 
+)
+SELECT
+  reached.*,
+  airtable.* EXCEPT (_campaignid)
+FROM reached
+LEFT JOIN airtable
+ON reached._campaignid = airtable._campaignid;
+
+
+
 -- SCRIPT CONTEXT AND OVERVIEW
 -- Analyst needs to build ads performance pages only for the 6sense impact dashboard
 -- Currently only ads performance and account performance table is connected in the dashboard
-
 
 
 CREATE OR REPLACE TABLE `smartcom.db_6sense_buying_stages_movement` AS
@@ -94,21 +125,21 @@ WITH target_accounts AS (
 
         FROM (
                 SELECT DISTINCT
-                    _6sense_company_name,
-                    _6sense_country,
-                    _6sense_domain,
-                    industry__legacy_ AS _6senseindustry,
-                    _6sense_employee_range,
-                    _6sense_revenue_range,
+                    _6sensecompanyname,
+                    _6sensecountry,
+                    _6sensedomain,
+                    _industrylegacy AS _6senseindustry,
+                    _6senseemployeerange,
+                    _6senserevenuerange,
                     CASE
-                        WHEN extract_date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', extract_date)
-                        ELSE PARSE_DATE('%F', extract_date)
+                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                        ELSE PARSE_DATE('%F', _extractdate)
                     END AS _added_on,
                     '6sense' AS _data_source,
 
-                    CONCAT(_6sense_company_name, _6sense_country, _6sense_domain) AS _country_account
+                    CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
                 FROM
-                    `smartcom_6sense.target_account` 
+                    `smartcomm_mysql.smartcommunications_db_target_account_6sense` 
             ) main
 
                             -- Get the earliest date of appearance of each account
@@ -118,17 +149,17 @@ WITH target_accounts AS (
 
                         MIN(
                             CASE 
-                                WHEN extract_date LIKE '%/%'
-                                THEN PARSE_DATE('%m/%e/%Y', extract_date)
-                                ELSE PARSE_DATE('%F', extract_date)
+                                WHEN _extractdate LIKE '%/%'
+                                THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                                ELSE PARSE_DATE('%F', _extractdate)
                             END 
                         ) 
                         AS _added_on,
 
-                        CONCAT(_6sense_company_name, _6sense_country, _6sense_domain) AS _country_account
+                        CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
                         
                     FROM
-                        `smartcom_6sense.target_account`
+                        `smartcomm_mysql.smartcommunications_db_target_account_6sense`
                     GROUP BY 
                         2
                     ORDER BY 
@@ -326,9 +357,11 @@ SELECT *
     EXCEPT (_rownum)
     FROM (
         SELECT DISTINCT
-            _campaignid AS _campaign_id,
+            _campaignid,
             _name AS _advariation,
             _6senseid AS _adid,
+            _accountctr,
+            _accountvtr,
             CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64
                 ) AS _spend,
             CAST(REPLACE(_clicks, '.0', '') AS INTEGER) AS _clicks,
@@ -361,7 +394,9 @@ campaign_fields AS (
 
         SELECT
 
-            _campaignid AS _campaign_id,
+            _campaignid,
+            _accountctr,
+            _accountvtr,
             
             CASE
                 WHEN _extractdate LIKE '%/%'
@@ -431,9 +466,9 @@ airtable_fields AS (
 
     SELECT DISTINCT 
 
-        _campaignid AS _campaign_id, 
-        _adid AS _ad_id,
-        _adgroup AS _ad_group,
+        _campaignid, 
+        _adid,
+        _adgroup,
         _screenshot
         
     FROM
@@ -451,7 +486,7 @@ combined_data AS (
         campaign_fields._start_date,
         campaign_fields._end_date,
         ads.*,
-        airtable_fields._ad_group,
+        airtable_fields._adgroup,
         airtable_fields._screenshot,
         campaign_fields._newly_engaged_accounts,
         campaign_fields._increased_engagement_accounts
@@ -462,20 +497,20 @@ combined_data AS (
     LEFT JOIN
         airtable_fields 
     ON (
-            ads._adid = airtable_fields._ad_id
+            ads._adid = airtable_fields._adid
         AND 
-            ads._campaign_id = airtable_fields._campaign_id
+            ads._campaignid = airtable_fields._campaignid
     )
-    OR (
-            airtable_fields._ad_id IS NULL
-        AND 
-            ads._campaign_id = airtable_fields._campaign_id
-    )
+    -- OR (
+    --         airtable_fields._adid IS NULL
+    --     AND 
+    --         ads._campaignid = airtable_fields._campaignid
+    -- )
 
     LEFT JOIN 
         campaign_fields
     ON 
-        ads._campaign_id = campaign_fields._campaign_id
+        ads._campaignid = campaign_fields._campaignid
 
 ),
 
@@ -499,20 +534,20 @@ campaign_numbers AS (
 
             SELECT DISTINCT 
 
-                main._6sense_company_name,
-                main._6sense_country,
-                main._6sense_domain,
-                main.segment_name AS _segmentname,
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
+                main._segmentname,
                 side._campaignid
 
             FROM 
-                `smartcom_6sense.target_account` main
+                `smartcomm_mysql.smartcommunications_db_target_account_6sense` main
             
             JOIN 
                 `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
             
             ON 
-                main.segment_name = side._segmentname
+                main._segmentname = side._segmentname
 
         )
         GROUP BY 
@@ -520,8 +555,7 @@ campaign_numbers AS (
 
     ) target
 
-    ON combined_data._campaign_id = CAST(target._campaignid AS STRING)
-    -- USING(_campaignid)
+    USING(_campaignid)
 
     -- Get accounts that have been reached
     LEFT JOIN (
@@ -535,35 +569,30 @@ campaign_numbers AS (
 
             SELECT DISTINCT 
 
-                main._6sense_company_name,
-                main._6sense_country,
-                main._6sense_domain,
-                main.segment_name AS _segmentname,
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
+                main._segmentname,
                 side._campaignid
 
             FROM 
-                `smartcom_6sense.target_account` main
+                `smartcomm_mysql.smartcommunications_db_target_account_6sense` main
             
             JOIN 
                 `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
             
             ON 
-                main.segment_name = side._segmentname
+                main._segmentname = side._segmentname
 
             JOIN 
                 `smartcomm_mysql.smartcommunications_db_reached_account` extra
 
-            ON main._6sense_company_name = extra._6sensecompanyname
-            AND main._6sense_country = extra._6sensecountry
-            AND main._6sense_domain = extra._6sensedomain
-            AND side._campaignid = extra._campaignid
-
-            -- USING(
-            --     _6sense_company_name,
-            --     _6sense_country,
-            --     _6sense_domain,
-            --     _campaign_id
-            -- )
+            USING(
+                _6sensecompanyname,
+                _6sensecountry,
+                _6sensedomain,
+                _campaignid
+            )
             
         )
         GROUP BY 
@@ -571,42 +600,41 @@ campaign_numbers AS (
 
     ) reach
 
-    ON combined_data._campaign_id = CAST(target._campaignid AS STRING)
-    -- USING(_campaign_id)
+    USING(_campaignid)
 
     -- Get accounts that are 6QA
     LEFT JOIN (
 
         SELECT DISTINCT
 
-            _campaignid AS _campaign_id,
+            _campaignid,
             COUNT(*) AS _6qa_accounts
         
         FROM (
             
             SELECT DISTINCT 
-                main._6sense_company_name,
-                main._6sense_country,
-                main._6sense_domain,
-                main.segment_name AS _segmentname,
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
+                main._segmentname,
                 side._campaignid,
 
             FROM 
-                `smartcom_6sense.target_account` main
+                `smartcomm_mysql.smartcommunications_db_target_account_6sense` main
             
             JOIN 
                 `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
             
             ON 
-                main.segment_name = side._segmentname
+                main._segmentname = side._segmentname
 
             JOIN 
                 `smartcom.db_6sense_account_current_state` extra
             
             USING(
-                _6sense_company_name,
-                _6sense_country,
-                _6sense_domain
+                _6sensecompanyname,
+                _6sensecountry,
+                _6sensedomain
             )
 
             WHERE 
@@ -618,7 +646,7 @@ campaign_numbers AS (
 
     )
 
-    USING(_campaign_id)
+    USING(_campaignid)
 
 ),
 
@@ -630,7 +658,7 @@ total_ad_occurrence_per_campaign AS (
         *,
         
         COUNT(*) OVER (
-            PARTITION BY _campaign_id
+            PARTITION BY _campaignid
         ) 
         AS _occurrence
 
@@ -656,13 +684,95 @@ reduced_campaign_numbers AS (
 
 )
 
-SELECT * EXCEPT (_campaignid) FROM reduced_campaign_numbers;
+SELECT * FROM reduced_campaign_numbers;
+
+
+-- Insert Linkedin data into ad performance
+INSERT INTO `smartcom.db_6sense_ad_performance` (
+_adid,
+_date,
+_spend,
+_clicks,
+_impressions,
+_campaign_type,
+_campaignid,
+_campaign_name,
+_campaign_status,
+_accountctr,
+_accountvtr,
+_start_date,
+_end_date,
+_advariation,
+_adgroup,
+_newly_engaged_accounts,
+_increased_engagement_accounts,
+_target_accounts,
+_reached_accounts,
+_6qa_accounts,
+_occurrence,
+_reduced_newly_engaged_accounts,
+_reduced_increased_engagement_accounts,
+_reduced_target_accounts,
+_reduced_reached_accounts,
+_reduced_6qa_accounts
+)
+WITH
+linkedin_ads AS (
+  SELECT
+    CAST(creative_id AS STRING) AS _adid,
+    CAST(start_at AS DATE) AS _date,
+    SUM(cost_in_usd) AS _spend, 
+    SUM(clicks) AS _clicks, 
+    SUM(impressions) AS _impressions,
+    'Linkedin' AS _campaign_type
+  FROM
+    `smartcomm_linkedin_ads.ad_analytics_by_creative`
+  GROUP BY creative_id, start_at
+),
+creative AS (
+  SELECT
+    SPLIT(SUBSTR(id, STRPOS(id, 'sponsoredCreative:')+18))[ORDINAL(1)] AS cID,
+    CAST(campaign_id AS STRING) AS _campaign_id
+  FROM `smartcomm_linkedin_ads.creatives`
+),
+campaign AS (
+  SELECT
+    name AS _campaign_name,
+    CAST(id AS STRING) AS id,
+    '' AS _campaign_status,
+    CAST(NULL AS STRING) AS _accountctr,
+    CAST(NULL AS STRING) AS _accountvtr,
+    CAST(NULL AS DATE) AS _start_date,
+    CAST(NULL AS DATE) AS _end_date,
+    '' AS _advariation,
+    '' AS _ad_group,
+    CAST(NULL AS INT64) AS _newly_engaged_accounts,
+    CAST(NULL AS INT64) AS _increased_engagement_accounts,
+    CAST(NULL AS INT64) AS _target_accounts,
+    CAST(NULL AS INT64) AS _reached_accounts,
+    CAST(NULL AS INT64) AS _6qa_accounts,
+    CAST(NULL AS INT64) AS _occurrence,
+    CAST(NULL AS INT64) AS _reduced_newly_engaged_accounts,
+    CAST(NULL AS INT64) AS _reduced_increased_engagement_accounts,
+    CAST(NULL AS INT64) AS _reduced_target_accounts,
+    CAST(NULL AS INT64) AS _reduced_reached_accounts,
+    CAST(NULL AS INT64) AS _reduced_6qa_accounts
+  FROM `smartcomm_linkedin_ads.campaigns`
+)
+SELECT
+  linkedin_ads.*,
+  creative.* EXCEPT(cID),
+  campaign.* EXCEPT (id)
+FROM linkedin_ads
+LEFT JOIN creative
+ON linkedin_ads._adid = creative.cID
+LEFT JOIN campaign
+ON campaign.id = creative._campaign_id;
 
 ----------------------------------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------
 -- ACCOUNT PERFORMANCES
 ----------------------------------------------------------------------------------------------------------------------------
-
 
 
 
@@ -674,28 +784,26 @@ WITH target_accounts AS (
 
     SELECT DISTINCT 
 
-        main._6sense_company_name,
-        main._6sense_country,
-        main._6sense_domain,
+        main._6sensecompanyname,
+        main._6sensecountry,
+        main._6sensedomain,
         -- CASE
         --     WHEN main.segment_name = 'S4_HANA - NA' THEN 'S4/HANA - NA'
         --     WHEN main.segment_name = 'S4_HANA - EMEA' THEN 'S4/HANA - EMEA'
         --     WHEN main.segment_name = 'S4/HANA - APJ' THEN 'S4/HANA - APJ'
         --     ELSE main.segment_name
         -- END AS _segmentname,              
-        side.segment_name,
-        side.campaign_id__nu AS _campaignid,
-        CAST(side.campaign_id__nu AS STRING) AS campaign_id,
-        side.campaign_name AS _campaign_name
-
+        side._segmentname,
+        side._campaignid,
+        side._campaignname
     FROM 
-        `x-marketing.smartcom_6sense.target_account` main
+        `smartcomm_mysql.smartcommunications_db_target_account_6sense` main
     
     JOIN 
-        `x-marketing.smartcom_6sense.airtable` side
+        `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
     
     ON 
-        main.segment_name = side.segment_name
+        main._segmentname = side._segmentname
 
 ),
 
@@ -704,22 +812,22 @@ reached_accounts AS (
 
     SELECT DISTINCT 
 
-        main.* EXCEPT(campaign_id),
+        main.* EXCEPT(_campaignid),
 
         CASE 
-            WHEN side.campaign_id IS NOT NULL 
+            WHEN side._campaignid IS NOT NULL 
             THEN true 
         END 
         AS _is_reached,
 
         CASE 
-            WHEN CAST(side.clicks AS INTEGER) > 0 
+            WHEN CAST(side._clicks AS INTEGER) > 0 
             THEN true 
         END 
         AS _has_clicks,
 
         CASE 
-            WHEN CAST(side.impressions AS INTEGER) > 0 
+            WHEN CAST(side._impressions AS INTEGER) > 0 
             THEN true 
         END 
         AS _has_impressions
@@ -727,17 +835,15 @@ reached_accounts AS (
     FROM 
         target_accounts AS main
 
-    LEFT JOIN (
-        SELECT * EXCEPT (campaign_id), CAST(campaign_id AS STRING) AS campaign_id
-        FROM
+    LEFT JOIN
     
-        `x-marketing.smartcom_6sense.reached_account` ) side
+        `smartcomm_mysql.smartcommunications_db_reached_account` side
 
     USING(
-        _6sense_company_name,
-        _6sense_country,
-        _6sense_domain,
-        campaign_id
+        _6sensecompanyname,
+        _6sensecountry,
+        _6sensedomain,
+        _campaignid
     )
 
 )
