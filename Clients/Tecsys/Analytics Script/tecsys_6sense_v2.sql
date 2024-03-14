@@ -403,26 +403,26 @@ SELECT
         0 AS retargetedAccounts,
         CASE
             WHEN other._totalspent LIKE "%/%"
-            THEN CAST(REPLACE(REPLACE(LEFT(other._totalspent, STRPOS(other._totalspent, '/') - 1), ',', ''), '$', '') AS DECIMAL)
-            ELSE CAST(other._totalspent AS DECIMAL)
+            THEN SAFE_CAST(REPLACE(REPLACE(LEFT(other._totalspent, STRPOS(other._totalspent, '/') - 1), ',', ''), '$', '') AS DECIMAL)
+            ELSE SAFE_CAST(other._totalspent AS DECIMAL)
         END AS totalSpent,
-        CAST(REPLACE(other._accountctr, '%', '') AS DECIMAL) / 100 AS accountCtr,
-        CAST(REPLACE(other._accountvtr, '%', '') AS DECIMAL) / 100 AS accountVtr,
-        CAST(SUBSTR(other._avgincreaseinaccountengagement, 1, 4) AS DECIMAL) AS avgIncreaseInAccountEngagement,
-        CAST(REPLACE(other._accountsnewlyengaged, ',', '') AS INT) AS accountsNewlyEngaged,
-        CAST(REPLACE(other._accountswithincreasedengagement, ',', '') AS INT) AS accountsWithIncreasedEngagement,
-        CAST(REPLACE(other._ctr, '%', '') AS DECIMAL) / 100 AS ctr,
-        CAST(REPLACE(other._vtr, '%', '') AS DECIMAL) / 100 AS vtr,
-        CAST(REPLACE(other._impressions, ',', '') AS INT) AS impressions,
-        CAST(REPLACE(other._clicks, ',', '') AS INT) AS clicks,
+        SAFE_CAST(REPLACE(other._accountctr, '%', '') AS DECIMAL) / 100 AS accountCtr,
+        SAFE_CAST(REPLACE(other._accountvtr, '%', '') AS DECIMAL) / 100 AS accountVtr,
+        SAFE_CAST(SUBSTR(other._avgincreaseinaccountengagement, 1, 4) AS DECIMAL) AS avgIncreaseInAccountEngagement,
+        SAFE_CAST(REPLACE(other._accountsnewlyengaged, ',', '') AS INT) AS accountsNewlyEngaged,
+        SAFE_CAST(REPLACE(other._accountswithincreasedengagement, ',', '') AS INT) AS accountsWithIncreasedEngagement,
+        SAFE_CAST(REPLACE(other._ctr, '%', '') AS DECIMAL) / 100 AS ctr,
+        SAFE_CAST(REPLACE(other._vtr, '%', '') AS DECIMAL) / 100 AS vtr,
+        SAFE_CAST(REPLACE(other._impressions, ',', '') AS INT) AS impressions,
+        SAFE_CAST(REPLACE(other._clicks, ',', '') AS INT) AS clicks,
         CASE
             WHEN other._ecpc != ''
-            THEN CAST(REPLACE(other._ecpc, '$', '') AS DECIMAL)
+            THEN SAFE_CAST(REPLACE(other._ecpc, '$', '') AS DECIMAL)
             ELSE 0
         END AS ecpc,
-        CAST(REPLACE(other._ecpm, '$', '') AS DECIMAL) AS ecpm,
-        CAST(REPLACE(other._views, ',', '') AS INT) AS views,
-        CAST(REPLACE(other._influencedformfills, ',', '') AS INT) AS influencedFormFills,
+        SAFE_CAST(REPLACE(other._ecpm, '$', '') AS DECIMAL) AS ecpm,
+        SAFE_CAST(REPLACE(other._views, ',', '') AS INT) AS views,
+        SAFE_CAST(REPLACE(other._influencedformfills, ',', '') AS INT) AS influencedFormFills,
         ROW_NUMBER() OVER(
             PARTITION BY campaign._campaignid 
             ORDER BY (

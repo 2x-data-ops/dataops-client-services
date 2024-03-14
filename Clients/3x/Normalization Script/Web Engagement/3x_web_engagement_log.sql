@@ -1,33 +1,119 @@
---------------------------------------------------------------------------------------------
------------------------------------- Web Engagement Log ------------------------------------
---------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------ Web Performance Script --------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+# Web Metrics
 /* 
     Get all web visits data and tying with ipaddress to get company's domain of a visitor.
     Data stored in this table is log based.
-    Platform : webtrack
 */
 
+TRUNCATE TABLE `x-marketing.3x.db_web_engagements_log`;
 
-TRUNCATE TABLE `x-marketing.logicsource.db_web_engagements_log`;
-INSERT INTO `x-marketing.logicsource.db_web_engagements_log`
+INSERT INTO `x-marketing.3x.db_web_engagements_log` (
+    _recordingurl,
+    _recordingid,
+    _visitorid,
+    _viewid,
+    _userstatus,
+    _page,
+    _pagegroup,
+    _fullurl,
+    _cleanpage, 
+    _nextpage,
+    _totalsessionviews,
+    _uniquesessionviews,
+    -- Engagement time is in the seconds unit
+    _engagementtime,
+    _timespent,
+    _timestamp,
+    -- Stage is set here
+    _stage, 
+    _goalcompletion,
+    _utmsource,
+    _utmcampaign,
+    _utmmedium,
+    _utmcontent,
+    _utmterm,
+    _ipaddr,
+    _domain,
+    _name,
+    _city,
+    _region,
+    _country,
+    _isisp,_target_accounts,
+    ` _account_type`
+)
 WITH
     mouseflow AS (
-        SELECT 
+          SELECT 
             DISTINCT 
-            CAST(NULL AS STRING) AS _recordingurl,
-            CAST(NULL AS STRING) AS _recordingid,
-            _userid AS _visitorid,
+            CASE
+                WHEN _recordingurl LIKE "%api-%"
+                THEN REGEXP_REPLACE(_recordingurl, r'api-', '')
+                WHEN _recordingurl LIKE "%app%"
+                THEN REGEXP_REPLACE(_recordingurl, r'app', 'us')
+                ELSE _recordingurl
+            END AS _recordingurl,
+            _recordingid,
+            _visitorid,
+            _viewid,
             CAST(NULL AS STRING) AS _userstatus,
             _page,
             CAST(NULL AS STRING) AS _pagegroup,
             CASE
                 -- Relabel the root page
-                WHEN _page = '/' THEN 'https://www.logicsource.com/'
+                WHEN _page = '/' THEN 'https://www.2x.marketing/'
+                ELSE _fullurl
+            END AS _fullurl,
+            _cleanpage, 
+            _nextpage,
+            COUNT(DISTINCT _fullurl) OVER(PARTITION BY _visitorid, PARSE_TIMESTAMP('%F %T', _starttime))  AS _uniquesessionviews,
+            CAST(_totalsessionviews AS INT) AS _totalsessionviews,
+            -- Engagement time is in the seconds unit
+            CAST(_engagementtime AS DECIMAL) AS _engagementtime,
+            CAST(_timespent AS FLOAT64) AS _timespent,
+            PARSE_TIMESTAMP('%F %T', _starttime) AS _timestamp,
+            -- Stage is set here
+            'Awareness' AS _stage, 
+            CAST(NULL AS BOOL) AS _goalcompletion,
+            _source AS _utmsource,
+            _campaign AS _utmcampaign,
+            _medium AS _utmmedium,
+            _content AS _utmcontent,
+            _term AS _utmterm,
+            _ipaddr,
+            -- supp._domain AS _domain,
+            -- _name,
+            -- _city,
+            -- _region,
+            _country
+        FROM 
+            `x-marketing.x_mysql.mouseflow_pageviews` main
+            WHERE CAST(PARSE_TIMESTAMP('%F %T', _starttime)  AS DATE) <= '2023-11-01'
+            -- WHERE  _fullurl LIKE "%blog/the-cfos-introduction-to-leveraging-marketing-as-a-service-maas-for-revenue-growth/%"  AND  _ipaddr LIKE "%40.94.20%"
+            UNION ALL
+              SELECT 
+            DISTINCT 
+            CAST(NULL AS STRING) AS _recordingurl,
+            TO_HEX(MD5(CONCAT(_userid , CAST(CAST (_timestamp AS DATE) AS STRING))))  AS _recordingid,
+            --MD5(CONCAT(CAST(_userid AS BYTES), TO_BYTES(TIMESTAMP '2023-01-01 12:34:56') ))  AS _recordingid,
+            _userid AS _visitorid,
+            CAST(NULL AS STRING)  AS  _viewid,
+            CAST(NULL AS STRING) AS _userstatus,
+             CASE
+                -- Relabel the root page
+                WHEN _page = '/' THEN '2x.marketing'
+                ELSE _page END AS _page,
+            CAST(NULL AS STRING) AS _pagegroup,
+            CASE
+                -- Relabel the root page
+                WHEN _page = '/' THEN 'https://2x.marketing/'
                 ELSE _url
             END AS _fullurl,
             CAST(NULL AS STRING) AS _cleanpage, 
             CAST(NULL AS STRING) AS _nextpage,
-            COUNT(DISTINCT _url) OVER(PARTITION BY _userid, DATE(_timestamp)) AS _uniquesessionviews,
+            COUNT(DISTINCT _url) OVER(PARTITION BY _userid, DATE(_timestamp))  AS _uniquesessionviews,
             COUNT(_url) OVER(PARTITION BY _userid, DATE(_timestamp)) AS _totalsessionviews,
             -- Engagement time is in the seconds unit
             CAST(NULL AS DECIMAL) AS _engagementtime,
@@ -42,14 +128,18 @@ WITH
             _content AS _utmcontent,
             CAST(NULL AS STRING) AS _utmterm,
             _ipaddr,
-            _website AS _domain,
-            _companyname AS _name,
+            -- _website AS _domain,
+            -- _companyname AS _name,
             -- _city,
             -- _region,
             _country
             -- ROW_NUMBER() OVER(PARTITION BY _userid, DATE(_timestamp) ORDER BY _timestamp) _page_order
         FROM 
-            `x-marketing.logicsource_mysql.webtrack_segment` main        
+            `x-marketing.x_mysql.webtrack_segment` main
+            WHERE CAST(_timestamp  AS DATE) >= '2023-11-01'
+            
+            -- WHERE  _page LIKE "%blog/the-cfos-introduction-to-leveraging-marketing-as-a-service-maas-for-revenue-growth/%" AND _ipaddr LIKE "%40.94.20.41%"
+        
     ),
     ip_company AS (
         SELECT 
@@ -59,7 +149,7 @@ WITH
             _city,
             _region,
             _country,
-            CAST(_isisp AS STRING) AS _isisp
+            _isisp
         FROM 
             `webtrack_ipcompany.webtrack_ipcompany_6sense`
         WHERE
@@ -67,19 +157,25 @@ WITH
     ),
     mapped AS (
         SELECT 
-            *EXCEPT(_country, _domain, _name),
-            COALESCE(mouseflow._name, ip_company._name) AS _name,
-            COALESCE(mouseflow._domain, ip_company._domain) AS _domain,
+            *EXCEPT(_country),
             COALESCE(mouseflow._country, ip_company._country) AS _country
         FROM
             mouseflow
         LEFT JOIN
             ip_company USING(_ipaddr)
-    )
+    ), _icp_account AS (
+      SELECT DISTINCT 
+      _domain, 
+      _target_accounts,
+      _account_type 
+      FROM `x-marketing.3x.db_icp_database_log`
+    ) ,all_engagement AS (
 SELECT
+    DISTINCT 
     _recordingurl,
     _recordingid,
     _visitorid,
+    _viewid,
     _userstatus,
     _page,
     _pagegroup,
@@ -87,6 +183,7 @@ SELECT
     _cleanpage, 
     _nextpage,
     _totalsessionviews,
+    _uniquesessionviews,
     -- Engagement time is in the seconds unit
     _engagementtime,
     _timespent,
@@ -106,24 +203,31 @@ SELECT
     _region,
     _country,
     _isisp
-    -- _uniquesessionviews
 FROM 
     mapped
+    ) 
+    SELECT all_engagement.*,
+    coalesce(_target_accounts,0) AS _target_accounts,
+      _account_type
+     FROM all_engagement
+    LEFT JOIN _icp_account ON all_engagement._domain = _icp_account._domain
 ;
+
+
 
 # Label new and returning users 
 /*  
     Those whose visitor id appears several times are returning users.
     Those whose visitor id appears once are new users.
 */
-UPDATE `x-marketing.logicsource.db_web_engagements_log` origin
+UPDATE `x-marketing.3x.db_web_engagements_log` origin
 SET origin._userstatus = scenario._userstatus
 FROM (
     WITH visitorid_count AS (
         SELECT
             _visitorid,
             COUNT(*) AS _visitorid_count
-        FROM `x-marketing.logicsource.db_web_engagements_log`
+        FROM `x-marketing.3x.db_web_engagements_log`
         GROUP BY 1
     ),
     label_user_status AS (
@@ -143,7 +247,7 @@ WHERE origin._visitorid = scenario._visitorid;
 /*  
     Categorize web page using the subpage name in the URL
 */
-UPDATE `x-marketing.logicsource.db_web_engagements_log` origin
+UPDATE `x-marketing.3x.db_web_engagements_log` origin
 SET origin._pagegroup = scenario._pagegroup
 FROM (
     SELECT DISTINCT
@@ -186,9 +290,9 @@ FROM (
             WHEN _fullurl LIKE '%security-use-cases%' THEN 'Security Use Cases'
             WHEN _fullurl LIKE '%sensitive-data-discovery%' THEN 'Sensitive Data Discovery'
             WHEN _fullurl LIKE '%sensitive-data-governance-framework%' THEN 'Sensitive Data Governance Framework'
-            WHEN _fullurl LIKE '%logicsource-step-one%' THEN 'logicsource Step One'
+            WHEN _fullurl LIKE '%3x-step-one%' THEN '3x Step One'
             WHEN _fullurl LIKE '%state-local%' THEN 'State Local'
-            WHEN _fullurl LIKE '%wbn-seclore-logicsource%' THEN 'WBN Seclore logicsource'
+            WHEN _fullurl LIKE '%wbn-seclore-3x%' THEN 'WBN Seclore 3x'
             WHEN _fullurl LIKE '%wp-nist%' THEN 'WP NIST'
             WHEN _fullurl LIKE '%blog%' THEN 'Blog'
             WHEN _fullurl LIKE '%ccpa%' THEN 'CCPA'
@@ -206,7 +310,7 @@ FROM (
             WHEN _fullurl LIKE '%data%' THEN 'Other Data Related'
             ELSE 'Non-Grouped'
         END AS _pagegroup
-    FROM `x-marketing.logicsource.db_web_engagements_log`
+    FROM `x-marketing.3x.db_web_engagements_log`
 ) scenario
 WHERE origin._fullurl = scenario._fullurl;
 
@@ -214,18 +318,22 @@ WHERE origin._fullurl = scenario._fullurl;
 /*  
     Goal completion depends on whether a particular page has been reached by the user
 */
-UPDATE `x-marketing.logicsource.db_web_engagements_log` 
+UPDATE `x-marketing.3x.db_web_engagements_log` 
 SET _goalcompletion = true
 WHERE _pagegroup = 'Contact';
 
 
+----to lookup back domain that were not in 6sense. 
 UPDATE
- `x-marketing.logicsource.db_web_engagements_log`  logicsource_mflow
+  `x-marketing.3x.db_web_engagements_log`   _3x_msfw
 SET
-  logicsource_mflow._domain    = kickfire._website,
-  logicsource_mflow._name       = kickfire._name
+  _3x_msfw._domain    = kickfire._website,
+  _3x_msfw._name       = kickfire._name,
+  _3x_msfw._target_accounts = kickfire._target_accounts ,
+    _3x_msfw.` _account_type` = kickfire._account_type
 
 FROM (
+  WITH kickfire AS (
   SELECT
     _ipaddr,
     _website,
@@ -244,30 +352,43 @@ FROM (
   FROM
     `webtrack_ipcompany.webtrack_ipcompany`
   WHERE
-    _isisp = 0 ) kickfire
-WHERE
-  logicsource_mflow._ipAddr = kickfire._ipaddr
-  AND (LENGTH(logicsource_mflow._domain) = 0
-    OR logicsource_mflow._domain IS NULL);
+    _isisp = 0
+), _icp_account AS (
+        SELECT * EXCEPT( _order)
+    FROM (
 
+      SELECT DISTINCT 
+      _domain, 
+      _target_accounts,
+      _account_type ,
+      ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _target_accounts) AS _order
+      FROM `x-marketing.3x.db_icp_database_log`
+    ) WHERE _order = 1
+    ) SELECT kickfire.*,
+    _target_accounts,
+      _account_type FROM kickfire
+    LEFT JOIN _icp_account ON kickfire._website = _icp_account._domain ) kickfire
+WHERE
+  _3x_msfw._ipAddr = kickfire._ipaddr
+  AND (LENGTH(_3x_msfw._domain) = 0
+    OR _3x_msfw._domain IS NULL);
 
 ------------------------------------------------
 -------------- Content Analytics ---------------
 ------------------------------------------------
 
--- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_web_content_analytics` AS
-TRUNCATE TABLE `x-marketing.logicsource.db_web_content_analytics`;
-INSERT INTO `x-marketing.logicsource.db_web_content_analytics`
+-- CREATE OR REPLACE TABLE `x-marketing.3x.db_web_content_analytics` AS
+TRUNCATE TABLE `x-marketing.3x.db_web_content_analytics`;
+INSERT INTO `x-marketing.3x.db_web_content_analytics`
 WITH web_log AS (
     SELECT
         *
-    FROM `x-marketing.logicsource.db_web_engagements_log`
+    FROM `x-marketing.3x.db_web_engagements_log`
 ),
 content AS (
     SELECT 
-        *,
-        CONCAT(REGEXP_EXTRACT(_homeurl, r'\.com(/[^/]+)'),'/') AS CI_page
-    FROM `x-marketing.logicsource_mysql.db_airtable_content_inventory`
+        *
+    FROM `x-marketing.x_mysql.db_airtable_3x_content_inventory`
 )
 SELECT
     web_log.*,
@@ -282,4 +403,4 @@ SELECT
     content._persona
 FROM web_log
 JOIN content
-ON web_log._page = content.CI_page
+ON web_log._fullurl = content._homeurl
