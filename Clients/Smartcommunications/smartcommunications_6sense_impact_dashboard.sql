@@ -501,11 +501,11 @@ combined_data AS (
         AND 
             ads._campaignid = airtable_fields._campaignid
     )
-    -- OR (
-    --         airtable_fields._adid IS NULL
-    --     AND 
-    --         ads._campaignid = airtable_fields._campaignid
-    -- )
+    OR (
+            airtable_fields._adid IS NULL
+        AND 
+            ads._campaignid = airtable_fields._campaignid
+    )
 
     LEFT JOIN 
         campaign_fields
@@ -547,7 +547,7 @@ campaign_numbers AS (
                 `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
             
             ON 
-                main._segmentname = side._segmentname
+                main._segmentname = side._segment
 
         )
         GROUP BY 
@@ -582,7 +582,7 @@ campaign_numbers AS (
                 `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
             
             ON 
-                main._segmentname = side._segmentname
+                main._segmentname = side._segment
 
             JOIN 
                 `smartcomm_mysql.smartcommunications_db_reached_account` extra
@@ -626,7 +626,7 @@ campaign_numbers AS (
                 `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
             
             ON 
-                main._segmentname = side._segmentname
+                main._segmentname = side._segment
 
             JOIN 
                 `smartcom.db_6sense_account_current_state` extra
@@ -793,7 +793,7 @@ WITH target_accounts AS (
         --     WHEN main.segment_name = 'S4/HANA - APJ' THEN 'S4/HANA - APJ'
         --     ELSE main.segment_name
         -- END AS _segmentname,              
-        side._segmentname,
+        side._segment,
         side._campaignid,
         side._campaignname
     FROM 
@@ -803,7 +803,7 @@ WITH target_accounts AS (
         `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
     
     ON 
-        main._segmentname = side._segmentname
+        main._segmentname = side._segment
 
 ),
 
@@ -821,13 +821,13 @@ reached_accounts AS (
         AS _is_reached,
 
         CASE 
-            WHEN CAST(side._clicks AS INTEGER) > 0 
+            WHEN SAFE_CAST(side._clicks AS INTEGER) > 0 
             THEN true 
         END 
         AS _has_clicks,
 
         CASE 
-            WHEN CAST(side._impressions AS INTEGER) > 0 
+            WHEN SAFE_CAST(side._impressions AS INTEGER) > 0 
             THEN true 
         END 
         AS _has_impressions
