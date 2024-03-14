@@ -1,4 +1,4 @@
----wise_request_project
+---wise_request_project New
 TRUNCATE TABLE
 `x-marketing.wise.wise_request_project` ;
  INSERT INTO
