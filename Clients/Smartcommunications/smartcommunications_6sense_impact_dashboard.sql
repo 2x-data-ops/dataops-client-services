@@ -365,8 +365,8 @@ SELECT *
             CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64
                 ) AS _spend,
             CAST(REPLACE(_clicks, '.0', '') AS INTEGER) AS _clicks,
-            SAFE_CAST(_impressions AS INTEGER) AS _impressions,
-            -- CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
+            -- SAFE_CAST(_impressions AS INTEGER) AS _impressions,
+            SAFE_CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
             CASE 
                         WHEN _date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _date)
                         WHEN _date LIKE '%-%' THEN PARSE_DATE('%F', _date)
