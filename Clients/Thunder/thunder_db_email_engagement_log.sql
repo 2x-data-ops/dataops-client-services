@@ -198,11 +198,6 @@ softbounced_email AS (
   )
   WHERE _rownum = 1
 ),
-allbounced_email AS (
-  SELECT * FROM hardbounced_email
-  UNION ALL
-  SELECT * FROM softbounced_email
-),
 opened_email AS (
     SELECT * EXCEPT(_rownum)
   FROM(
@@ -297,32 +292,12 @@ form_filled AS (
   AND 
     activity.type = 4   /* Download */
  ),
-delivered_email AS (
-  SELECT
-  sent._sdc_sequence,
-  sent._prospectID,
-  -- sent._email,
-  sent._campaignID,
-  sent._timestamp,
-  'Delivered' AS _engagement,
-  sent._description,
-  sent._list_email_id,
-  sent._form_handler_id,
-  sent._form_id,
-FROM sent_email AS sent
-LEFT JOIN allbounced_email
-  ON sent._prospectID = allbounced_email._prospectID
-  AND sent._campaignID = allbounced_email._campaignID
-WHERE allbounced_email._prospectID IS NULL 
-),
 engagements AS (
   SELECT * FROM sent_email
   UNION ALL
   SELECT * FROM hardbounced_email
   UNION ALL
   SELECT * FROM softbounced_email
-  UNION ALL
-  SELECT * FROM delivered_email
   UNION ALL
   SELECT * FROM opened_email
   UNION ALL
@@ -358,6 +333,25 @@ LEFT JOIN campaign_info
   ON engagements._campaignID = CAST(campaign_info._campaignID AS STRING)
 LEFT JOIN airtable_info
   ON engagements._list_email_id = airtable_info._list_email_id;
+
+
+INSERT INTO `x-marketing.thunder.db_email_engagements_log`(
+  _sdc_sequence,_campaignID,_engagement,_email,_prospectID,_timestamp,_description,_list_email_id,_name,_phone,_jobtitle,_seniority,_segment,_persona,_tier,_company,_domain,_industry,_subIndustry,_country,_city,_annualrevenue,_employees,_subject,_screenshot,_landingPage,_utm_source,_utmcampaign,_utm_medium,_contentID,_contentTitle,_storyBrandStage,_abstract,_salesforceLeadStage,_salesforceLastActivity,_salesforceCreated,_salesforceOpportunityStage,_salesforceOpportunityValue,_salesforceOpportunityName,_salesforceOpportunityCreated,_sfdcAccountID,_sfdcLeadID,_sfdcContactID,_sfdcOpportunityID,_meetingScheduledDate,_salesforceOpportunityCloseDate,_state,_function,_lb_email,_utm_content,_campaignSentDate,_subCampaign,_preview,_isPageView,_stage,_totalPageViews,_averagePageViews,_device_type,_duration,_response,_linkid,_lifecycleStage,_isBot,_notSent,_showExport,_dropped,_falseDelivered,_createddate,_updateddate,_crm_contact_fid,_crm_lead_fid,_lists,_contenttype,_createdby,_assets,_website,_asseturl,_assettitle,_assettype,_emailname,_form_id,_form_handler_id
+)
+WITH sent AS (
+SELECT * FROM `x-marketing.thunder.db_email_engagements_log`
+WHERE _engagement = 'Sent'
+),
+allbounce AS (
+  SELECT * FROM `x-marketing.thunder.db_email_engagements_log`
+  WHERE _engagement IN ('Hard Bounced', 'Soft Bounced')
+)
+SELECT sent._sdc_sequence,sent._campaignID,'Delivered' AS _engagement,sent._email,sent._prospectID,sent._timestamp,sent._description,sent._list_email_id,sent._name,sent._phone,sent._jobtitle,sent._seniority,sent._segment,sent._persona,sent._tier,sent._company,sent._domain,sent._industry,sent._subIndustry,sent._country,sent._city,sent._annualrevenue,sent._employees,sent._subject,sent._screenshot,sent._landingPage,sent._utm_source,sent._utmcampaign,sent._utm_medium,sent._contentID,sent._contentTitle,sent._storyBrandStage,sent._abstract,sent._salesforceLeadStage,sent._salesforceLastActivity,sent._salesforceCreated,sent._salesforceOpportunityStage,sent._salesforceOpportunityValue,sent._salesforceOpportunityName,sent._salesforceOpportunityCreated,sent._sfdcAccountID,sent._sfdcLeadID,sent._sfdcContactID,sent._sfdcOpportunityID,sent._meetingScheduledDate,sent._salesforceOpportunityCloseDate,sent._state,sent._function,sent._lb_email,sent._utm_content,sent._campaignSentDate,sent._subCampaign,sent._preview,sent._isPageView,sent._stage,sent._totalPageViews,sent._averagePageViews,sent._device_type,sent._duration,sent._response,sent._linkid,sent._lifecycleStage,sent._isBot,sent._notSent,sent._showExport,sent._dropped,sent._falseDelivered,sent._createddate,sent._updateddate,sent._crm_contact_fid,sent._crm_lead_fid,sent._lists,sent._contenttype,sent._createdby,sent._assets,sent._website,sent._asseturl,sent._assettitle,sent._assettype,sent._emailname,sent._form_id,sent._form_handler_id
+  FROM sent
+LEFT JOIN allbounce
+ON sent._prospectID = allbounce._prospectID
+    AND sent._campaignID = allbounce._campaignID
+ WHERE allbounce._prospectID IS NULL;
 
 
 ---OPPS Combined With Email Engagement---
