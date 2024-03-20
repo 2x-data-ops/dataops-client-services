@@ -514,7 +514,7 @@ sales_intelligence_data AS (
             sales.* EXCEPT(_accountname)
         
         FROM 
-            `syniti_mysql.syniti_db_sales_intelligence_activities_updated` sales
+            `syniti_mysql.syniti_db_sales_intelligence_activities` sales
         
         LEFT JOIN 
             `syniti_salesforce.Account` act 
