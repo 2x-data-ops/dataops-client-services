@@ -360,7 +360,6 @@ SELECT *
             _campaignid,
             _name AS _advariation,
             _6senseid AS _adid,
-            _accountctr,
             _accountvtr,
             CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64
                 ) AS _spend,
@@ -396,7 +395,6 @@ campaign_fields AS (
         SELECT
 
             _campaignid,
-            _accountctr,
             _accountvtr,
             
             CASE
@@ -649,7 +647,44 @@ campaign_numbers AS (
 
     USING(_campaignid)
 
+    -- Get actr for each campaign - click divide reach
+    LEFT JOIN (
+      WITH main AS (
+        SELECT DISTINCT 
+          main._6sensecompanyname,
+          main._6sensecountry,
+          main._6sensedomain,
+          main._segmentname,
+          side._campaignid,
+          CASE WHEN extra._clicks != '0' THEN 1 ELSE 0 END AS _clicked_account,
+          CASE WHEN extra._campaignid != '' THEN 1 ELSE 0 END AS _reached_account
+
+        FROM 
+          `smartcomm_mysql.smartcommunications_db_target_account_6sense` main
+        JOIN 
+          `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
+        ON 
+          main._segmentname = side._segment
+      JOIN 
+          `smartcomm_mysql.smartcommunications_db_reached_account` extra
+        USING(
+          _6sensecompanyname,
+          _6sensecountry,
+          _6sensedomain,
+          _campaignid
+        )
+      )
+      SELECT
+          _campaignid,
+          SAFE_DIVIDE(SUM(_clicked_account), SUM(_reached_account)) AS _accountctr  
+      FROM main
+      GROUP BY _campaignid
+    )
+
+    USING(_campaignid)
+
 ),
+
 
 -- Get frequency of ad occurrence of each campaign
 total_ad_occurrence_per_campaign AS (
@@ -741,7 +776,7 @@ campaign AS (
     name AS _campaign_name,
     CAST(id AS STRING) AS id,
     '' AS _campaign_status,
-    CAST(NULL AS STRING) AS _accountctr,
+    CAST(NULL AS FLOAT64) AS _accountctr,
     CAST(NULL AS STRING) AS _accountvtr,
     CAST(NULL AS DATE) AS _start_date,
     CAST(NULL AS DATE) AS _end_date,
