@@ -1,35 +1,26 @@
 -- PREPROCESSING PART
+-- to avoid missing value when joined with salesforce data
 
 UPDATE syniti_mysql.syniti_db_target_accounts
 SET _6sensecompanyname = 
   CASE
     WHEN _6sensecompanyname = 'Booking Holding, Inc.' THEN 'Booking Holdings, Inc'
+    WHEN _6sensecompanyname = 'Boeing Company' THEN 'The Boeing Company'
     ELSE _6sensecompanyname
   END
-WHERE _6sensecompanyname LIKE 'Booking%';
+WHERE _6sensecompanyname IN ('Booking Holding, Inc.' , 'Boeing Company');
 
 UPDATE syniti_mysql.syniti_db_campaign_reached_accounts
 SET _6sensecompanyname =  
   CASE
     WHEN _6sensecompanyname = 'Booking Holding, Inc.' THEN 'Booking Holdings, Inc'
+    WHEN _6sensecompanyname = 'Boeing Company' THEN 'The Boeing Company'
     ELSE _6sensecompanyname
   END
-WHERE _6sensecompanyname LIKE 'Booking%';
+WHERE _6sensecompanyname IN ('Booking Holding, Inc.' , 'Boeing Company');
 
 
-
-
-
-
-
-
-
-
-CREATE
-OR
-REPLACE
-TABLE
-    `syniti.db_6sense_buying_stages_movement` AS
+CREATE OR REPLACE TABLE `syniti.db_6sense_buying_stages_movement` AS
 WITH sixsense_stage_order AS (
         SELECT
             'Target' AS _buying_stage,
@@ -570,11 +561,16 @@ sales_intelligence_data AS (
     )
         
     OR (
-            side._domain NOT LIKE CONCAT('%', main._6sensedomain, '%')
-        AND 
             main._6sensecompanyname = side._account_name
-        AND
-            main._6sensecountry = side._country
+      
+      AND
+        main._6sensecountry = side._country
+      AND
+        (
+            side._domain LIKE CONCAT('%', main._6sensedomain, '%')
+          OR
+            side._domain IS NULL
+    )
     ) 
         
     GROUP BY 
@@ -1535,6 +1531,15 @@ combined_data AS (
             opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
         AND    
             LOWER(opp._account_name) = LOWER(act._6sensecompanyname)
+        AND 
+            LENGTH(opp._account_name) > 1
+        AND 
+            LENGTH(act._6sensecompanyname) > 1
+    )
+
+        OR 
+    (
+        LOWER(opp._account_name) = LOWER(act._6sensecompanyname)
         AND 
             LENGTH(opp._account_name) > 1
         AND 
