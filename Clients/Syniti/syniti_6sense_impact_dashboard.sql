@@ -1,3 +1,30 @@
+-- PREPROCESSING PART
+
+UPDATE syniti_mysql.syniti_db_target_accounts
+SET _6sensecompanyname = 
+  CASE
+    WHEN _6sensecompanyname = 'Booking Holding, Inc.' THEN 'Booking Holdings, Inc'
+    ELSE _6sensecompanyname
+  END
+WHERE _6sensecompanyname LIKE 'Booking%';
+
+UPDATE syniti_mysql.syniti_db_campaign_reached_accounts
+SET _6sensecompanyname =  
+  CASE
+    WHEN _6sensecompanyname = 'Booking Holding, Inc.' THEN 'Booking Holdings, Inc'
+    ELSE _6sensecompanyname
+  END
+WHERE _6sensecompanyname LIKE 'Booking%';
+
+
+
+
+
+
+
+
+
+
 CREATE
 OR
 REPLACE
