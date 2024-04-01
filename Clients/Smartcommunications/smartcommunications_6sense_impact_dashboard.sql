@@ -1,3 +1,7 @@
+
+
+
+
 CREATE OR REPLACE TABLE smartcom.db_6sense_reached_account AS 
 
 
@@ -12,7 +16,7 @@ WITH reached AS (
    SELECT * EXCEPT (_spend),
     CAST(REGEXP_REPLACE(_spend, r'\$', '') AS FLOAT64) AS _spend
    FROM
-  smartcomm_mysql.smartcommunications_db_reached_account
+  `smartcomm_mysql.smartcommunications_db_reached_account_6sense`
 ),
 airtable AS (
 SELECT DISTINCT
@@ -180,7 +184,7 @@ WITH target_accounts AS (
                 SELECT
                     DISTINCT MIN(
                         CASE
-                            WHEN _extractdate LIKE '%/%'
+                            WHEN _extractdate LIKE '%/%' AND _latestimpression LIKE '%/%'
                             THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
                             ELSE PARSE_DATE('%F', _latestimpression)
                         END
@@ -203,7 +207,8 @@ WITH target_accounts AS (
                         )
                         ORDER BY
                             CASE
-                                WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
+                                WHEN _extractdate LIKE '%/%' AND _latestimpression LIKE '%/%'
+                                THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
                                 ELSE PARSE_DATE('%F', _latestimpression)
                             END DESC
                     ) AS _rownum,
@@ -213,7 +218,7 @@ WITH target_accounts AS (
                         _6sensedomain
                     ) AS _country_account
         FROM
-            `smartcomm_mysql.smartcommunications_db_reached_account`
+            `smartcomm_mysql.smartcommunications_db_reached_account_6sense`
         WHERE 
             _campaignid IN (
 
@@ -584,7 +589,7 @@ campaign_numbers AS (
                 main._segmentname = side._segment
 
             JOIN 
-                `smartcomm_mysql.smartcommunications_db_reached_account` extra
+                `smartcomm_mysql.smartcommunications_db_reached_account_6sense` extra
 
             USING(
                 _6sensecompanyname,
@@ -666,7 +671,7 @@ campaign_numbers AS (
         ON 
           main._segmentname = side._segment
       JOIN 
-          `smartcomm_mysql.smartcommunications_db_reached_account` extra
+          `smartcomm_mysql.smartcommunications_db_reached_account_6sense` extra
         USING(
           _6sensecompanyname,
           _6sensecountry,
@@ -873,7 +878,7 @@ reached_accounts AS (
 
     LEFT JOIN
     
-        `smartcomm_mysql.smartcommunications_db_reached_account` side
+        `smartcomm_mysql.smartcommunications_db_reached_account_6sense` side
 
     USING(
         _6sensecompanyname,
