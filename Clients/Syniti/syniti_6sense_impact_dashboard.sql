@@ -1216,7 +1216,7 @@ opps_created AS (
 
           opp.accountid AS _account_id, 
           act.name AS _account_name,
-          act.website AS _domain,
+          REGEXP_REPLACE(act.website, r'^(https?://)?www\.(.*?)(?:/|$)', r'\2') AS _domain,
           
           COALESCE(
               act.shippingcountry, 
@@ -1255,7 +1255,7 @@ opps_created AS (
       WHERE 
           opp.isdeleted = false
       AND 
-          EXTRACT(YEAR FROM opp.createddate) >= 2023 
+          opp.createddate >= '2023-01-01'
 
   )
   SELECT
@@ -1298,7 +1298,7 @@ opps_created AS (
     LEFT JOIN closedConversionRate ON closedConversionRate.id = opps_main._opp_id
     LEFT JOIN openConversionRate ON openConversionRate.isocode = opps_main.currencyisocode
   )
-  WHERE EXTRACT(YEAR FROM _created_date) >= 2023
+  WHERE _created_date >= '2023-01-01'
 ),
 
 -- Get all historical stages of opp
@@ -1520,7 +1520,8 @@ combined_data AS (
         target_account_engagements AS act
         
     ON (
-            opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
+            -- opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
+            opp._domain = act._6sensedomain
         AND 
             LENGTH(opp._domain) > 1
         AND 
@@ -1528,7 +1529,8 @@ combined_data AS (
     )
         
     OR (
-            opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
+            -- opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
+            opp._domain = act._6sensedomain
         AND    
             LOWER(opp._account_name) = LOWER(act._6sensecompanyname)
         AND 
@@ -1757,7 +1759,6 @@ latest_stage_opportunity_only AS (
 )
 
 SELECT * FROM latest_stage_opportunity_only;
-
 
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
