@@ -1,6 +1,6 @@
--- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_consolidation_content_analytics` AS
-TRUNCATE TABLE `x-marketing.logicsource.db_consolidation_content_analytics`;
-INSERT INTO `x-marketing.logicsource.db_consolidation_content_analytics`
+-- CREATE OR REPLACE TABLE `x-marketing.3x.db_consolidation_content_analytics` AS
+TRUNCATE TABLE `x-marketing.3x.db_consolidation_content_analytics`;
+INSERT INTO `x-marketing.3x.db_consolidation_content_analytics`
 (
   _contentitem,
   _contenttype,
@@ -24,25 +24,25 @@ WITH content_inventory AS (
     _buyerstage,
     _vertical,
     _persona,
-  FROM `x-marketing.logicsource_mysql.db_airtable_content_inventory` 
+  FROM `x-marketing.x_mysql.db_airtable_3x_content_inventory` 
 ),
 email AS (
   SELECT
     _homeurl,
     CONCAT("Email ", INITCAP(_engagement)) AS _engagement
-  FROM `x-marketing.logicsource.db_email_content_analytics` 
+  FROM `x-marketing.3x.email_content_analytics` 
 ),
-ads AS (
-  SELECT
-    _homeurl,
-    'Ads' AS _engagement
-  FROM `x-marketing.logicsource.db_ads_content_analytics`
-),
+-- ads AS (
+--   SELECT
+--     _homeurl,
+--     'Ads' AS _engagement
+--   FROM `x-marketing.3x.db_ads_content_analytics`
+-- ),
 web AS (
   SELECT
     _homeurl,
     'Web' AS _engagement
-  FROM `x-marketing.logicsource.db_web_content_analytics`
+  FROM `x-marketing.3x.db_web_content_analytics`
 )
 
 SELECT 
@@ -58,10 +58,10 @@ LEFT JOIN (
     *
   FROM email
   UNION ALL
-  SELECT
-    *
-  FROM ads
-  UNION ALL
+  -- SELECT
+  --   *
+  -- FROM ads
+  -- UNION ALL
   SELECT
     *
   FROM web 
