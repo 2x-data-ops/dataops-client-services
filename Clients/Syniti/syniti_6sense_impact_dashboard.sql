@@ -98,11 +98,7 @@ FROM
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-CREATE
-OR
-REPLACE
-TABLE
-    `syniti.db_6sense_account_current_state` AS
+CREATE OR REPLACE TABLE `syniti.db_6sense_account_current_state` AS
 WITH target_accounts AS (
         SELECT DISTINCT main.*
 
@@ -366,7 +362,7 @@ reached_accounts_data AS (
         -- Need label to distingush 6sense and Linkedin campaigns
         side._campaigntype AS _campaign_type,
         side._campaignname AS _campaign_name,
-        CONCAT(main._6sensecountry, main._6sensecompanyname) AS _country_account
+        CONCAT(main._6sensecompanyname, main._6sensecountry, main._6sensedomain) AS _country_account
     
     FROM 
         `syniti_mysql.syniti_db_campaign_reached_accounts` main
@@ -410,7 +406,8 @@ campaign_reached AS (
 
         CONCAT(_campaign_type, ' ', 'Campaign Reached') AS _engagement,
         '6sense' AS _engagement_data_source, 
-        _campaign_name AS _description, 
+        _campaign_name AS _description,
+        _campaign_name AS _campaign_name,
         1 AS _notes
 
     FROM
@@ -432,7 +429,8 @@ ad_clicks AS (
             _activities_on AS _timestamp,
             CONCAT(_campaign_type, ' ', 'Ad Clicks') AS _engagement, 
             '6sense' AS _engagement_data_source,
-            _campaign_name AS _description,  
+            _campaign_name AS _description,
+            _campaign_name AS _campaign_name,
             _clicks AS _notes,
 
             -- Get last period's clicks to compare
@@ -472,7 +470,8 @@ influenced_form_fills AS (
             _activities_on AS _timestamp,
             CONCAT(_campaign_type, ' ', 'Influenced Form Filled') AS _engagement, 
             '6sense' AS _engagement_data_source,
-            _campaign_name AS _description,  
+            _campaign_name AS _description,
+            _campaign_name AS _campaign_name,
             _influencedformfills AS _notes,
 
             -- Get last period's clicks to compare
@@ -643,6 +642,7 @@ sales_intelligence_engagements AS (
                 _activitymetainfo
         END 
         AS _description,
+        CAST(NULL AS STRING) AS _campaign_name,
         
         _count AS _notes
 
@@ -1153,6 +1153,7 @@ WITH target_account_engagements AS (
         ROW_NUMBER() OVER() AS _eng_id,
         _timestamp AS _eng_timestamp,
         _description AS _eng_description,
+        _campaign_name,
         _notes AS _eng_notes,
 
         CASE
@@ -1793,6 +1794,7 @@ SELECT DISTINCT
     _6sensecompanyname,
     _6sensecountry,
     _6sensedomain,
+    _campaign_name,
     _is_matched_opp,
     _is_influenced_opp,
 
