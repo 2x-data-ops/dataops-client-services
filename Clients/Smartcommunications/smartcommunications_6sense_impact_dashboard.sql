@@ -1,7 +1,3 @@
-
-
-
-
 CREATE OR REPLACE TABLE smartcom.db_6sense_reached_account AS 
 
 
@@ -13,17 +9,19 @@ CREATE OR REPLACE TABLE smartcom.db_6sense_reached_account AS
 
 
 WITH reached AS (
-   SELECT * EXCEPT (_spend),
-    CAST(REGEXP_REPLACE(_spend, r'\$', '') AS FLOAT64) AS _spend
-   FROM
-  `smartcomm_mysql.smartcommunications_db_reached_account_6sense`
+    SELECT 
+        * EXCEPT (_spend),
+        CAST(REGEXP_REPLACE(_spend, r'\$', '') AS FLOAT64) AS _spend
+    FROM
+        `smartcomm_mysql.smartcommunications_db_reached_account_6sense`  
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY _campaignid, _6sensecompanyname, _6sensedomain ORDER BY _extractdate DESC) = 1
 ),
 airtable AS (
-SELECT DISTINCT
-  _campaignid,
-  _campaignname,
-  '' AS _campaigntype
-FROM `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` 
+    SELECT DISTINCT
+    _campaignid,
+    _campaignname,
+    '' AS _campaigntype
+    FROM `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` 
 )
 SELECT
   reached.*,
@@ -371,10 +369,14 @@ SELECT *
             CAST(REPLACE(_clicks, '.0', '') AS INTEGER) AS _clicks,
             -- SAFE_CAST(_impressions AS INTEGER) AS _impressions,
             SAFE_CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
+            -- CASE 
+            --     WHEN _budget = '-' THEN NULL
+            --     ELSE SAFE_CAST(REGEXP_REPLACE(_budget, r'[^0-9.-]', '') AS FLOAT64)
+            -- END AS _budget,
             CASE 
-                        WHEN _date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _date)
-                        WHEN _date LIKE '%-%' THEN PARSE_DATE('%F', _date)
-                    END AS _date,
+                WHEN _date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _date)
+                WHEN _date LIKE '%-%' THEN PARSE_DATE('%F', _date)
+            END AS _date,
             ROW_NUMBER() OVER (
                     PARTITION BY _campaignid,
                     _6senseid,
@@ -401,6 +403,10 @@ campaign_fields AS (
 
             _campaignid,
             _accountvtr,
+            CASE 
+                WHEN _budget = '-' THEN NULL
+                ELSE SAFE_CAST(REGEXP_REPLACE(_budget, r'[^0-9.-]', '') AS FLOAT64)
+            END AS _budget,
             
             CASE
                 WHEN _extractdate LIKE '%/%'
@@ -489,6 +495,7 @@ combined_data AS (
         campaign_fields._campaign_status,
         campaign_fields._start_date,
         campaign_fields._end_date,
+        campaign_fields._budget,
         ads.*,
         airtable_fields._adgroup,
         airtable_fields._screenshot,
@@ -743,6 +750,7 @@ _accountctr,
 _accountvtr,
 _start_date,
 _end_date,
+_budget,
 _advariation,
 _adgroup,
 _newly_engaged_accounts,
@@ -785,6 +793,7 @@ campaign AS (
     CAST(NULL AS STRING) AS _accountvtr,
     CAST(NULL AS DATE) AS _start_date,
     CAST(NULL AS DATE) AS _end_date,
+    CAST(NULL AS FLOAT64) AS _budget,
     '' AS _advariation,
     '' AS _ad_group,
     CAST(NULL AS INT64) AS _newly_engaged_accounts,
@@ -812,9 +821,308 @@ ON campaign.id = creative._campaign_id;
 
 ----------------------------------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------
--- ACCOUNT PERFORMANCES
+-- ACCOUNT+ENGAGEMENT PERFORMANCES
 ----------------------------------------------------------------------------------------------------------------------------
 
+
+CREATE OR REPLACE TABLE `smartcom.db_6sense_engagement_log` AS
+
+WITH target_accounts AS (
+
+    SELECT * FROM `smartcom.db_6sense_account_current_state`
+
+),
+
+-- Prep the reached account data for use later
+reached_accounts_data AS (
+
+    SELECT DISTINCT
+
+        CAST(main._clicks AS INTEGER) AS _clicks,
+        CAST(main._influencedformfills AS INTEGER) AS _influencedformfills,
+
+        CASE 
+            WHEN main._latestimpression LIKE '%/%'
+            THEN PARSE_DATE('%m/%e/%Y', main._latestimpression)
+            ELSE PARSE_DATE('%F', main._latestimpression)
+        END 
+        AS _latestimpression, 
+
+        CASE 
+            WHEN main._extractdate LIKE '%/%'
+            THEN PARSE_DATE('%m/%e/%Y', main._extractdate)
+            ELSE PARSE_DATE('%F', main._extractdate)
+        END 
+        AS _activities_on, 
+
+        main._campaignid,
+
+        -- Need label to distingush 6sense and Linkedin campaigns
+        -- side._campaigntype,
+        side._campaignname,
+        CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
+    
+    FROM 
+        `smartcomm_mysql.smartcommunications_db_reached_account_6sense` main
+    
+    JOIN (
+
+        SELECT DISTINCT 
+
+            _campaignid, 
+            _campaignname,  
+            -- _campaigntype
+            
+        FROM
+            `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense`
+
+    ) side
+
+    USING(_campaignid)
+
+),
+
+-- Get campaign reached engagement for 6sense
+sixsense_campaign_reached AS (
+
+    SELECT DISTINCT 
+
+        -- CAST(NULL AS STRING) AS _email, 
+        _country_account, 
+        -- CAST(NULL AS STRING) AS _city,
+        -- CAST(NULL AS STRING) AS _state,
+
+        MIN(_latestimpression) OVER(
+            PARTITION BY _country_account, _campaignname
+            ORDER BY _latestimpression
+        ) 
+        AS _timestamp,
+
+        '6sense Campaign Reached' AS _engagement,
+        '6sense' AS _engagement_data_source, 
+        _campaignname AS _description, 
+        1 AS _notes
+
+    FROM
+        reached_accounts_data
+    -- WHERE
+    --     _campaigntype = '6sense Advertising'
+
+),
+
+-- Get ad clicks engagement for 6sense
+sixsense_ad_clicks AS (
+
+    SELECT
+        * EXCEPT(_old_notes)
+    FROM (
+
+        SELECT DISTINCT 
+
+            -- CAST(NULL AS STRING) AS _email, 
+            _country_account, 
+            -- CAST(NULL AS STRING) AS _city,
+            -- CAST(NULL AS STRING) AS _state,
+            _activities_on AS _timestamp,
+            '6sense Ad Clicks' AS _engagement, 
+            '6sense' AS _engagement_data_source,
+            _campaignname AS _description,  
+            _clicks AS _notes,
+
+            -- Get last period's clicks to compare
+            LAG(_clicks) OVER(
+                PARTITION BY _country_account, _campaignname
+                ORDER BY _activities_on
+            )
+            AS _old_notes
+
+        FROM
+            reached_accounts_data 
+        WHERE
+            _clicks >= 1
+        -- AND
+        --     _campaigntype = '6sense Advertising'
+
+    )
+
+    -- Get those who have increased in numbers from the last period
+    WHERE 
+        (_notes - COALESCE(_old_notes, 0)) >= 1
+
+),
+
+-- Get form fills engagement for 6sense
+sixsense_form_fills AS (
+
+    SELECT
+        * EXCEPT(_old_notes)
+    FROM (
+
+        SELECT DISTINCT 
+
+            -- CAST(NULL AS STRING) AS _email, 
+            _country_account, 
+            -- CAST(NULL AS STRING) AS _city,
+            -- CAST(NULL AS STRING) AS _state,
+            _activities_on AS _timestamp,
+            '6sense Influenced Form Fill' AS _engagement, 
+            '6sense' AS _engagement_data_source,
+            _campaignname AS _description,  
+            _influencedformfills AS _notes,
+
+            -- Get last period's clicks to compare
+            LAG(_influencedformfills) OVER(
+                PARTITION BY _country_account, _campaignname
+                ORDER BY _activities_on
+            )
+            AS _old_notes
+
+        FROM
+            reached_accounts_data 
+        WHERE
+            _influencedformfills >= 1
+        -- AND
+        --     _campaigntype = '6sense Advertising'
+
+    )
+
+    -- Get those who have increased in numbers from the last period
+    WHERE 
+        (_notes - COALESCE(_old_notes, 0)) >= 1
+
+),
+
+account_activity_summary AS (
+  SELECT
+    _activitytype,
+    _activitytarget,
+    -- _contactname,
+    -- _contactemail,
+    _6sensecompanyname,
+    _companyinfo,
+    REGEXP_EXTRACT(_companyinfo, r'^(.*?) -') AS _6sensecountry,
+    REGEXP_EXTRACT(_companyinfo, r'- (.*?)$') AS _6sensedomain,
+    CASE 
+      WHEN _activitydate LIKE '%/%'
+      THEN PARSE_DATE('%m/%e/%Y', _activitydate)
+      ELSE PARSE_DATE('%F', _activitydate)
+    END  
+    AS _activitydate,
+    COUNT(*) AS _count
+
+  FROM
+    `smartcomm_mysql.smartcommunications_db_6sense_activity_summary`
+  GROUP BY ALL
+),
+acccount_activity_summary_main AS (
+  SELECT 
+    _activitytype,
+    _activitytarget,
+    _6sensecompanyname,
+    _6sensecountry,
+    _6sensedomain,
+    CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account,
+    _activitydate,
+    _count
+  FROM account_activity_summary
+),
+acccount_activity_summary_keyword_researched AS (
+  SELECT DISTINCT
+    _country_account,
+    _activitydate AS _timestamp,
+    _activitytype AS _engagement, 
+    'Activity Summary Account' AS _engagement_data_source,
+    _activitytarget AS _description,
+    _count AS _notes
+  FROM acccount_activity_summary_main
+  WHERE _activitytype = 'KW Research'
+),
+account_activity_summary_web_visited AS (
+  SELECT DISTINCT
+    _country_account,
+    _activitydate AS _timestamp,
+    _activitytype AS _engagement, 
+    'Activity Summary Account' AS _engagement_data_source,
+    _activitytarget AS _description,
+    _count AS _notes
+  FROM acccount_activity_summary_main
+  WHERE _activitytype = 'Website Visit'
+),
+account_activity_summary_bombora_topics AS (
+  SELECT DISTINCT
+    _country_account,
+    _activitydate AS _timestamp,
+    _activitytype AS _engagement, 
+    'Activity Summary Account' AS _engagement_data_source,
+    _activitytarget AS _description,
+    _count AS _notes
+  FROM acccount_activity_summary_main
+  WHERE _activitytype = 'Current Bombora Company Surge Topics'
+),
+
+
+-- Only activities involving target accounts are considered
+combined_data AS (
+
+    SELECT DISTINCT 
+
+        target_accounts.*,
+        activities.* EXCEPT(_country_account)
+        
+    FROM (
+
+        SELECT * FROM sixsense_campaign_reached 
+        UNION DISTINCT
+        SELECT * FROM sixsense_ad_clicks 
+        UNION DISTINCT
+        SELECT * FROM sixsense_form_fills
+        UNION DISTINCT
+        SELECT * FROM acccount_activity_summary_keyword_researched
+        UNION DISTINCT
+        SELECT * FROM account_activity_summary_web_visited
+        UNION DISTINCT
+        SELECT * FROM account_activity_summary_bombora_topics
+        
+    ) activities
+
+    JOIN
+        target_accounts
+
+    USING (_country_account)
+
+),
+
+-- Get accumulated values for each engagement
+accumulated_engagement_values AS (
+
+    SELECT
+
+        *,
+        -- The aggregated values
+        SUM(CASE WHEN _engagement = '6sense Campaign Reached' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6sense_campaign_reached,
+        SUM(CASE WHEN _engagement = '6sense Ad Clicks' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6sense_ad_clicks,
+        SUM(CASE WHEN _engagement = '6sense Influenced Form Fill' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6sense_form_fills,
+        -- SUM(CASE WHEN _engagement = 'LinkedIn Campaign Reached' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_campaign_reached,
+        -- SUM(CASE WHEN _engagement = 'LinkedIn Ad Clicks' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_ad_clicks,
+        -- SUM(CASE WHEN _engagement = 'LinkedIn Influenced Form Fill' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_form_fills,
+        -- SUM(CASE WHEN _engagement = 'SEM Engagement' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_sem_engagements,
+        SUM(CASE WHEN _engagement = 'Website Visit' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_webpage_visits,
+        SUM(CASE WHEN _engagement = 'KW Research' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_searched_keywords,
+        SUM(CASE WHEN _engagement = 'Current Bombora Company Surge Topics' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_bombora_topics
+        -- SUM(CASE WHEN _engagement = 'Email Opened' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_email_open,
+        -- SUM(CASE WHEN _engagement = 'Email Clicked' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_email_click
+
+    FROM 
+        combined_data
+        
+)
+
+SELECT * FROM accumulated_engagement_values;
+
+----------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------
+-- ACCOUNT PERFORMANCES
+----------------------------------------------------------------------------------------------------------------------------
 
 
 
