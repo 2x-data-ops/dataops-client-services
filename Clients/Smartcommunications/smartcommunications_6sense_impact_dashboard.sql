@@ -1,34 +1,37 @@
-CREATE OR REPLACE TABLE smartcom.db_6sense_reached_account AS 
-
-
--- SELECT
---   reached.*,
---   '' AS 
--- FROM  reached
--- airtable
-
-
-WITH reached AS (
-    SELECT 
-        * EXCEPT (_spend),
-        CAST(REGEXP_REPLACE(_spend, r'\$', '') AS FLOAT64) AS _spend
+CREATE OR REPLACE TABLE
+  smartcom.db_6sense_reached_account AS
+WITH
+  reached AS (
+  SELECT
+    * EXCEPT (_rownum)
+  FROM (
+    SELECT
+      * EXCEPT (_spend),
+      CAST(REGEXP_REPLACE(_spend, r'\$', '') AS FLOAT64) AS _spend,
+      ROW_NUMBER() OVER (PARTITION BY  _campaignid, _6sensecompanyname, _6sensecountry, _6sensedomain ORDER BY CASE
+                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                        ELSE PARSE_DATE('%F', _extractdate)
+                    END DESC) AS _rownum
     FROM
-        `smartcomm_mysql.smartcommunications_db_reached_account_6sense`  
-    QUALIFY ROW_NUMBER() OVER(PARTITION BY _campaignid, _6sensecompanyname, _6sensedomain ORDER BY _extractdate DESC) = 1
-),
-airtable AS (
-    SELECT DISTINCT
-    _campaignid,
+      `smartcomm_mysql.smartcommunications_db_reached_account_6sense`)
+  WHERE
+    _rownum =1 ),
+  airtable AS (
+  SELECT
+    DISTINCT _campaignid,
     _campaignname,
     '' AS _campaigntype
-    FROM `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` 
-)
+  FROM
+    `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` )
 SELECT
   reached.*,
   airtable.* EXCEPT (_campaignid)
-FROM reached
-LEFT JOIN airtable
-ON reached._campaignid = airtable._campaignid;
+FROM
+  reached
+LEFT JOIN
+  airtable
+ON
+  reached._campaignid = airtable._campaignid;
 
 
 
@@ -1198,3 +1201,13 @@ reached_accounts AS (
 )
 
 SELECT * FROM reached_accounts;
+
+----------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------
+-- ACCOUNT ACTIVITY SUMMARY (SOURCE FROM MYSQL)
+----------------------------------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE TABLE `smartcom.db_6sense_activity_summary`
+CLUSTER BY _activitytype
+AS
+SELECT * FROM smartcomm_mysql.smartcommunications_db_6sense_activity_summary;
