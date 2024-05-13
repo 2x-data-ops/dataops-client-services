@@ -1,13 +1,14 @@
 CREATE OR REPLACE TABLE
-  smartcom.db_6sense_reached_account AS
+  `smartcom.db_6sense_reached_account` AS
 WITH
   reached AS (
   SELECT
     * EXCEPT (_rownum)
   FROM (
     SELECT
-      * EXCEPT (_spend),
-      CAST(REGEXP_REPLACE(_spend, r'\$', '') AS FLOAT64) AS _spend,
+      * EXCEPT (_spend, _impressions),
+      SAFE_CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
+      SAFE_CAST(REGEXP_REPLACE(_spend, r'\$', '') AS FLOAT64) AS _spend,
       ROW_NUMBER() OVER (PARTITION BY  _campaignid, _6sensecompanyname, _6sensecountry, _6sensedomain ORDER BY CASE
                         WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
                         ELSE PARSE_DATE('%F', _extractdate)
