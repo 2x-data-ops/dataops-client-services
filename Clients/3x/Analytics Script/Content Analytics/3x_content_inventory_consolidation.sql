@@ -32,12 +32,13 @@ email AS (
     CONCAT("Email ", INITCAP(_engagement)) AS _engagement
   FROM `x-marketing.3x.email_content_analytics` 
 ),
--- ads AS (
---   SELECT
---     _homeurl,
---     'Ads' AS _engagement
---   FROM `x-marketing.3x.db_ads_content_analytics`
--- ),
+ads AS (
+  SELECT
+    _homeurl,
+    'Ads' AS _engagement
+  FROM `x-marketing.3x.ads_content_analytics`
+  WHERE _homeurl IS NOT NULL
+),
 web AS (
   SELECT
     _homeurl,
@@ -58,10 +59,10 @@ LEFT JOIN (
     *
   FROM email
   UNION ALL
-  -- SELECT
-  --   *
-  -- FROM ads
-  -- UNION ALL
+  SELECT
+    *
+  FROM ads
+  UNION ALL
   SELECT
     *
   FROM web 
