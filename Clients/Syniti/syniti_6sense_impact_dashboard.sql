@@ -159,7 +159,7 @@ WITH target_accounts AS (
                 SELECT
                     DISTINCT MIN(
                         CASE
-                            WHEN _extractdate LIKE '%/%'
+                            WHEN _latestimpression LIKE '%/%'
                             THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
                             ELSE PARSE_DATE('%F', _latestimpression)
                         END
@@ -182,7 +182,7 @@ WITH target_accounts AS (
                         )
                         ORDER BY
                             CASE
-                                WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
+                                WHEN _latestimpression LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
                                 ELSE PARSE_DATE('%F', _latestimpression)
                             END DESC
                     ) AS _rownum,
@@ -728,7 +728,7 @@ SELECT *
             CAST(REPLACE(_clicks, '.0', '') AS INTEGER) AS _clicks,
             CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
             CASE 
-                        WHEN _date LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _date)
+                        WHEN _date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _date)
                         WHEN _date LIKE '%-%' THEN PARSE_DATE('%F', _date)
                     END AS _date,
             ROW_NUMBER() OVER (
@@ -736,7 +736,7 @@ SELECT *
                     _6senseid,
                     _date
                     ORDER BY CASE 
-                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _extractdate)
+                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
                         WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
                     END
                 ) AS _rownum
