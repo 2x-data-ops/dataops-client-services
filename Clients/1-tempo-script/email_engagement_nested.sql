@@ -585,7 +585,7 @@ GROUP BY    engagements._email,
 --               SECOND
 --               ) < 5
 --             ) 
---             OR 
+--             OR s
 --             _email IN (
 --               SELECT 
 --                 _email
