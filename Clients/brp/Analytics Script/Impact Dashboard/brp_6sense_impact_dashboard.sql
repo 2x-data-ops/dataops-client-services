@@ -1216,30 +1216,29 @@ CREATE OR REPLACE TABLE `brp.db_6sense_ad_performance` AS
 
 -- Get ads data
 WITH ads AS (
-SELECT *
+    SELECT *
     EXCEPT (_rownum)
     FROM (
         SELECT DISTINCT
             _campaignid AS _campaign_id,
             _name AS _advariation,
             _6senseid AS _adid,
-            CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64
-                ) AS _spend,
+            CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64) AS _spend,
             CAST(REPLACE(_clicks, '.0', '') AS INTEGER) AS _clicks,
             CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
             CASE 
-                        WHEN _date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _date)
-                        WHEN _date LIKE '%-%' THEN PARSE_DATE('%F', _date)
-                    END AS _date,
+                WHEN _date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _date)
+                WHEN _date LIKE '%-%' THEN PARSE_DATE('%F', _date)
+            END AS _date,
             ROW_NUMBER() OVER (
-                    PARTITION BY _campaignid,
-                    _6senseid,
-                    _date
-                    ORDER BY CASE 
-                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
-                        WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
-                    END
-                ) AS _rownum
+                PARTITION BY _campaignid,
+                _6senseid,
+                _date
+                ORDER BY CASE 
+                    WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                    WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
+                END
+            ) AS _rownum
         FROM `x-marketing.brp_mysql.db_daily_campaign_performance`
         WHERE _datatype = 'Ad'
     )
@@ -1254,7 +1253,6 @@ campaign_fields AS (
     FROM (
 
         SELECT
-
             _campaignid AS _campaign_id,
             _linkedincampaignid,
             _segment,
@@ -1324,6 +1322,7 @@ campaign_fields AS (
 ads_campaign_combined AS (
     SELECT ads.*,
         campaign_fields._linkedincampaignid,
+        -- campaign_fields._campaign_id,
         campaign_fields._campaign_name,
         campaign_fields._campaign_type,
         campaign_fields._campaign_status,
@@ -1345,9 +1344,11 @@ airtable_fields AS (
         _adgroup AS _ad_group,
         _screenshot
     FROM
-        `x-marketing.brp_mysql.optimization_airtable_ads_linkedin`
+        -- `x-marketing.brp_mysql.optimization_airtable_ads_linkedin`
+        `x-marketing.brp_mysql.optimization_airtable_ads_6sense`
     WHERE 
         _campaignid != ''
+
 ),
 combined_data AS (
 
@@ -1355,27 +1356,24 @@ combined_data AS (
         ads_campaign_combined.*,
         airtable_fields._ad_group,
         airtable_fields._screenshot
-
     FROM 
         ads_campaign_combined
-
-    JOIN
+    LEFT JOIN
         airtable_fields 
     ON (
-            ads_campaign_combined._advariation = airtable_fields._adname
+            ads_campaign_combined._adid = airtable_fields._ad_id
         AND 
-            ads_campaign_combined._linkedincampaignid = airtable_fields._campaign_id
+            ads_campaign_combined._campaign_id = airtable_fields._campaign_id
     )
-   /* OR (
+    OR (
             airtable_fields._ad_id IS NULL
         AND 
             ads_campaign_combined._campaign_id = airtable_fields._campaign_id
     )
-
     LEFT JOIN 
         campaign_fields
     ON 
-        ads_campaign_combined._campaign_id = campaign_fields._campaign_id*/
+        ads_campaign_combined._campaign_id = campaign_fields._campaign_id
 
 ),
 
@@ -1408,14 +1406,8 @@ campaign_numbers AS (
             FROM 
                 `x-marketing.brp_mysql.db_segment_target_accounts` main
             
-            JOIN (
-            SELECT li_id.* EXCEPT(_campaignid),
-                sixsense_id._campaignid
-            FROM `x-marketing.brp_mysql.optimization_airtable_ads_linkedin` li_id
-            JOIN `x-marketing.brp_mysql.db_daily_campaign_performance` sixsense_id
-            ON li_id._campaignid = sixsense_id._linkedincampaignid
-            ) side
-            
+            JOIN `x-marketing.brp_mysql.optimization_airtable_ads_6sense` side
+
             ON 
                 main._segmentname = side._segment
 
@@ -1448,13 +1440,7 @@ campaign_numbers AS (
             FROM 
                 `x-marketing.brp_mysql.db_segment_target_accounts` main
             
-            JOIN (
-            SELECT li_id.* EXCEPT(_campaignid),
-                sixsense_id._campaignid
-                FROM `x-marketing.brp_mysql.optimization_airtable_ads_linkedin` li_id
-                JOIN `x-marketing.brp_mysql.db_daily_campaign_performance` sixsense_id
-                ON li_id._campaignid = sixsense_id._linkedincampaignid
-            ) side             
+            JOIN `x-marketing.brp_mysql.optimization_airtable_ads_6sense` side             
             
             ON 
                 main._segmentname = side._segment
@@ -1498,7 +1484,7 @@ campaign_numbers AS (
                 `x-marketing.brp_mysql.db_segment_target_accounts` main
             
             JOIN 
-                `x-marketing.brp_mysql.optimization_airtable_ads_linkedin` side
+                `x-marketing.brp_mysql.optimization_airtable_ads_6sense` side
             
             ON 
                 main._segmentname = side._segment
