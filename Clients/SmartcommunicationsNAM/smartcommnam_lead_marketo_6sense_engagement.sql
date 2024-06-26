@@ -78,34 +78,38 @@
   FROM lead_marketo
   INNER JOIN sixsense_engagement
   ON sixsense_engagement._6sensedomain = lead_marketo._domain
-    -- WHERE _engagement IN ('Opened', 'Clicked')
   QUALIFY ROW_NUMBER () OVER (PARTITION BY _id, _campaignID ORDER BY _timestamp DESC) = 1
- )
+ ),
+engagement_total AS (
+  SELECT *,
+    SUM(CASE WHEN _engagement = 'Opened' THEN 1 ELSE 0 END) OVER(PARTITION BY _id) AS _total_opened,
+    SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) OVER(PARTITION BY _id) AS _total_clicked,
+  FROM alldata
+)
 SELECT
-  _sdc_sequence,
-  _id,
-  _email,
-  _name,
-  _domain,
-  _campaignID,
-  _campaign,
-  _timestamp,
-  _engagement,
-  _phone,
-  _company,
-  _6sensedomain,
-  _6sensecompanyname,
-  _6sensecountry,
-  _country_account,
-  _revenue,
-  _industry,
-  _city,
-  _state,
-  _country,
-  _persona,
-  _leadscore,
-  -- _6sensedomain,
-  SUM(CASE WHEN _engagement = 'Opened' THEN 1 ELSE 0 END) OVER(PARTITION BY _id) AS _total_opened,
-  SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) OVER(PARTITION BY _id) AS _total_clicked,
-  -- SUM(CASE WHEN _engagement = NULL THEN 1 END) OVER(PARTITION BY _id) AS _total_clicked,
-FROM alldata
+_sdc_sequence,
+_6sensedomain,
+_6sensecompanyname,
+_6sensecountry,
+_country_account,
+_campaignID,
+_campaign,
+_timestamp,
+_engagement,
+_id AS _leadid,
+_email,
+_name,
+_domain,
+_phone,
+_company,
+_revenue,
+_industry,
+_city,
+_state,
+_country,
+_persona,
+_leadscore,
+_total_opened,
+_total_clicked FROM engagement_total
+QUALIFY ROW_NUMBER() OVER (PARTITION BY _id ORDER BY _timestamp DESC) = 1 
+
