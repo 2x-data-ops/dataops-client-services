@@ -10,6 +10,7 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   _form_handler_id,
   _form_id,
   _list_email_id,
+  _email_template_id,
   _email,
   _name,
   _jobtitle,
@@ -26,6 +27,8 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   _updateddate,
   _crm_contact_fid,
   _crm_lead_fid,
+  _sfdc_leadid,
+  _account_owner,
   _utmcampaign,
   _screenshot,
   _assettitle,
@@ -50,7 +53,16 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   -- _batch
 )
 --Getting prospect info details from prospect table--
-WITH prospect_info AS (
+WITH prospect_info_consolidate AS (
+WITH lead_sfdc AS (
+SELECT lead.id,
+       lead.email,
+       lead.ownerid,
+       user.name AS owner_name
+FROM `x-marketing.thunder_salesforce.Lead` lead
+LEFT JOIN (SELECT name, id FROM `x-marketing.thunder_salesforce.User`) user ON user.id = lead.ownerid
+),
+prospect_info AS (
   WITH prospect1 AS (
     SELECT
         CAST(id AS STRING) AS _prospectID,
@@ -106,6 +118,11 @@ FROM prospect_union
 SELECT * EXCEPT (rownum)
 FROM distinct_prospect
 WHERE rownum = 1
+)
+SELECT prospect_info.*, lead_sfdc.id AS sfdc_leadid, lead_sfdc.owner_name AS account_owner
+FROM prospect_info
+LEFT JOIN lead_sfdc ON lead_sfdc.email = prospect_info._email
+
 ),
 airtable_info AS (
   SELECT
@@ -142,6 +159,7 @@ sent_email AS (
       CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
       CAST (activity.form_id AS STRING) AS _form_id,
       CAST(list_email_id AS STRING) _list_email_id,
+      CAST(email_template_id AS STRING) AS _email_template_id,
       ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.visitor_activities` activity
@@ -166,6 +184,7 @@ hardbounced_email AS (
       CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
       CAST (activity.form_id AS STRING) AS _form_id,
       CAST(list_email_id AS STRING) _list_email_id,
+      CAST(email_template_id AS STRING) AS _email_template_id,
       ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.visitor_activities` activity
@@ -189,6 +208,7 @@ softbounced_email AS (
       CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
       CAST (activity.form_id AS STRING) AS _form_id,
       CAST(list_email_id AS STRING) _list_email_id,
+      CAST(email_template_id AS STRING) AS _email_template_id,
       ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.visitor_activities` activity
@@ -212,6 +232,7 @@ opened_email AS (
       CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
       CAST (activity.form_id AS STRING) AS _form_id,
       CAST(list_email_id AS STRING) _list_email_id,
+      CAST(email_template_id AS STRING) AS _email_template_id,
       ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.visitor_activities` activity
@@ -235,6 +256,7 @@ clicked_email AS (
       CAST(NULL AS STRING) AS form_handler_id,
       CAST(NULL AS STRING) AS form_id,
       CAST(list_email_id AS STRING) _list_email_id,
+      CAST(email_template_id AS STRING) AS _email_template_id,
       ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.list_email_id
        ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.email_clicks` activity
@@ -255,6 +277,7 @@ unsubscribed_email AS(
       'Unsubscribed' AS _engagement,
       '' AS _description,
       CAST(list_email_id AS STRING) _list_email_id,
+      CAST(email_template_id AS STRING) AS _email_template_id,
       CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
       CAST (activity.form_id AS STRING) AS _form_id,
       ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
@@ -276,6 +299,7 @@ form_filled AS (
     'Form Filled' AS _engagement,
     '' AS _description,
     CAST(NULL AS STRING) _list_email_id,
+    CAST(email_template_id AS STRING) AS _email_template_id,
     CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
     CAST (activity.form_id AS STRING) AS _form_id,
   --   ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
@@ -323,12 +347,12 @@ campaign_info AS(
 --Combine prospect info left join with engagement together with campaign info---
 SELECT
   engagements.*,
-  prospect_info.* EXCEPT(_prospectID),
+  prospect_info_consolidate.* EXCEPT(_prospectID),
   campaign_info.* EXCEPT(_campaignID),
   airtable_info.* EXCEPT(_list_email_id)
 FROM engagements
-LEFT JOIN prospect_info
-  ON engagements._prospectID = prospect_info._prospectID 
+LEFT JOIN prospect_info_consolidate
+  ON engagements._prospectID = prospect_info_consolidate._prospectID 
 LEFT JOIN campaign_info
   ON engagements._campaignID = CAST(campaign_info._campaignID AS STRING)
 LEFT JOIN airtable_info
@@ -336,7 +360,7 @@ LEFT JOIN airtable_info
 
 
 INSERT INTO `x-marketing.thunder.db_email_engagements_log`(
-  _sdc_sequence,_campaignID,_engagement,_email,_prospectID,_timestamp,_description,_list_email_id,_name,_phone,_jobtitle,_seniority,_segment,_persona,_tier,_company,_domain,_industry,_subIndustry,_country,_city,_annualrevenue,_employees,_subject,_screenshot,_landingPage,_utm_source,_utmcampaign,_utm_medium,_contentID,_contentTitle,_storyBrandStage,_abstract,_salesforceLeadStage,_salesforceLastActivity,_salesforceCreated,_salesforceOpportunityStage,_salesforceOpportunityValue,_salesforceOpportunityName,_salesforceOpportunityCreated,_sfdcAccountID,_sfdcLeadID,_sfdcContactID,_sfdcOpportunityID,_meetingScheduledDate,_salesforceOpportunityCloseDate,_state,_function,_lb_email,_utm_content,_campaignSentDate,_subCampaign,_preview,_isPageView,_stage,_totalPageViews,_averagePageViews,_device_type,_duration,_response,_linkid,_lifecycleStage,_isBot,_notSent,_showExport,_dropped,_falseDelivered,_createddate,_updateddate,_crm_contact_fid,_crm_lead_fid,_lists,_contenttype,_createdby,_assets,_website,_asseturl,_assettitle,_assettype,_emailname,_form_id,_form_handler_id
+  _sdc_sequence,_campaignID,_engagement,_email,_prospectID,_timestamp,_description,_list_email_id,_email_template_id, _name,_phone,_jobtitle,_seniority,_segment,_persona,_tier,_company,_domain,_industry,_subIndustry,_country,_city,_annualrevenue,_employees,_subject,_screenshot,_landingPage,_utm_source,_utmcampaign,_utm_medium,_contentID,_contentTitle,_storyBrandStage,_abstract,_salesforceLeadStage,_salesforceLastActivity,_salesforceCreated,_salesforceOpportunityStage,_salesforceOpportunityValue,_salesforceOpportunityName,_salesforceOpportunityCreated,_sfdcAccountID,_sfdcLeadID,_sfdcContactID,_sfdcOpportunityID,_meetingScheduledDate,_salesforceOpportunityCloseDate,_state,_function,_lb_email,_utm_content,_campaignSentDate,_subCampaign,_preview,_isPageView,_stage,_totalPageViews,_averagePageViews,_device_type,_duration,_response,_linkid,_lifecycleStage,_isBot,_notSent,_showExport,_dropped,_falseDelivered,_createddate,_updateddate,_crm_contact_fid,_crm_lead_fid,_lists,_contenttype,_createdby,_assets,_website,_asseturl,_assettitle,_assettype,_emailname,_form_id,_form_handler_id
 )
 WITH sent AS (
 SELECT * FROM `x-marketing.thunder.db_email_engagements_log`
@@ -346,7 +370,7 @@ allbounce AS (
   SELECT * FROM `x-marketing.thunder.db_email_engagements_log`
   WHERE _engagement IN ('Hard Bounced', 'Soft Bounced')
 )
-SELECT sent._sdc_sequence,sent._campaignID,'Delivered' AS _engagement,sent._email,sent._prospectID,sent._timestamp,sent._description,sent._list_email_id,sent._name,sent._phone,sent._jobtitle,sent._seniority,sent._segment,sent._persona,sent._tier,sent._company,sent._domain,sent._industry,sent._subIndustry,sent._country,sent._city,sent._annualrevenue,sent._employees,sent._subject,sent._screenshot,sent._landingPage,sent._utm_source,sent._utmcampaign,sent._utm_medium,sent._contentID,sent._contentTitle,sent._storyBrandStage,sent._abstract,sent._salesforceLeadStage,sent._salesforceLastActivity,sent._salesforceCreated,sent._salesforceOpportunityStage,sent._salesforceOpportunityValue,sent._salesforceOpportunityName,sent._salesforceOpportunityCreated,sent._sfdcAccountID,sent._sfdcLeadID,sent._sfdcContactID,sent._sfdcOpportunityID,sent._meetingScheduledDate,sent._salesforceOpportunityCloseDate,sent._state,sent._function,sent._lb_email,sent._utm_content,sent._campaignSentDate,sent._subCampaign,sent._preview,sent._isPageView,sent._stage,sent._totalPageViews,sent._averagePageViews,sent._device_type,sent._duration,sent._response,sent._linkid,sent._lifecycleStage,sent._isBot,sent._notSent,sent._showExport,sent._dropped,sent._falseDelivered,sent._createddate,sent._updateddate,sent._crm_contact_fid,sent._crm_lead_fid,sent._lists,sent._contenttype,sent._createdby,sent._assets,sent._website,sent._asseturl,sent._assettitle,sent._assettype,sent._emailname,sent._form_id,sent._form_handler_id
+SELECT sent._sdc_sequence,sent._campaignID,'Delivered' AS _engagement,sent._email,sent._prospectID,sent._timestamp,sent._description,sent._list_email_id,sent._email_template_id,sent._name,sent._phone,sent._jobtitle,sent._seniority,sent._segment,sent._persona,sent._tier,sent._company,sent._domain,sent._industry,sent._subIndustry,sent._country,sent._city,sent._annualrevenue,sent._employees,sent._subject,sent._screenshot,sent._landingPage,sent._utm_source,sent._utmcampaign,sent._utm_medium,sent._contentID,sent._contentTitle,sent._storyBrandStage,sent._abstract,sent._salesforceLeadStage,sent._salesforceLastActivity,sent._salesforceCreated,sent._salesforceOpportunityStage,sent._salesforceOpportunityValue,sent._salesforceOpportunityName,sent._salesforceOpportunityCreated,sent._sfdcAccountID,sent._sfdcLeadID,sent._sfdcContactID,sent._sfdcOpportunityID,sent._meetingScheduledDate,sent._salesforceOpportunityCloseDate,sent._state,sent._function,sent._lb_email,sent._utm_content,sent._campaignSentDate,sent._subCampaign,sent._preview,sent._isPageView,sent._stage,sent._totalPageViews,sent._averagePageViews,sent._device_type,sent._duration,sent._response,sent._linkid,sent._lifecycleStage,sent._isBot,sent._notSent,sent._showExport,sent._dropped,sent._falseDelivered,sent._createddate,sent._updateddate,sent._crm_contact_fid,sent._crm_lead_fid,sent._lists,sent._contenttype,sent._createdby,sent._assets,sent._website,sent._asseturl,sent._assettitle,sent._assettype,sent._emailname,sent._form_id,sent._form_handler_id
   FROM sent
 LEFT JOIN allbounce
 ON sent._prospectID = allbounce._prospectID
