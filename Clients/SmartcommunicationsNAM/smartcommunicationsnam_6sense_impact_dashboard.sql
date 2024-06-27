@@ -1,38 +1,29 @@
 CREATE OR REPLACE TABLE
-  `smartcom.db_6sense_reached_account` AS
-WITH
-  reached AS (
-  SELECT
-    * EXCEPT (_rownum)
-  FROM (
-    SELECT
-      * EXCEPT (_spend, _impressions),
-      SAFE_CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
-      SAFE_CAST(REGEXP_REPLACE(_spend, r'\$', '') AS FLOAT64) AS _spend,
-      ROW_NUMBER() OVER (PARTITION BY  _campaignid, _6sensecompanyname, _6sensecountry, _6sensedomain ORDER BY CASE
-                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
-                        ELSE PARSE_DATE('%F', _extractdate)
-                    END DESC) AS _rownum
-    FROM
-      `smartcomm_mysql.smartcommunications_db_reached_account_6sense`)
-  WHERE
-    _rownum =1 ),
-  airtable AS (
+  `smartcommnam.db_6sense_reached_account` AS
+WITH reached AS (
+  SELECT * EXCEPT (_spend, _impressions),
+    SAFE_CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
+    SAFE_CAST(REGEXP_REPLACE(_spend, r'\$', '') AS FLOAT64) AS _spend,
+  FROM
+    `smartcommnam_mysql.smartcommnam_db_6sense_reached_accounts_nam`
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY  _campaignid, _6sensecompanyname, _6sensecountry, _6sensedomain ORDER BY CASE
+                      WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                      ELSE PARSE_DATE('%F', _extractdate) END DESC) = 1
+),
+airtable AS (
   SELECT
     DISTINCT _campaignid,
     _campaignname,
     '' AS _campaigntype
   FROM
-    `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` )
-SELECT
-  reached.*,
-  airtable.* EXCEPT (_campaignid)
-FROM
-  reached
-LEFT JOIN
-  airtable
-ON
-  reached._campaignid = airtable._campaignid;
+    `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` 
+)
+  SELECT
+    reached.*,
+    airtable.* EXCEPT (_campaignid)
+  FROM reached
+  LEFT JOIN airtable
+    ON reached._campaignid = airtable._campaignid;
 
 
 
@@ -41,7 +32,7 @@ ON
 -- Currently only ads performance and account performance table is connected in the dashboard
 
 
-CREATE OR REPLACE TABLE `smartcom.db_6sense_buying_stages_movement` AS
+CREATE OR REPLACE TABLE `smartcommnam.db_6sense_buying_stages_movement` AS
 
 WITH sixsense_stage_order AS (
         SELECT
@@ -92,7 +83,7 @@ WITH sixsense_stage_order AS (
             _buyingstagestart AS _previous_stage,
             _buyingstageend AS _current_stage
         FROM
-            `smartcomm_mysql.smartcommunications_db_buying_stage`
+            `smartcommnam_mysql.smartcommnam_db_6sense_buying_stages_nam`
     ),
     latest_sixsense_buying_stage_with_order_and_movement AS (
         SELECT main.*
@@ -124,7 +115,7 @@ FROM
 --------------------------------------------------------------------------
 
 
-CREATE OR REPLACE TABLE `smartcom.db_6sense_account_current_state` AS
+CREATE OR REPLACE TABLE `smartcommnam.db_6sense_account_current_state` AS
 
 WITH target_accounts AS (
         SELECT DISTINCT main.*
@@ -145,7 +136,7 @@ WITH target_accounts AS (
 
                     CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
                 FROM
-                    `smartcomm_mysql.smartcommunications_db_target_account_6sense` 
+                    `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` 
             ) main
 
                             -- Get the earliest date of appearance of each account
@@ -165,7 +156,7 @@ WITH target_accounts AS (
                         CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
                         
                     FROM
-                        `smartcomm_mysql.smartcommunications_db_target_account_6sense`
+                        `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam`
                     GROUP BY 
                         2
                     ORDER BY 
@@ -220,7 +211,7 @@ WITH target_accounts AS (
                         _6sensedomain
                     ) AS _country_account
         FROM
-            `smartcomm_mysql.smartcommunications_db_reached_account_6sense`
+            `smartcommnam_mysql.smartcommnam_db_6sense_reached_accounts_nam`
         WHERE 
             _campaignid IN (
 
@@ -273,7 +264,7 @@ six_qa_related_info AS (
             CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
 
         FROM 
-            `smartcomm_mysql.smartcommunications_db_6qa_account`
+            `smartcommnam_mysql.smartcommnam_db_6qa_account_nam`
     
     )
 
@@ -307,7 +298,7 @@ buying_stage_related_info AS (
             AS rownum
 
         FROM
-            `smartcom.db_6sense_buying_stages_movement`
+            `smartcommnam.db_6sense_buying_stages_movement`
 
     )
     WHERE 
@@ -357,7 +348,7 @@ SELECT * FROM combined_data;
 ----------------------------------------------------------------------------------------------------------------------------
 
 
-CREATE OR REPLACE TABLE `smartcom.db_6sense_ad_performance` AS
+CREATE OR REPLACE TABLE `smartcommnam.db_6sense_ad_performance` AS
 
 WITH ads AS (
 SELECT *
@@ -390,7 +381,7 @@ SELECT *
                         WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
                     END
                 ) AS _rownum
-        FROM `smartcomm_mysql.smartcommunications_db_campaign_performance`
+        FROM `smartcommnam_mysql.smartcommnam_db_6sense_campaign_performance_nam`
         WHERE _datatype = 'Ad'
     )
     WHERE _rownum = 1
@@ -466,7 +457,7 @@ campaign_fields AS (
             AS _rownum
 
         FROM 
-            `smartcomm_mysql.smartcommunications_db_campaign_performance`
+            `smartcommnam_mysql.smartcommnam_db_6sense_campaign_performance_nam`
         WHERE
             _datatype = 'Campaign'
 
@@ -556,7 +547,7 @@ campaign_numbers AS (
                 side._campaignid
 
             FROM 
-                `smartcomm_mysql.smartcommunications_db_target_account_6sense` main
+                `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
             
             JOIN 
                 `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
@@ -591,7 +582,7 @@ campaign_numbers AS (
                 side._campaignid
 
             FROM 
-                `smartcomm_mysql.smartcommunications_db_target_account_6sense` main
+                `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
             
             JOIN 
                 `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
@@ -600,7 +591,7 @@ campaign_numbers AS (
                 main._segmentname = side._segment
 
             JOIN 
-                `smartcomm_mysql.smartcommunications_db_reached_account_6sense` extra
+                `smartcommnam_mysql.smartcommnam_db_6sense_reached_accounts_nam` extra
 
             USING(
                 _6sensecompanyname,
@@ -635,7 +626,7 @@ campaign_numbers AS (
                 side._campaignid,
 
             FROM 
-                `smartcomm_mysql.smartcommunications_db_target_account_6sense` main
+                `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
             
             JOIN 
                 `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
@@ -644,7 +635,7 @@ campaign_numbers AS (
                 main._segmentname = side._segment
 
             JOIN 
-                `smartcom.db_6sense_account_current_state` extra
+                `smartcommnam.db_6sense_account_current_state` extra
             
             USING(
                 _6sensecompanyname,
@@ -676,13 +667,13 @@ campaign_numbers AS (
           CASE WHEN extra._campaignid != '' THEN 1 ELSE 0 END AS _reached_account
 
         FROM 
-          `smartcomm_mysql.smartcommunications_db_target_account_6sense` main
+          `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
         JOIN 
           `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
         ON 
           main._segmentname = side._segment
       JOIN 
-          `smartcomm_mysql.smartcommunications_db_reached_account_6sense` extra
+          `smartcommnam_mysql.smartcommnam_db_6sense_reached_accounts_nam` extra
         USING(
           _6sensecompanyname,
           _6sensecountry,
@@ -740,7 +731,7 @@ SELECT * FROM reduced_campaign_numbers;
 
 
 -- Insert Linkedin data into ad performance
-INSERT INTO `smartcom.db_6sense_ad_performance` (
+INSERT INTO `smartcommnam.db_6sense_ad_performance` (
 _adid,
 _date,
 _spend,
@@ -829,11 +820,11 @@ ON campaign.id = creative._campaign_id;
 ----------------------------------------------------------------------------------------------------------------------------
 
 
-CREATE OR REPLACE TABLE `smartcom.db_6sense_engagement_log` AS
+CREATE OR REPLACE TABLE `smartcommnam.db_6sense_engagement_log` AS
 
 WITH target_accounts AS (
 
-    SELECT * FROM `smartcom.db_6sense_account_current_state`
+    SELECT * FROM `smartcommnam.db_6sense_account_current_state`
 
 ),
 
@@ -867,7 +858,7 @@ reached_accounts_data AS (
         CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
     
     FROM 
-        `smartcomm_mysql.smartcommunications_db_reached_account_6sense` main
+        `smartcommnam_mysql.smartcommnam_db_6sense_reached_accounts_nam` main
     
     JOIN (
 
@@ -1015,7 +1006,7 @@ account_activity_summary AS (
     COUNT(*) AS _count
 
   FROM
-    `smartcomm_mysql.smartcommunications_db_6sense_activity_summary`
+    `smartcommmnam_mysql.smartcommnam_db_6sense_activity_summary_nam`
   GROUP BY ALL
 ),
 acccount_activity_summary_main AS (
@@ -1130,7 +1121,7 @@ SELECT * FROM accumulated_engagement_values;
 
 
 
-CREATE OR REPLACE TABLE `smartcom.db_6sense_account_performance` AS
+CREATE OR REPLACE TABLE `smartcommnam.db_6sense_account_performance` AS
 
 -- Get all target accounts and their campaigns
 WITH target_accounts AS (
@@ -1150,7 +1141,7 @@ WITH target_accounts AS (
         side._campaignid,
         side._campaignname
     FROM 
-        `smartcomm_mysql.smartcommunications_db_target_account_6sense` main
+        `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
     
     JOIN 
         `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
@@ -1190,7 +1181,7 @@ reached_accounts AS (
 
     LEFT JOIN
     
-        `smartcomm_mysql.smartcommunications_db_reached_account_6sense` side
+        `smartcommnam_mysql.smartcommnam_db_6sense_reached_accounts_nam` side
 
     USING(
         _6sensecompanyname,
@@ -1208,7 +1199,7 @@ SELECT * FROM reached_accounts;
 -- ACCOUNT ACTIVITY SUMMARY (SOURCE FROM MYSQL)
 ----------------------------------------------------------------------------------------------------------------------------
 
-CREATE OR REPLACE TABLE `smartcom.db_6sense_activity_summary`
+CREATE OR REPLACE TABLE `smartcommnam.db_6sense_activity_summary`
 CLUSTER BY _activitytype
 AS
-SELECT * FROM smartcomm_mysql.smartcommunications_db_6sense_activity_summary;
+SELECT * FROM `smartcommmnam_mysql.smartcommnam_db_6sense_activity_summary_nam`;
