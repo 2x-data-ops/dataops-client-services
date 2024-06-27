@@ -275,17 +275,17 @@ accumulated_engagement_values AS (
 get_visit_age AS (
     SELECT DISTINCT
         (_country_account) AS _country_account,
-        COUNT(_country_account) AS engagement_count,
+        COUNT(_country_account) AS _engagement_count,
         DATE_DIFF(CURRENT_DATE('America/New_York'), MAX(CAST(_timestamp AS DATE)), DAY) AS _visit_age
     FROM accumulated_engagement_values
     GROUP BY _country_account
 )
 SELECT *,
     CASE
-        WHEN get_visit_age.engagement_count =1 then "New"
-        WHEN get_visit_age.engagement_count >1 AND _visit_age < 10 then "Recent with Intent"
-        WHEN get_visit_age.engagement_count >1 AND _visit_age > 10 AND _visit_age <= 90 then "Recent"
-        WHEN get_visit_age.engagement_count >1 AND _visit_age > 90 then "Returning"
+        WHEN get_visit_age._engagement_count =1 then "New"
+        WHEN get_visit_age._engagement_count >1 AND _visit_age < 10 then "Recent with Intent"
+        WHEN get_visit_age._engagement_count >1 AND _visit_age > 10 AND _visit_age <= 90 then "Recent"
+        WHEN get_visit_age._engagement_count >1 AND _visit_age > 90 then "Returning"
         ELSE "Unknown"
     END AS _company_flag
 FROM accumulated_engagement_values
