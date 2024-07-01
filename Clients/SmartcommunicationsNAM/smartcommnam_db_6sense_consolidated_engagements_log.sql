@@ -37,7 +37,7 @@ reached_accounts_data AS (
             _campaignname,  
             -- _campaigntype       
         FROM
-            `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense`
+            `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense`
     ) side
     USING(_campaignid)
 ),
