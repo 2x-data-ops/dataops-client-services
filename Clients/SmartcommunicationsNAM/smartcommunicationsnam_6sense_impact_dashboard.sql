@@ -16,7 +16,7 @@ airtable AS (
     _campaignname,
     '' AS _campaigntype
   FROM
-    `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` 
+    `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense`
 )
   SELECT
     reached.*,
@@ -477,7 +477,7 @@ airtable_fields AS (
         _screenshot
         
     FROM
-        `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense`
+        `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense`
     WHERE 
         _campaignid != ''
 ),
@@ -550,7 +550,7 @@ campaign_numbers AS (
                 `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
             
             JOIN 
-                `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
+                `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense` side
             
             ON 
                 main._segmentname = side._segment
@@ -585,7 +585,7 @@ campaign_numbers AS (
                 `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
             
             JOIN 
-                `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
+                `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense` side
             
             ON 
                 main._segmentname = side._segment
@@ -629,7 +629,7 @@ campaign_numbers AS (
                 `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
             
             JOIN 
-                `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
+                `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense` side
             
             ON 
                 main._segmentname = side._segment
@@ -669,7 +669,7 @@ campaign_numbers AS (
         FROM 
           `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
         JOIN 
-          `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
+          `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense` side
         ON 
           main._segmentname = side._segment
       JOIN 
@@ -869,7 +869,7 @@ reached_accounts_data AS (
             -- _campaigntype
             
         FROM
-            `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense`
+            `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense`
 
     ) side
 
@@ -1006,7 +1006,7 @@ account_activity_summary AS (
     COUNT(*) AS _count
 
   FROM
-    `smartcommmnam_mysql.smartcommnam_db_6sense_activity_summary_nam`
+    `smartcommnam_mysql.smartcommnam_db_6sense_activity_summary_nam`
   GROUP BY ALL
 ),
 acccount_activity_summary_main AS (
@@ -1144,7 +1144,7 @@ WITH target_accounts AS (
         `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
     
     JOIN 
-        `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense` side
+        `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense` side
     
     ON 
         main._segmentname = side._segment
@@ -1202,4 +1202,4 @@ SELECT * FROM reached_accounts;
 CREATE OR REPLACE TABLE `smartcommnam.db_6sense_activity_summary`
 CLUSTER BY _activitytype
 AS
-SELECT * FROM `smartcommmnam_mysql.smartcommnam_db_6sense_activity_summary_nam`;
+SELECT * FROM `smartcommnam_mysql.smartcommnam_db_6sense_activity_summary_nam`;
