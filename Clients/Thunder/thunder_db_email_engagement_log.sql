@@ -146,8 +146,6 @@ airtable_info AS (
   FROM thunder_mysql.db_airtable_email
 ),
 sent_email AS (
-  SELECT * EXCEPT(_rownum)
-  FROM(
     SELECT
       activity._sdc_sequence,
       CAST(activity.prospect_id AS STRING) AS _prospectID,
@@ -160,140 +158,116 @@ sent_email AS (
       CAST (activity.form_id AS STRING) AS _form_id,
       CAST(list_email_id AS STRING) _list_email_id,
       CAST(email_template_id AS STRING) AS _email_template_id,
-      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
-       ORDER BY activity.created_at DESC ) AS _rownum
     FROM `x-marketing.thunder_pardot.visitor_activities` activity
     LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
       ON activity.prospect_id = prospect.id
     WHERE type_name = 'Email'
       AND type = 6 /* This specified the email event to Sent */
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id, list_email_id
+      ORDER BY activity.created_at DESC ) = 1
 ),
 hardbounced_email AS (
-  SELECT * EXCEPT(_rownum)
-  FROM(
-      SELECT
-      activity._sdc_sequence,
-      CAST(activity.prospect_id AS STRING) AS _prospectID,
-      -- prospect.email AS _email,
-      CAST(activity.campaign_id AS STRING) AS _campaignID, 
-      activity.created_at AS _timestamp,
-      'Hard Bounced' AS _engagement,
-      '' AS _description,
-      CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
-      CAST (activity.form_id AS STRING) AS _form_id,
-      CAST(list_email_id AS STRING) _list_email_id,
-      CAST(email_template_id AS STRING) AS _email_template_id,
-      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
-       ORDER BY activity.created_at DESC ) AS _rownum
-    FROM `x-marketing.thunder_pardot.visitor_activities` activity
-    LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
-      ON activity.prospect_id = prospect.id
-    WHERE activity.type in (13) /* Unsubscribe Page / Indirect Unsubscribe Open */
-  )
-  WHERE _rownum = 1
+  SELECT
+    activity._sdc_sequence,
+    CAST(activity.prospect_id AS STRING) AS _prospectID,
+    -- prospect.email AS _email,
+    CAST(activity.campaign_id AS STRING) AS _campaignID, 
+    activity.created_at AS _timestamp,
+    'Hard Bounced' AS _engagement,
+    '' AS _description,
+    CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
+    CAST (activity.form_id AS STRING) AS _form_id,
+    CAST(list_email_id AS STRING) _list_email_id,
+    CAST(email_template_id AS STRING) AS _email_template_id,
+  FROM `x-marketing.thunder_pardot.visitor_activities` activity
+  LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
+    ON activity.prospect_id = prospect.id
+  WHERE activity.type in (13) /* Unsubscribe Page / Indirect Unsubscribe Open */
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id, list_email_id
+    ORDER BY activity.created_at DESC ) = 1
 ),
 softbounced_email AS (
-  SELECT * EXCEPT(_rownum)
-  FROM(
-      SELECT
-      activity._sdc_sequence,
-      CAST(activity.prospect_id AS STRING) AS _prospectID,
-      -- prospect.email AS _email,
-      CAST(activity.campaign_id AS STRING) AS _campaignID, 
-      activity.created_at AS _timestamp,
-      'Soft Bounced' AS _engagement,
-      '' AS _description,
-      CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
-      CAST (activity.form_id AS STRING) AS _form_id,
-      CAST(list_email_id AS STRING) _list_email_id,
-      CAST(email_template_id AS STRING) AS _email_template_id,
-      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
-       ORDER BY activity.created_at DESC ) AS _rownum
-    FROM `x-marketing.thunder_pardot.visitor_activities` activity
-    LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
-      ON activity.prospect_id = prospect.id
-    WHERE activity.type in (36) /* Unsubscribe Page / Indirect Unsubscribe Open */
-  )
-  WHERE _rownum = 1
+  SELECT
+    activity._sdc_sequence,
+    CAST(activity.prospect_id AS STRING) AS _prospectID,
+    -- prospect.email AS _email,
+    CAST(activity.campaign_id AS STRING) AS _campaignID, 
+    activity.created_at AS _timestamp,
+    'Soft Bounced' AS _engagement,
+    '' AS _description,
+    CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
+    CAST (activity.form_id AS STRING) AS _form_id,
+    CAST(list_email_id AS STRING) _list_email_id,
+    CAST(email_template_id AS STRING) AS _email_template_id,
+  FROM `x-marketing.thunder_pardot.visitor_activities` activity
+  LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
+    ON activity.prospect_id = prospect.id
+  WHERE activity.type in (36) /* Unsubscribe Page / Indirect Unsubscribe Open */
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id, list_email_id
+    ORDER BY activity.created_at DESC ) = 1
 ),
 opened_email AS (
-    SELECT * EXCEPT(_rownum)
-  FROM(
-      SELECT
-      activity._sdc_sequence,
-      CAST(activity.prospect_id AS STRING) AS _prospectID,
-      -- prospect.email AS _email,
-      CAST(activity.campaign_id AS STRING) AS _campaignID, 
-      activity.created_at AS _timestamp,
-      'Opened' AS _engagement,
-      '' AS _description,
-      CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
-      CAST (activity.form_id AS STRING) AS _form_id,
-      CAST(list_email_id AS STRING) _list_email_id,
-      CAST(email_template_id AS STRING) AS _email_template_id,
-      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
-       ORDER BY activity.created_at DESC ) AS _rownum
-    FROM `x-marketing.thunder_pardot.visitor_activities` activity
-    LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
-      ON activity.prospect_id = prospect.id
-    WHERE activity.type = 11 /* This specified the email event to Open */
-  )
-  WHERE _rownum = 1
+  SELECT
+    activity._sdc_sequence,
+    CAST(activity.prospect_id AS STRING) AS _prospectID,
+    -- prospect.email AS _email,
+    CAST(activity.campaign_id AS STRING) AS _campaignID, 
+    activity.created_at AS _timestamp,
+    'Opened' AS _engagement,
+    '' AS _description,
+    CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
+    CAST (activity.form_id AS STRING) AS _form_id,
+    CAST(list_email_id AS STRING) _list_email_id,
+    CAST(email_template_id AS STRING) AS _email_template_id,
+  FROM `x-marketing.thunder_pardot.visitor_activities` activity
+  LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
+    ON activity.prospect_id = prospect.id
+  WHERE activity.type = 11 /* This specified the email event to Open */
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id, list_email_id
+    ORDER BY activity.created_at DESC ) = 1
 ),
 clicked_email AS (
-  SELECT * EXCEPT(_rownum)
-  FROM(
-      SELECT
-      activity._sdc_sequence,
-      CAST(activity.prospect_id AS STRING) AS _prospectID,
-      -- prospect.email AS _email,
-      CAST(NULL AS STRING) AS _campaignID, 
-      activity.created_at AS _timestamp,
-      'Clicked' AS _engagement,
-      url AS _description,
-      CAST(NULL AS STRING) AS form_handler_id,
-      CAST(NULL AS STRING) AS form_id,
-      CAST(list_email_id AS STRING) _list_email_id,
-      CAST(email_template_id AS STRING) AS _email_template_id,
-      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.list_email_id
-       ORDER BY activity.created_at DESC ) AS _rownum
-    FROM `x-marketing.thunder_pardot.email_clicks` activity
-    LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
-      ON activity.prospect_id = prospect.id
-  )
-  WHERE _rownum = 1
+  SELECT
+    activity._sdc_sequence,
+    CAST(activity.prospect_id AS STRING) AS _prospectID,
+    CAST(NULL AS STRING) AS _campaignID, 
+    activity.created_at AS _timestamp,
+    'Clicked' AS _engagement,
+    url AS _description,
+    CAST(NULL AS STRING) AS form_handler_id,
+    CAST(NULL AS STRING) AS form_id,
+    CAST(list_email_id AS STRING) _list_email_id,
+    CAST(email_template_id AS STRING) AS _email_template_id,
+  FROM `x-marketing.thunder_pardot.email_clicks` activity
+  LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
+    ON activity.prospect_id = prospect.id
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.email_template_id, list_email_id
+    ORDER BY activity.created_at DESC ) = 1
 ),
 unsubscribed_email AS(
-  SELECT * EXCEPT(_rownum)
-  FROM(
-      SELECT
-      activity._sdc_sequence,
-      CAST(activity.prospect_id AS STRING) AS _prospectID,
-      -- prospect.email AS _email,
-      CAST(activity.campaign_id AS STRING) AS _campaignID, 
-      activity.created_at AS _timestamp,
-      'Unsubscribed' AS _engagement,
-      '' AS _description,
-      CAST(list_email_id AS STRING) _list_email_id,
-      CAST(email_template_id AS STRING) AS _email_template_id,
-      CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
-      CAST (activity.form_id AS STRING) AS _form_id,
-      ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
-       ORDER BY activity.created_at DESC ) AS _rownum
-    FROM `x-marketing.thunder_pardot.visitor_activities` activity
-    LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
-      ON activity.prospect_id = prospect.id
-    WHERE  activity.type in (12, 35)    /* Unsubscribe Page / Indirect Unsubscribe Open */
-  )
-  WHERE _rownum = 1  
+  SELECT
+    activity._sdc_sequence,
+    CAST(activity.prospect_id AS STRING) AS _prospectID,
+    -- prospect.email AS _email,
+    CAST(activity.campaign_id AS STRING) AS _campaignID, 
+    activity.created_at AS _timestamp,
+    'Unsubscribed' AS _engagement,
+    '' AS _description,
+    CAST(list_email_id AS STRING) _list_email_id,
+    CAST(email_template_id AS STRING) AS _email_template_id,
+    CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
+    CAST (activity.form_id AS STRING) AS _form_id,
+  FROM `x-marketing.thunder_pardot.visitor_activities` activity
+  LEFT JOIN `x-marketing.thunder_pardot.prospects` prospect
+    ON activity.prospect_id = prospect.id
+  WHERE  activity.type in (12, 35)    /* Unsubscribe Page / Indirect Unsubscribe Open */
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id, list_email_id
+    ORDER BY activity.created_at DESC ) = 1
 ),
 form_filled AS (
   SELECT
     activity._sdc_sequence,
     CAST(activity.prospect_id AS STRING) AS _prospectID,
-    -- prospect.email AS _email,
     CAST(activity.campaign_id AS STRING) AS _campaignID,
     activity.created_at AS _timestamp,
     'Form Filled' AS _engagement,
@@ -302,9 +276,6 @@ form_filled AS (
     CAST(email_template_id AS STRING) AS _email_template_id,
     CAST (activity.form_handler_id AS STRING) AS _form_handler_id,
     CAST (activity.form_id AS STRING) AS _form_id,
-  --   ROW_NUMBER() OVER(PARTITION BY activity.prospect_id, activity.campaign_id
-  -- ORDER BY activity.created_at DESC ) AS _rownum,
-
   FROM
     `x-marketing.thunder_pardot.visitor_activities` activity
   LEFT JOIN
