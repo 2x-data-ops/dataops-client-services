@@ -1,7 +1,6 @@
 CREATE OR REPLACE TABLE `x-marketing.hyland.MIQA_account` AS
 WITH account AS (
   SELECT  
-    DISTINCT
     id_18__c AS _id18,
     name AS _name,
     industry AS _industry,
@@ -24,7 +23,10 @@ WITH account AS (
     owner_name__c AS _accountOwnerName,
     ownership AS _ownership
   FROM `x-marketing.hyland_salesforce.Account` 
+  WHERE isdeleted IS FALSE
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY id_18__c ORDER BY createddate DESC) = 1
 ),
+/*
 contact AS (
   SELECT
     id_18__c AS _contactid18,
@@ -46,8 +48,10 @@ contact AS (
     email_opt_in_status__c AS _contactEmailOptIn,
     createddate AS _contactCreatedDate
   FROM `x-marketing.hyland_salesforce.Contact` 
+  WHERE isdeleted IS FALSE
   QUALIFY ROW_NUMBER() OVER(PARTITION BY id ORDER BY createddate) = 1
 ),
+*/
 opportunity_data AS (
   SELECT
     id_18__c AS _oppid18,
@@ -68,6 +72,7 @@ opportunity_data AS (
     amount AS _oppAmount,
     amount_in_usd__c AS _oppUSDAmount
   FROM `x-marketing.hyland_salesforce.Opportunity`
+  WHERE isdeleted IS FALSE
   QUALIFY ROW_NUMBER() OVER(PARTITION BY id ORDER BY createddate) = 1
 ),
 closedConversionRate AS (
@@ -141,38 +146,47 @@ opportunity AS (
 )
 SELECT
   account.*,
-  contact.* EXCEPT(_accountID),
+  -- contact.* EXCEPT(_accountID),
   opportunity.* EXCEPT(_accountID),
   -- accountHistory.* EXCEPT(_historyAccountID),
   -- accountActivity.* EXCEPT(_accountID)
 FROM account
-LEFT JOIN contact ON contact._accountID = account._id18
+-- LEFT JOIN contact ON contact._accountID = account._id18
 LEFT JOIN opportunity ON opportunity._accountID = account._id18;
 -- LEFT JOIN accountHistory ON accountHistory._historyAccountID = account._id18
 -- LEFT JOIN accountActivity ON accountActivity._accountID = account._id18
 
+---------------------------------
+/*------ Account History ------*/
+---------------------------------
 
-
+CREATE OR REPLACE TABLE `x-marketing.hyland.MIQA_acc_history_activity` AS
 WITH account AS (
-  SELECT 
-    _id18,
-    _isMIQA
-  FROM `x-marketing.hyland.MIQA_account`
+  SELECT  
+    id_18__c AS accountid,
+    is_miqa__c AS _isMIQA,
+    createddate AS _createdDate
+  FROM `x-marketing.hyland_salesforce.Account` 
+  WHERE isdeleted IS FALSE
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY id_18__c ORDER BY createddate DESC) = 1
 ), 
 accountHistory AS (
   SELECT
     DISTINCT
-    history.accountid AS _historyAccountID,
-    history.createdbyid AS _historyCreatedBy,
-    history.createddate AS _historyCreateddate,
-    history.oldvalue__st AS _historyOldValue,
-    history.newvalue__st AS _historyNewValue,
-    history.field AS _historyField
-  FROM `x-marketing.hyland_salesforce.AccountHistory` history
-  JOIN account ON account._id18 = history.accountid
+    history.accountid AS accountid,
+    history.createdbyid AS _createdBy,
+    history.createddate AS _createdDate,
+    history.oldvalue AS _oldValue,
+    history.newvalue AS _newValue,
+    history.field AS _field
+  FROM account 
+  LEFT JOIN `x-marketing.hyland_salesforce.AccountHistory` history 
+  USING(accountid)
   WHERE
     account._isMIQA IS TRUE
-),
+    AND isdeleted IS FALSE
+    AND field = 'Is_MIQA__c'
+)/*,
 activity AS (
   SELECT
     event.accountid AS _accountID,
@@ -184,6 +198,8 @@ activity AS (
     event.eventsubtype AS _activitySubType,
     'event' AS _isActivity,
   FROM `x-marketing.hyland_salesforce.Event` event
+  WHERE isdeleted IS FALSE
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY event.accountid,event.id ORDER BY event.createddate) = 1
   UNION ALL
   SELECT
     task.accountid AS _accountID,
@@ -195,17 +211,12 @@ activity AS (
     task.tasksubtype AS _activitySubType,
     'event' AS _isActivity,
   FROM `x-marketing.hyland_salesforce.Task` task
-),
-accountActivity AS (
-  SELECT
-    activity.* 
-  FROM activity
-  JOIN account ON account._id18 = activity._accountID
-)
-SELECT
-  account.*,
-  contact.* EXCEPT(_id18,_accountID),
-  opportunity.* EXCEPT(_id18,_accountID)
-FROM account
-JOIN contact ON contact._accountID = account._id18
-JOIN opportunity ON opportunity._accountID = account._id18
+  WHERE isdeleted IS FALSE
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY task.accountid,task.id ORDER BY task.createddate) = 1
+)*/
+SELECT 
+-- DISTINCT
+  *
+  -- accountHistory.* EXCEPT(_historyAccountID),
+  -- activity.* 
+FROM accountHistory;
