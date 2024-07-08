@@ -1137,8 +1137,9 @@ SELECT * FROM reached_accounts;
 
 
 -- Opportunity Influenced + Accelerated
+-- Due to big data size, staging table had to be created, otherwise can skip this part, n continue to next query
 
-CREATE OR REPLACE TABLE `syniti.opportunity_influenced_accelerated` AS
+CREATE OR REPLACE TABLE `syniti.opportunity_influenced_accelerated_staging` AS
 
 -- Get account engagements of target account 
 WITH target_account_engagements AS (
@@ -1765,6 +1766,29 @@ SELECT * FROM latest_stage_opportunity_only;
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
 
+-- Continuation of previous table
+-- This table should be the individual piece of opportunity_influenced_accelerated
+CREATE OR REPLACE TABLE `syniti.opportunity_influenced_accelerated` AS
+WITH alldata AS (
+    SELECT * FROM `syniti.opportunity_influenced_accelerated_staging` 
+),
+totalcount AS (
+    SELECT
+        _opp_id,
+        COUNT(*) AS count_per_opportunityid
+    FROM alldata
+    GROUP BY ALL
+)
+SELECT
+    alldata.* EXCEPT (_amount_converted),
+    (CAST(alldata._amount_converted AS FLOAT64) / NULLIF(COALESCE(totalcount.count_per_opportunityid, 0), 0)) AS _amount_converted 
+FROM alldata
+LEFT JOIN totalcount
+ON  alldata._opp_id = totalcount._opp_id;
+
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
 
 -- Opportunity Influenced + Accelerated Without Engagements
 
