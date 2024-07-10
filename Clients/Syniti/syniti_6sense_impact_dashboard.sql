@@ -1137,9 +1137,8 @@ SELECT * FROM reached_accounts;
 
 
 -- Opportunity Influenced + Accelerated
--- Due to big data size, staging table had to be created, otherwise can skip this part, n continue to next query
 
-CREATE OR REPLACE TABLE `syniti.opportunity_influenced_accelerated_staging` AS
+CREATE OR REPLACE TABLE `syniti.opportunity_influenced_accelerated` AS
 
 -- Get account engagements of target account 
 WITH target_account_engagements AS (
@@ -1164,7 +1163,9 @@ WITH target_account_engagements AS (
         AS _channel
 
     FROM 
-        `syniti.db_6sense_engagement_log` 
+        `syniti.db_6sense_engagement_log`
+    WHERE _campaign_name != 'Upsert - Replication Q3/4 main'
+        AND _campaign_name != "Unify - Global - Q3 '23 Match Tiger & Iceberg - Main"
     
     -- Get engagements after start of campaign
    -- WHERE
@@ -1762,29 +1763,6 @@ latest_stage_opportunity_only AS (
 
 SELECT * FROM latest_stage_opportunity_only;
 
------------------------------------------------------------------------------------------------------------------
------------------------------------------------------------------------------------------------------------------
------------------------------------------------------------------------------------------------------------------
-
--- Continuation of previous table
--- This table should be the individual piece of opportunity_influenced_accelerated
-CREATE OR REPLACE TABLE `syniti.opportunity_influenced_accelerated` AS
-WITH alldata AS (
-    SELECT * FROM `syniti.opportunity_influenced_accelerated_staging` 
-),
-totalcount AS (
-    SELECT
-        _opp_id,
-        COUNT(*) AS count_per_opportunityid
-    FROM alldata
-    GROUP BY ALL
-)
-SELECT
-    alldata.* EXCEPT (_amount_converted),
-    (CAST(alldata._amount_converted AS FLOAT64) / NULLIF(COALESCE(totalcount.count_per_opportunityid, 0), 0)) AS _amount_converted 
-FROM alldata
-LEFT JOIN totalcount
-ON  alldata._opp_id = totalcount._opp_id;
 
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
@@ -1797,58 +1775,66 @@ CREATE OR REPLACE TABLE `syniti.opportunity_summarized` AS
 -- Opportunity information are duplicated by channel field which has ties to engagement
 -- The influencing and accelerating boolean fields together with the channel are unique
 -- Remove the duplicate channels and prioritize the channels with boolean values
-SELECT DISTINCT
-    
-    _account_id,
-    _account_name,
-    _country,
-    _domain,
-    _6qa_date,
-    _opp_id,
-    _opp_name,
-    _opp_owner_name,
-    _opp_type,
-    _created_date,
-    _closed_date,
-    _amount_converted,
-    _region,
-    _stage_change_date,
-    _current_stage,
-    _stage_history,
-    _6sensecompanyname,
-    _6sensecountry,
-    _6sensedomain,
-    _campaign_name,
-    _is_matched_opp,
-    _is_influenced_opp,
-
-    MAX(_is_influencing_activity) OVER(
-        PARTITION BY 
-            _opp_id,
-            _channel
-    )
-    AS _is_influencing_activity,
-
-    _is_accelerated_opp,
-
-    MAX(_is_accelerating_activity) OVER(
-        PARTITION BY 
-            _opp_id,
-            _channel
-    )
-    AS _is_accelerating_activity,
-
-    _is_later_accelerated_opp,
-
-    MAX(_is_later_accelerating_activity) OVER(
-        PARTITION BY 
-            _opp_id,
-            _channel
-    )
-    AS _is_later_accelerating_activity,
-
-    _is_stagnant_opp,
-    _channel
-
-FROM 
-    `syniti.opportunity_influenced_accelerated`;
+WITH alldata AS (
+    SELECT DISTINCT
+      _account_id,
+      _account_name,
+      _country,
+      _domain,
+      _6qa_date,
+      _opp_id,
+      _opp_name,
+      _opp_owner_name,
+      _opp_type,
+      _created_date,
+      _closed_date,
+      _amount_converted,
+      _region,
+      _stage_change_date,
+      _current_stage,
+      _stage_history,
+      _6sensecompanyname,
+      _6sensecountry,
+      _6sensedomain,
+      _campaign_name,
+      _is_matched_opp,
+      _is_influenced_opp,
+      MAX(_is_influencing_activity) OVER(
+          PARTITION BY 
+              _opp_id,
+              _channel
+      )
+      AS _is_influencing_activity,
+      _is_accelerated_opp,
+      MAX(_is_accelerating_activity) OVER(
+          PARTITION BY 
+              _opp_id,
+              _channel
+      )
+      AS _is_accelerating_activity,
+      _is_later_accelerated_opp,
+      MAX(_is_later_accelerating_activity) OVER(
+          PARTITION BY 
+              _opp_id,
+              _channel
+      )
+      AS _is_later_accelerating_activity,
+      _is_stagnant_opp,
+      _channel
+  FROM 
+      `syniti.opportunity_influenced_accelerated` 
+    --   WHERE _opp_name LIKE 'MT Renewal 2024 DZ%'
+  ),
+totalcount AS (
+    SELECT DISTINCT
+        _opp_id,
+        COUNT(*) AS count_per_opportunityid
+    FROM alldata
+    GROUP BY ALL
+)
+SELECT
+    alldata.* EXCEPT (_amount_converted),
+    (CAST(alldata._amount_converted AS FLOAT64) / NULLIF(COALESCE(totalcount.count_per_opportunityid, 0), 0)) AS _amount_converted 
+FROM alldata
+LEFT JOIN totalcount
+ON  alldata._opp_id = totalcount._opp_id ;
