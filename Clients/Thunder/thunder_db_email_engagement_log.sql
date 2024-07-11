@@ -29,9 +29,6 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   _crm_lead_fid,
   _sfdc_leadid,
   _account_owner,
-  _campaign_name_gs,
-  _email_type_gs,
-  _email_template_name,
   _screenshot,
   _assettitle,
   -- _mql,
@@ -46,7 +43,10 @@ INSERT INTO `x-marketing.thunder.db_email_engagements_log` (
   _emailname,
   _contenttype,
   _landingpage,
-  _utmcampaign
+  _utmcampaign,
+  _campaign_name_gs,
+  _email_type_gs,
+  _email_template_name
 
   -- _contentTitle, 
   -- _utm_source,
@@ -403,6 +403,9 @@ campaign_info AS (
       id AS _campaignID,
       name AS _utmcampaign,
     FROM `x-marketing.thunder_pardot.campaigns`
+    WHERE id NOT IN (567823, 567838, 576482, 568105, 576479, 567811, 579707, 579698, 577913, 577925, 577919, 577922, 590557, 603314, 598405, 611389)
+
+
   ),
   combined_campaign AS (
     SELECT * FROM gsheet_campaign
@@ -411,23 +414,32 @@ campaign_info AS (
   )
   SELECT * FROM combined_campaign
   QUALIFY ROW_NUMBER() OVER (PARTITION BY _campaignID, _utmcampaign) = 1 
-)
+),
 --Combine prospect info left join with engagement together with campaign info---
+alldata AS (
 SELECT
   engagements.*,
   prospect_info_consolidate.* EXCEPT(_prospectID),
-  get_template_name.* EXCEPT(_email_template_id),
+  -- get_template_name.* EXCEPT(_email_template_id),
   airtable_info.* EXCEPT(_list_email_id),
   campaign_info._utmcampaign
 FROM engagements
 LEFT JOIN prospect_info_consolidate
   ON engagements._prospectID = prospect_info_consolidate._prospectID 
-LEFT JOIN get_template_name
-  ON engagements._email_template_id = CAST(get_template_name._email_template_id AS STRING)
 LEFT JOIN campaign_info
   ON engagements._campaignID = CAST(campaign_info._campaignID AS STRING)
 LEFT JOIN airtable_info
-  ON engagements._list_email_id = airtable_info._list_email_id;
+  ON engagements._list_email_id = airtable_info._list_email_id
+)
+SELECT alldata.*,
+get_template_name.* EXCEPT(_email_template_id)
+FROM alldata
+LEFT JOIN get_template_name
+  ON alldata._email_template_id = CAST(get_template_name._email_template_id AS STRING);
+-- WHERE 
+-- -- _campaignID = '567823'
+-- _engagement = 'Sent'
+-- AND _name like 'Zachary Wagner'
 
 
 ---OPPS Combined With Email Engagement---
