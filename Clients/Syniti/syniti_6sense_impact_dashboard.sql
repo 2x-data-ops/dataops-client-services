@@ -1,8 +1,26 @@
-CREATE
-OR
-REPLACE
-TABLE
-    `syniti.db_6sense_buying_stages_movement` AS
+-- PREPROCESSING PART
+-- to avoid missing value when joined with salesforce data
+
+UPDATE syniti_mysql.syniti_db_target_accounts
+SET _6sensecompanyname = 
+  CASE
+    WHEN _6sensecompanyname = 'Booking Holding, Inc.' THEN 'Booking Holdings, Inc'
+    WHEN _6sensecompanyname = 'Boeing Company' THEN 'The Boeing Company'
+    ELSE _6sensecompanyname
+  END
+WHERE _6sensecompanyname IN ('Booking Holding, Inc.' , 'Boeing Company');
+
+UPDATE syniti_mysql.syniti_db_campaign_reached_accounts
+SET _6sensecompanyname =  
+  CASE
+    WHEN _6sensecompanyname = 'Booking Holding, Inc.' THEN 'Booking Holdings, Inc'
+    WHEN _6sensecompanyname = 'Boeing Company' THEN 'The Boeing Company'
+    ELSE _6sensecompanyname
+  END
+WHERE _6sensecompanyname IN ('Booking Holding, Inc.' , 'Boeing Company');
+
+
+CREATE OR REPLACE TABLE `syniti.db_6sense_buying_stages_movement` AS
 WITH sixsense_stage_order AS (
         SELECT
             'Target' AS _buying_stage,
@@ -80,11 +98,7 @@ FROM
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-CREATE
-OR
-REPLACE
-TABLE
-    `syniti.db_6sense_account_current_state` AS
+CREATE OR REPLACE TABLE `syniti.db_6sense_account_current_state` AS
 WITH target_accounts AS (
         SELECT DISTINCT main.*
 
@@ -145,7 +159,7 @@ WITH target_accounts AS (
                 SELECT
                     DISTINCT MIN(
                         CASE
-                            WHEN _extractdate LIKE '%/%'
+                            WHEN _latestimpression LIKE '%/%'
                             THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
                             ELSE PARSE_DATE('%F', _latestimpression)
                         END
@@ -168,7 +182,7 @@ WITH target_accounts AS (
                         )
                         ORDER BY
                             CASE
-                                WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
+                                WHEN _latestimpression LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
                                 ELSE PARSE_DATE('%F', _latestimpression)
                             END DESC
                     ) AS _rownum,
@@ -348,7 +362,7 @@ reached_accounts_data AS (
         -- Need label to distingush 6sense and Linkedin campaigns
         side._campaigntype AS _campaign_type,
         side._campaignname AS _campaign_name,
-        CONCAT(main._6sensecountry, main._6sensecompanyname) AS _country_account
+        CONCAT(main._6sensecompanyname, main._6sensecountry, main._6sensedomain) AS _country_account
     
     FROM 
         `syniti_mysql.syniti_db_campaign_reached_accounts` main
@@ -392,7 +406,8 @@ campaign_reached AS (
 
         CONCAT(_campaign_type, ' ', 'Campaign Reached') AS _engagement,
         '6sense' AS _engagement_data_source, 
-        _campaign_name AS _description, 
+        _campaign_name AS _description,
+        _campaign_name AS _campaign_name,
         1 AS _notes
 
     FROM
@@ -414,7 +429,8 @@ ad_clicks AS (
             _activities_on AS _timestamp,
             CONCAT(_campaign_type, ' ', 'Ad Clicks') AS _engagement, 
             '6sense' AS _engagement_data_source,
-            _campaign_name AS _description,  
+            _campaign_name AS _description,
+            _campaign_name AS _campaign_name,
             _clicks AS _notes,
 
             -- Get last period's clicks to compare
@@ -454,7 +470,8 @@ influenced_form_fills AS (
             _activities_on AS _timestamp,
             CONCAT(_campaign_type, ' ', 'Influenced Form Filled') AS _engagement, 
             '6sense' AS _engagement_data_source,
-            _campaign_name AS _description,  
+            _campaign_name AS _description,
+            _campaign_name AS _campaign_name,
             _influencedformfills AS _notes,
 
             -- Get last period's clicks to compare
@@ -543,11 +560,16 @@ sales_intelligence_data AS (
     )
         
     OR (
-            side._domain NOT LIKE CONCAT('%', main._6sensedomain, '%')
-        AND 
             main._6sensecompanyname = side._account_name
-        AND
-            main._6sensecountry = side._country
+      
+      AND
+        main._6sensecountry = side._country
+      AND
+        (
+            side._domain LIKE CONCAT('%', main._6sensedomain, '%')
+          OR
+            side._domain IS NULL
+    )
     ) 
         
     GROUP BY 
@@ -620,6 +642,7 @@ sales_intelligence_engagements AS (
                 _activitymetainfo
         END 
         AS _description,
+        CAST(NULL AS STRING) AS _campaign_name,
         
         _count AS _notes
 
@@ -705,7 +728,7 @@ SELECT *
             CAST(REPLACE(_clicks, '.0', '') AS INTEGER) AS _clicks,
             CAST(REPLACE(_impressions, ',', '') AS INTEGER) AS _impressions,
             CASE 
-                        WHEN _date LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _date)
+                        WHEN _date LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _date)
                         WHEN _date LIKE '%-%' THEN PARSE_DATE('%F', _date)
                     END AS _date,
             ROW_NUMBER() OVER (
@@ -713,7 +736,7 @@ SELECT *
                     _6senseid,
                     _date
                     ORDER BY CASE 
-                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%e/%m/%Y', _extractdate)
+                        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
                         WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate)
                     END
                 ) AS _rownum
@@ -1130,6 +1153,7 @@ WITH target_account_engagements AS (
         ROW_NUMBER() OVER() AS _eng_id,
         _timestamp AS _eng_timestamp,
         _description AS _eng_description,
+        _campaign_name,
         _notes AS _eng_notes,
 
         CASE
@@ -1193,7 +1217,7 @@ opps_created AS (
 
           opp.accountid AS _account_id, 
           act.name AS _account_name,
-          act.website AS _domain,
+          REGEXP_REPLACE(act.website, r'^(https?://)?www\.(.*?)(?:/|$)', r'\2') AS _domain,
           
           COALESCE(
               act.shippingcountry, 
@@ -1232,7 +1256,7 @@ opps_created AS (
       WHERE 
           opp.isdeleted = false
       AND 
-          EXTRACT(YEAR FROM opp.createddate) >= 2023 
+          opp.createddate >= '2023-01-01'
 
   )
   SELECT
@@ -1275,7 +1299,7 @@ opps_created AS (
     LEFT JOIN closedConversionRate ON closedConversionRate.id = opps_main._opp_id
     LEFT JOIN openConversionRate ON openConversionRate.isocode = opps_main.currencyisocode
   )
-  WHERE EXTRACT(YEAR FROM _created_date) >= 2023
+  WHERE _created_date >= '2023-01-01'
 ),
 
 -- Get all historical stages of opp
@@ -1497,7 +1521,8 @@ combined_data AS (
         target_account_engagements AS act
         
     ON (
-            opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
+            -- opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
+            opp._domain = act._6sensedomain
         AND 
             LENGTH(opp._domain) > 1
         AND 
@@ -1505,9 +1530,19 @@ combined_data AS (
     )
         
     OR (
-            opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
+            -- opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
+            opp._domain = act._6sensedomain
         AND    
             LOWER(opp._account_name) = LOWER(act._6sensecompanyname)
+        AND 
+            LENGTH(opp._account_name) > 1
+        AND 
+            LENGTH(act._6sensecompanyname) > 1
+    )
+
+        OR 
+    (
+        LOWER(opp._account_name) = LOWER(act._6sensecompanyname)
         AND 
             LENGTH(opp._account_name) > 1
         AND 
@@ -1726,7 +1761,6 @@ latest_stage_opportunity_only AS (
 
 SELECT * FROM latest_stage_opportunity_only;
 
-
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------------------
@@ -1760,6 +1794,7 @@ SELECT DISTINCT
     _6sensecompanyname,
     _6sensecountry,
     _6sensedomain,
+    _campaign_name,
     _is_matched_opp,
     _is_influenced_opp,
 

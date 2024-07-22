@@ -1,91 +1,47 @@
-CREATE OR REPLACE TABLE `x-marketing.syniti.campaign_influenced_opportunity` AS
+
+-- latest iteration for demand council dashboard
+CREATE OR REPLACE TABLE `x-marketing.syniti.demand_council` 
+-- PARTITION BY DATE(_extractDate)
+CLUSTER BY _opportunityid
+OPTIONS(description="Clustered by _opportunityid") AS
 
 
--- only select campaign, indicated by those who have both campaignid and parentid
--- the logic is we shouldnt remove campaign parent first since we want to join them later.
--- ones with parentid is actually a parent campaign
--- ones with both campaignid and parentid is actually a child
-WITH campaign_only AS (
+-- main data source, doing filtering for max date here
+WITH alldata AS (
+  SELECT * FROM `syniti_mysql.syniti_db_demand_council`
+  WHERE _extractDate = (SELECT MAX(_extractDate) FROM `syniti_mysql.syniti_db_demand_council`)
+),
+-- figuring out how to distinct the oppoortunityid to find duplicate
+TotalCount AS (
     SELECT
-      DISTINCT
-      campaign.id AS _campaignid,
-      campaign.parentid AS _parentid,
-      campaign.name AS _campaign_name,
-      campaign.startdate AS _campaign_startdate,
-      campaign.status AS _campaign_status,
-      campaign.isactive AS _campaign_isactive,
-    FROM `x-marketing.syniti_salesforce.Campaign` campaign
-    -- filter to retrieve campaign only row
-    WHERE parentid IS NOT NULL
-    AND isactive = true
-    AND status IN ('In Progress', 'Planned')
-),
---only get the parent campaign stuff, parentid and also its name
-parent_campaign AS (
-  SELECT
-    DISTINCT
-    parent.parentid AS _parentid,
-    parent_campaign.name AS _parent_campaignname
-  FROM `x-marketing.syniti_salesforce.Campaign` parent
-  JOIN `x-marketing.syniti_salesforce.Campaign` parent_campaign
-  ON parent.parentid = parent_campaign.id
-  WHERE parent.parentid IS NOT NULL
-),
-opp AS (
-  SELECT DISTINCT
-    opp.id AS _oppid,
-    opp.name AS _opp_name,
-    opp.createddate AS _opp_createddate,
-    opp.stagename AS _opp_stage,
-    opp.region__c AS _opp_region,
-    opp.campaignid,
-    opp.amount AS _opp_amount,
-    -- opp.currencyisocode AS _opp_currency,
-    opp.fiscal_period__c AS _opp_fiscalperiod
-  FROM `x-marketing.syniti_salesforce.Opportunity` opp
-  WHERE EXTRACT(YEAR FROM createddate) = 2023
-),
-combined_data AS (
-  SELECT
-  * EXCEPT (_parentid),
-    CASE WHEN campaign_only._campaignid IS NOT NULL AND opp.campaignid IS NOT NULL THEN 'TRUE'
-    ELSE 'FALSE'
-    END AS _primary_source_campaign
-  FROM campaign_only
-  LEFT JOIN parent_campaign
-  ON campaign_only._parentid = parent_campaign._parentid
-  LEFT JOIN opp
-  ON campaign_only._campaignid = opp.campaignid
-),
-member AS (
-  SELECT DISTINCT campaignid, createddate AS _memberfirst_associateddate
-  FROM x-marketing.syniti_salesforce.CampaignMember
+        _opportunityid,
+        _campaignID,
+        _campaignStatus,
+        _extractDate AS datedate,
+        _fiscalPeriod,
+        _opportunityAmountConverted,
+        _opportunityCreatedDate,
+        _projectName,
+        COUNT(*) AS count_per_opportunityid
+    FROM
+    alldata
+    GROUP BY ALL
 )
-
+-- based on distinct opps found above, divide them with the opportunityamountconverted
+-- new opps amount is _avg_opp_amount
 SELECT
-  combined_data.* EXCEPT(campaignid),
-  member._memberfirst_associateddate
-FROM combined_data
-LEFT JOIN member
-ON combined_data._campaignid = member.campaignid;
+    alldata.*,
+    COALESCE(TotalCount.count_per_opportunityid, 0) AS count_per_opportunityid,
+    (CAST(alldata._opportunityamountconverted AS FLOAT64) / NULLIF(COALESCE(TotalCount.count_per_opportunityid, 0), 0)) AS _avg_opp_amount
+FROM
+    alldata
+LEFT JOIN
+    TotalCount ON alldata._opportunityid = TotalCount._opportunityid
+    AND alldata._campaignID = TotalCount._campaignID
+    AND alldata._campaignStatus = TotalCount._campaignStatus
+    AND alldata._extractDate = TotalCount.datedate
+    AND alldata._fiscalPeriod = TotalCount._fiscalPeriod
+    AND alldata._opportunityAmountConverted = TotalCount._opportunityAmountConverted
+    AND alldata._opportunityCreatedDate = TotalCount._opportunityCreatedDate
+    AND alldata._projectName = TotalCount._projectName
 
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
-
-CREATE OR REPLACE TABLE `x-marketing.syniti.marketing_created_influence_summarized`  AS
-
-
-SELECT
-    _campaignid,
-    _campaign_name,
-    _campaign_startdate,
-    COUNT(CASE WHEN _primary_source_campaign = 'TRUE' THEN 1 END) AS marketing_created_opp_count,
-    COUNT(CASE WHEN _primary_source_campaign = 'FALSE' THEN 1 END) AS influenced_opp_count,
-    COUNT(*) AS prospecting_opp_count,
-FROM 
-    `x-marketing.syniti.campaign_influenced_opportunity`
-GROUP BY 
-    1, 2, 3;
