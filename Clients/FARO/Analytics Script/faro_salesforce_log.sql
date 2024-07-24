@@ -162,8 +162,37 @@ ON campaignMembers.campaignid = campaigns.id;
 -------------------------- VELOCITY --------------------------
 --------------------------------------------------------------
 
+CREATE OR REPLACE TABLE `x-marketing.faro.db_activity_log` AS
+WITH activity AS (
+  SELECT DISTINCT
+    id AS _activityID,
+    createddate AS _activityDate,
+    description AS _description,
+    contact_id__c AS _contactID_C,
+    subject AS _subject,
+    event_status__c AS _status,
+    type AS _activityType,
+    'Event' AS _activityCategory
+  FROM `x-marketing.faro_salesforce.Event`
+  UNION ALL
+  SELECT DISTINCT
+    id AS _activityID,
+    createddate AS _activityDate,
+    description AS _description,
+    contact_id__c AS _contactID_C,
+    subject AS _subject,
+    event_status__c AS _status,
+    type AS _activityType,
+    'Task' AS _activityCategory
+  FROM `x-marketing.faro_salesforce.Task`
+)
+SELECT * FROM activity
+WHERE EXTRACT(YEAR FROM _activityDate) > 2021;
+
+
 CREATE OR REPLACE TABLE `x-marketing.faro.db_velocity_log` AS
-SELECT
+WITH velocity_data AS (
+  SELECT
     leads.leadid AS _prospectID,
     -- ld.name AS _prospectName,
     -- act.name AS _prospectOwner,
@@ -202,3 +231,88 @@ SELECT
   )
   AND (contacts.field != 'Status' OR contacts.newvalue = 'No Current Interest-Recycled')
   -- QUALIFY ROW_NUMBER() OVER(PARTITION BY contacts.id ORDER BY contacts.createddate) = 1
+),
+stages_data AS (
+  SELECT
+    velocity_data.*,
+    LEFT(velocity_data._prospectID,15) AS _prospectID15,
+    LEAD(velocity_data._createdDate) OVER (PARTITION BY velocity_data._prospectID ORDER BY velocity_data._createdDate) AS _next_change_date,
+    CASE
+      WHEN _oldValue = 'Inquiry' AND _newValue = 'Automated Qualified Lead' THEN 'AQL'
+      WHEN _oldValue IS NULL AND _newValue = 'Inquiry' THEN 'Inquiry'
+      WHEN _oldValue = 'Automated Qualified Lead' AND _newValue = 'Inside Sales Accepted Lead' THEN 'ISAL'
+      WHEN _oldValue = 'Automated Qualified Lead' AND _newValue = 'Sales Accepted Lead' THEN 'SAL'
+      WHEN _oldValue = 'Inside Sales Accepted Lead' AND _newValue = 'Inside Sales Qualified Lead' THEN 'ISQL'
+      WHEN _oldValue IS NULL AND _newValue = 'Inside Sales Generated Lead' THEN 'ISGL'
+      WHEN _oldValue = 'Inside Sales Qualified Lead' AND _newValue = 'Sales Accepted Lead' THEN 'SAL'
+      WHEN _oldValue = 'Inside Sales Generated Lead' AND _newValue = 'Sales Accepted Lead' THEN 'SAL'
+      WHEN _oldValue = 'Sales Generated Lead' AND _newValue = 'Sales Qualified Lead' THEN 'SQL'
+      WHEN _oldValue = 'Sales Accepted Lead' AND _newValue = 'Sales Qualified Lead' THEN 'SQL'
+      WHEN _newValue = 'No Current Interest-Recycled' THEN 'NCIR'
+      WHEN _newValue = 'Closed Won Opportunity' THEN 'Closed Won Opportunity'
+      WHEN _newValue = 'Closed Lost Opportunity' THEN 'Closed Lost Opportunity'
+      WHEN _newValue = 'Sales Rejected Lead' THEN 'Rejected'
+      WHEN _newValue = 'Inside Sales Rejected Lead' THEN 'Rejected'
+      ELSE 'Skipped Stage'
+    END AS _2x_stages,
+    CONCAT(_oldValue,_newValue) AS _old_new
+  FROM velocity_data
+),
+activity_data AS (
+  SELECT DISTINCT
+    _contactID_C AS _prospectID,
+    _subject,
+    _activityDate
+  FROM `x-marketing.faro.db_activity_log` 
+  ORDER BY _activityDate
+),
+activity AS (
+  SELECT
+    stages_data._prospectID,
+    stages_data._old_new,
+    stages_data._createdDate,
+    stages_data._next_change_date,
+    COUNT(activity_data._subject) AS _activity_count
+  FROM 
+    stages_data 
+  LEFT JOIN 
+    activity_data
+  ON 
+    activity_data._prospectID = stages_data._prospectID15
+    AND activity_data._activityDate 
+    BETWEEN stages_data._createdDate AND stages_data._next_change_date
+  GROUP BY 
+    stages_data._prospectID,
+    stages_data._old_new,
+    stages_data._createdDate,
+    stages_data._next_change_date
+)
+SELECT
+  stages_data._prospectID,
+  stages_data._oldValue,
+  stages_data._newValue,
+  stages_data._createdDate,
+  stages_data._field,
+  stages_data._prospectType,
+  stages_data._2x_stages,
+  COALESCE(
+    DATE_DIFF(
+      DATE(stages_data._createdDate), 
+      LAG(DATE(stages_data._createdDate)) OVER (PARTITION BY stages_data._prospectID 
+      ORDER BY DATE(stages_data._createdDate)), DAY),
+      0
+  ) AS stage_change_duration_days,
+  activity._activity_count
+FROM stages_data
+LEFT JOIN activity
+ON activity._prospectID = stages_data._prospectID
+AND activity._old_new = CONCAT(stages_data._oldValue,stages_data._newValue);
+
+
+
+
+
+
+
+
+
