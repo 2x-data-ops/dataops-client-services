@@ -1,3 +1,4 @@
+--ads optimization
 TRUNCATE TABLE `sandler.dashboard_opimization_ads` ;
 INSERT INTO `x-marketing.sandler.dashboard_opimization_ads` (
   _adid, 
@@ -355,6 +356,7 @@ ORDER BY
 ),
 
 google_sem AS (
+  WITH google_overview AS (
   SELECT
   CAST(id AS STRING) AS _adid,
   '' AS ad_name,
@@ -382,13 +384,27 @@ google_sem AS (
   '' _pillars,
   'Sandler' AS _instance,
   date AS _date,
-  CAST(SUM(cost_micros / 1000000) AS NUMERIC) AS _spent,
-  SUM(clicks) AS _clicks,
-  SUM(impressions) AS _impressions,
-  SUM(conversions) AS _conversions,
+  CAST(cost_micros / 1000000 AS NUMERIC) AS _spent,
+  clicks AS _clicks,
+  impressions AS _impressions,
+  conversions AS _conversions,
   FROM
     `x-marketing.sandler_google_ads.ad_performance_report` report
+  QUALIFY RANK() OVER (PARTITION BY date, campaign_id, ad_group_id, id ORDER BY _sdc_received_at DESC) = 1
+),
+ 
+ aggregated AS (
+  SELECT * EXCEPT (_spent, _clicks, _impressions, _conversions),
+  SUM(_spent) AS _spent,
+  SUM(_clicks) AS _clicks,
+  SUM(_impressions) AS _impressions,
+  SUM(_conversions) AS _conversions
+  FROM google_overview
   GROUP BY ALL
+ )
+ SELECT *
+ FROM aggregated
+
 
 ),
 _all AS (
@@ -410,6 +426,7 @@ _all AS (
     SELECT * FROM google_sem
   )
 )
+
 SELECT 
   _all.*,
   CASE 
