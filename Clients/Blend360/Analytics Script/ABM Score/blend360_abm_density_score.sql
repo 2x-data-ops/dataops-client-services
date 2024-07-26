@@ -1431,7 +1431,6 @@ SELECT customer_segment,
 FROM reduced_quarter
 ;
 
-
 CREATE OR REPLACE TABLE `x-marketing.blend360.abm_density_score` AS
 SELECT _all.*,
        ind.monthly_total_density AS industry_total_density,
