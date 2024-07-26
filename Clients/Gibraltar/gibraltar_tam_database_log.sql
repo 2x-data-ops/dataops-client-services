@@ -107,8 +107,10 @@ FROM (
     -- properties.email.value != "kbohlin@gibraltar1.com"
     -- AND
     properties.email.value != "kbooker@gibraltar1.com"
+    AND properties.email.value != 'julian.choong@2x.marketing' 
     AND properties.which_seminar_would_you_like_to_register_for_.value IS NOT NULL
     -- AND membership.value.is_member IS NOT NULL
+
     )
 )
 WHERE _rownum = 1;

@@ -1,6 +1,6 @@
--- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_consolidation_content_inventory` AS
-TRUNCATE TABLE `x-marketing.logicsource.db_consolidation_content_inventory`;
-INSERT INTO `x-marketing.logicsource.db_consolidation_content_inventory`
+-- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_consolidation_content_analytics` AS
+TRUNCATE TABLE `x-marketing.logicsource.db_consolidation_content_analytics`;
+INSERT INTO `x-marketing.logicsource.db_consolidation_content_analytics`
 (
   _contentitem,
   _contenttype,
@@ -30,19 +30,19 @@ email AS (
   SELECT
     _homeurl,
     CONCAT("Email ", INITCAP(_engagement)) AS _engagement
-  FROM `x-marketing.logicsource.content_analytics` 
+  FROM `x-marketing.logicsource.db_email_content_analytics` 
 ),
 ads AS (
   SELECT
     _homeurl,
     'Ads' AS _engagement
-  FROM `x-marketing.logicsource.db_ads_content_inventory`
+  FROM `x-marketing.logicsource.db_ads_content_analytics`
 ),
 web AS (
   SELECT
     _homeurl,
     'Web' AS _engagement
-  FROM `x-marketing.logicsource.db_web_content_inventory`
+  FROM `x-marketing.logicsource.db_web_content_analytics`
 )
 
 SELECT 
@@ -67,3 +67,22 @@ LEFT JOIN (
   FROM web 
 ) engagement
 ON engagement._homeurl = content_inventory._homeurl
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

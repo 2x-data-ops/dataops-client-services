@@ -255,9 +255,9 @@ WHERE
 -------------- Content Analytics ---------------
 ------------------------------------------------
 
--- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_web_content_inventory` AS
-TRUNCATE TABLE `x-marketing.logicsource.db_web_content_inventory`;
-INSERT INTO `x-marketing.logicsource.db_web_content_inventory`
+-- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_web_content_analytics` AS
+TRUNCATE TABLE `x-marketing.logicsource.db_web_content_analytics`;
+INSERT INTO `x-marketing.logicsource.db_web_content_analytics`
 WITH web_log AS (
     SELECT
         *
