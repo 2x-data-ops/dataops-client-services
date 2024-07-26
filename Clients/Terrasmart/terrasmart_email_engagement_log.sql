@@ -44,7 +44,7 @@ INSERT INTO `x-marketing.terrasmart.db_email_engagements_log` (
   _totalPageViews,
   _averagePageViews
 )
--- CREATE OR REPLACE TABLE `x-marketing.terrasmart.db_email_engagements_log` AS
+
 WITH airtable_info AS (
   SELECT 
     _pardotID,
