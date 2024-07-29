@@ -318,102 +318,90 @@ mql_submission_email AS (
   JOIN (
     SELECT * FROM clicks_downloads_timeline WHERE _engagement = 'Clicked'
   ) click
-  ON 
-    download._prospectID = click._prospectID
-  AND
-    EXTRACT(DAY FROM download._timestamp) = EXTRACT(DAY FROM click._timestamp)
-  AND
-    download._rownum = click._rownum + 1
+    ON download._prospectID = click._prospectID
+    AND EXTRACT(DAY FROM download._timestamp) = EXTRACT(DAY FROM click._timestamp)
+    AND download._rownum = click._rownum + 1
+),
+engagements_consolidated AS (
+  SELECT * FROM open_email 
+  UNION ALL
+  SELECT * FROM click_email 
+  UNION ALL
+  SELECT * FROM sent_email 
+  UNION ALL 
+  SELECT * FROM bounce_email 
+  UNION ALL 
+  SELECT * FROM softbounce_email 
+  UNION ALL 
+  SELECT * FROM opt_outs_email
+  UNION ALL 
+  SELECT * FROM mql_submission_email
+  UNION ALL 
+  SELECT * FROM new_delivered_email
 )
 
 SELECT 
-    engagements.*,
-    -- airtable_info._utm_source,
-    -- airtable_info._utm_medium,
-    airtable_info._subject, 
-    CASE WHEN LENGTH(CAST(airtable_info._livedate AS STRING)) > 0 
-      THEN airtable_info._livedate
-      ELSE NULL 
-    END AS _campaignSentDate,
-    airtable_info._screenshot, 
-    airtable_info._landingpage,
-    -- airtable_info._code AS _campaignCode,
-    prospect_info.* EXCEPT(_email),
-    -- airtable_info._segment,
-    -- airtable_info._emailname,
-    CAST(NULL AS BOOL) AS _isBot,
-    CAST(NULL AS BOOL) AS _isPageview,
-    CAST(0 AS INTEGER) AS _totalPageViews,
-    CAST(0 AS INTEGER) AS _averagePageViews
-FROM (
-    SELECT * FROM open_email 
-    UNION ALL
-    SELECT * FROM click_email 
-    UNION ALL
-    SELECT * FROM sent_email 
-    UNION ALL 
-    SELECT * FROM bounce_email 
-    UNION ALL 
-    SELECT * FROM softbounce_email 
-    UNION ALL 
-    SELECT * FROM opt_outs_email
-    UNION ALL 
-    SELECT * FROM mql_submission_email
-     UNION ALL 
-    SELECT * FROM new_delivered_email
-) AS engagements
+  engagements_consolidated.*,
+  -- airtable_info._utm_source,
+  -- airtable_info._utm_medium,
+  airtable_info._subject, 
+  CASE 
+    WHEN LENGTH(CAST(airtable_info._livedate AS STRING)) > 0 
+    THEN airtable_info._livedate
+    ELSE NULL 
+  END AS _campaignSentDate,
+  airtable_info._screenshot, 
+  airtable_info._landingpage,
+  -- airtable_info._code AS _campaignCode,
+  prospect_info.* EXCEPT(_email),
+  -- airtable_info._segment,
+  -- airtable_info._emailname,
+  CAST(NULL AS BOOL) AS _isBot,
+  CAST(NULL AS BOOL) AS _isPageview,
+  CAST(0 AS INTEGER) AS _totalPageViews,
+  CAST(0 AS INTEGER) AS _averagePageViews
+FROM engagements_consolidated
 -- LEFT JOIN campaign_info ON CAST(engagements._campaignID AS STRING) = campaign_info._pardotid
-LEFT JOIN airtable_info ON engagements._campaignCode = airtable_info._code
-LEFT JOIN prospect_info ON LOWER(engagements._email) = LOWER(prospect_info._email);
+LEFT JOIN airtable_info 
+  ON engagements_consolidated._campaignCode = airtable_info._code
+LEFT JOIN prospect_info 
+  ON LOWER(engagements_consolidated._email) = LOWER(prospect_info._email);
 
 
 ------------------------------------------------------------------------------
 ------------------------------- Labelling Bots -------------------------------
 ------------------------------------------------------------------------------
 
-UPDATE 
-    `x-marketing.terrasmart.db_email_engagements_log` origin  
-SET 
-    origin._isBot = true
+UPDATE `x-marketing.terrasmart.db_email_engagements_log` origin  
+SET origin._isBot = true
 FROM (
-    WITH opened_emails AS (
-        SELECT
-          _email, 
-          _campaignCode, 
-          _timestamp
-        FROM
-          `x-marketing.terrasmart.db_email_engagements_log`
-        WHERE
-          _engagement = 'Opened'     
-    ),
-    clicked_emails AS (
-        SELECT
-          _email, 
-          _campaignCode, 
-          _timestamp
-        FROM
-          `x-marketing.terrasmart.db_email_engagements_log`
-        WHERE
-          _engagement = 'Clicked' 
-    )
-    SELECT DISTINCT
-        click._email, 
-        click._campaignCode, 
-        open._timestamp AS open_timestamp, 
-        click._timestamp AS click_timestamp
-    FROM 
-        opened_emails AS open
-    JOIN 
-        clicked_emails AS click
-    ON 
-        open._email = click._email
-    AND
-        open._campaignCode = click._campaignCode
+  WITH opened_emails AS (
+    SELECT
+      _email, 
+      _campaignCode, 
+      _timestamp
+    FROM `x-marketing.terrasmart.db_email_engagements_log`
+    WHERE _engagement = 'Opened'     
+  ),
+  clicked_emails AS (
+    SELECT
+      _email, 
+      _campaignCode, 
+      _timestamp
+    FROM `x-marketing.terrasmart.db_email_engagements_log`
+    WHERE _engagement = 'Clicked' 
+  )
+  SELECT DISTINCT
+    click._email, 
+    click._campaignCode, 
+    open._timestamp AS open_timestamp, 
+    click._timestamp AS click_timestamp
+  FROM opened_emails AS open
+  JOIN clicked_emails AS click
+    ON open._email = click._email
+    AND open._campaignCode = click._campaignCode
 ) scenario
-WHERE 
-    origin._email = scenario._email
-AND 
-    origin._campaignCode = scenario._campaignCode
-AND 
-    TIMESTAMP_DIFF(click_timestamp, open_timestamp, SECOND) < 3;
-
+WHERE origin._email = scenario._email
+  AND origin._campaignCode = scenario._campaignCode
+  AND TIMESTAMP_DIFF(click_timestamp, open_timestamp, SECOND) < 3
+;
