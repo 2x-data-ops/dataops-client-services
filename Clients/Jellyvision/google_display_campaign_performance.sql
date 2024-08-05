@@ -38,7 +38,7 @@ SELECT
   SUM(abs_top_impr) AS abs_top_impr_value,
   SUM(clicks) AS clicks,
   SUM(conversions) AS conversions,
-  SUM(view_through_conv) AS view_through_conv,
+  SUM(view_through_conv) AS view_through_conv
 
 FROM unique_rows
 
