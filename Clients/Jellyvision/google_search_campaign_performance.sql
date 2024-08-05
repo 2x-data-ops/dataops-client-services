@@ -51,11 +51,7 @@ SELECT
     SUM(clicks) AS clicks,
     SUM(conversions) AS conversions,
     SUM(view_through_conv) AS view_through_conv,
-    SUM(all_conversions) AS all_conversions,
-    SAFE_DIVIDE(SUM(clicks), SUM(impressions)) AS ctr,
-    SAFE_DIVIDE(SUM(cost), SUM(clicks)) AS avg_cpc,
-    SAFE_DIVIDE(SUM(abs_top_impr), SUM(search_impressions)) AS abs_top_impr,
-    SAFE_DIVIDE(SUM(conversions), SUM(clicks)) AS conv_rate
+    SUM(all_conversions) AS all_conversions
 
 FROM unique_rows
 
