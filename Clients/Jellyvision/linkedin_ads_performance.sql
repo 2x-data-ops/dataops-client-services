@@ -73,7 +73,8 @@ WITH LI_airtable AS (
         account_id AS _account_id,
         REGEXP_REPLACE(acc.name, r'[^a-zA-Z]', '') AS _account_name
     FROM `jellyvision_linkedin_ads.creatives` c
-        LEFT JOIN `jellyvision_linkedin_ads.accounts` acc ON acc.id = account_id
+    LEFT JOIN `jellyvision_linkedin_ads.accounts` acc 
+        ON acc.id = account_id
 )
 , campaigns AS (
     SELECT
@@ -156,10 +157,14 @@ WITH LI_airtable AS (
         ads_title._account_id,
         ads_title._account_name
     FROM LI_ads
-        RIGHT JOIN ads_title ON CAST( LI_ads._adid AS STRING) = ads_title._adid
-        LEFT JOIN campaigns ON ads_title._campaignid = campaigns._campaignid 
-        LEFT JOIN campaign_group ON campaigns._campaign_group_id = campaign_group._campaign_group_id
-        LEFT JOIN LI_airtable ON CAST( LI_ads._adid AS STRING) = CAST(LI_airtable._adid AS STRING)
+    RIGHT JOIN ads_title 
+        ON CAST( LI_ads._adid AS STRING) = ads_title._adid
+    LEFT JOIN campaigns 
+        ON ads_title._campaignid = campaigns._campaignid 
+    LEFT JOIN campaign_group 
+        ON campaigns._campaign_group_id = campaign_group._campaign_group_id
+    LEFT JOIN LI_airtable 
+        ON CAST( LI_ads._adid AS STRING) = CAST(LI_airtable._adid AS STRING)
 )
 , total_ads AS (
     SELECT 
