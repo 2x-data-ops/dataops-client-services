@@ -312,15 +312,13 @@ mql_submission_email AS (
     click._email_id,
     click.email_template_id,
     download._engagement,
-  FROM (
-    SELECT * FROM clicks_downloads_timeline WHERE _engagement = 'Downloaded'
-  ) download
-  JOIN (
-    SELECT * FROM clicks_downloads_timeline WHERE _engagement = 'Clicked'
-  ) click
+  FROM clicks_downloads_timeline download
+  JOIN clicks_downloads_timeline click
     ON download._prospectID = click._prospectID
     AND EXTRACT(DAY FROM download._timestamp) = EXTRACT(DAY FROM click._timestamp)
     AND download._rownum = click._rownum + 1
+  WHERE download._engagement = 'Downloaded'
+    AND click._engagement = 'Clicked'
 ),
 engagements_consolidated AS (
   SELECT * FROM open_email 
