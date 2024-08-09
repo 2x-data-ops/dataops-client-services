@@ -317,8 +317,9 @@ mql_submission_email AS (
     ON download._prospectID = click._prospectID
     AND EXTRACT(DAY FROM download._timestamp) = EXTRACT(DAY FROM click._timestamp)
     AND download._rownum = click._rownum + 1
-  WHERE download._engagement = 'Downloaded'
     AND click._engagement = 'Clicked'
+  WHERE download._engagement = 'Downloaded'
+    
 ),
 engagements_consolidated AS (
   SELECT * FROM open_email 
