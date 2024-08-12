@@ -134,12 +134,9 @@ WITH prospect_info AS (
     programs.name AS _program_name,
     programs.channel AS _program_channel
   FROM `x-marketing.hyland_marketo.leads` marketo
-  LEFT JOIN
-    `x-marketing.hyland_marketo.programs` programs
-  ON
-    marketo.acquisitionprogramid = CAST(programs.id AS STRING)
-  WHERE
-    email IS NOT NULL
+  LEFT JOIN `x-marketing.hyland_marketo.programs` programs
+    ON marketo.acquisitionprogramid = CAST(programs.id AS STRING)
+  WHERE email IS NOT NULL
     AND email NOT LIKE '%2x.marketing%'
     AND email NOT LIKE '%hyland.com%'
   QUALIFY ROW_NUMBER() OVER(
@@ -162,8 +159,7 @@ airtable_emea AS (
     ) AS _EMEA_campaign,
     'EMEA' AS _airtable_segment,
     _sfcampaignid
-  FROM
-    `x-marketing.hyland_mysql.db_airtable_email_emea` 
+  FROM `x-marketing.hyland_mysql.db_airtable_email_emea` 
 ),
 airtable_customermarketing AS (
   SELECT
@@ -180,8 +176,7 @@ airtable_customermarketing AS (
     ) AS _EMEA_campaign,
     'Customer Marketing' AS _airtable_segment,
     '' AS _sfcampaignID
-  FROM
-    `x-marketing.hyland_mysql.db_airtable_email_customermarketing` 
+  FROM `x-marketing.hyland_mysql.db_airtable_email_customermarketing` 
 ),
 airtable_info AS (
   SELECT * FROM airtable_emea
@@ -262,7 +257,7 @@ unique_click AS (
     email_click.*
   FROM email_click
   JOIN email_open 
-  ON email_open._leadid = email_click._leadid
+    ON email_open._leadid = email_click._leadid
 ),
 email_hard_bounce AS (
   SELECT
@@ -310,10 +305,8 @@ email_download AS (
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid
   FROM `x-marketing.hyland_marketo.activities_fill_out_form`
-  WHERE primary_attribute_value 
-  NOT LIKE '%TEST 2X%'
-  AND primary_attribute_value 
-  NOT LIKE '%Email Unsubscribe Form%'
+  WHERE primary_attribute_value NOT LIKE '%TEST 2X%'
+    AND primary_attribute_value NOT LIKE '%Email Unsubscribe Form%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC
@@ -366,14 +359,16 @@ _all AS (
     airtable_info._sfcampaignid
   FROM 
     engagements_combined AS engagements
-  LEFT JOIN
-    prospect_info
-  ON
-    engagements._leadid = prospect_info._id
-  JOIN
-    airtable_info
-  ON
-    engagements._campaignID = CAST(airtable_info._id AS STRING)
+  LEFT JOIN prospect_info
+    ON engagements._leadid = prospect_info._id
+  JOIN airtable_info
+    ON engagements._campaignID = CAST(airtable_info._id AS STRING)
+),
+user AS (
+  SELECT 
+    name, 
+    id 
+  FROM `x-marketing.hyland_salesforce.User`
 )
 SELECT 
   _all.* EXCEPT (_sfcampaignid),
@@ -387,13 +382,9 @@ SELECT
   sfcampaign.id AS _sfcampaignID
 FROM _all
 LEFT JOIN `x-marketing.hyland_salesforce.Campaign` sfcampaign 
-ON sfcampaign.id = _all._sfcampaignid
-LEFT JOIN (SELECT name, id FROM `x-marketing.hyland_salesforce.User`) user 
-ON user.id = sfcampaign.ownerid;
-
-
-
-
+  ON sfcampaign.id = _all._sfcampaignid
+LEFT JOIN user 
+  ON user.id = sfcampaign.ownerid;
 
 ----------------------------------------------------------Email Campaign Timeline---------------------------------------------------------
 CREATE OR REPLACE TABLE `x-marketing.hyland.db_email_details_aggregate` AS
@@ -413,9 +404,9 @@ WITH campaign_aggregate AS (
     description AS _description,
   FROM `x-marketing.hyland_mysql.db_airtable_email_emea` airtable
   LEFT JOIN `x-marketing.hyland_salesforce.Campaign` campaign 
-  ON campaign.id = airtable._sfcampaignid
+    ON campaign.id = airtable._sfcampaignid
   LEFT JOIN (SELECT name, id FROM `x-marketing.hyland_salesforce.User`) user 
-  ON user.id = campaign.ownerid
+    ON user.id = campaign.ownerid
 ),
 email_aggregate AS(
   SELECT 
@@ -435,5 +426,5 @@ SELECT
   email_aggregate.* EXCEPT(_campaignID,_utm_campaign,_sfdccampaignID)
 FROM campaign_aggregate
 LEFT JOIN email_aggregate 
-ON email_aggregate._sfdccampaignid = campaign_aggregate._sfcampaignid
+  ON email_aggregate._sfdccampaignid = campaign_aggregate._sfcampaignid
 WHERE _campaign_start_date IS NOT NULL
