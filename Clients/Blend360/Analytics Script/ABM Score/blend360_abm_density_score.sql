@@ -1378,7 +1378,6 @@ FROM reduced_quarter
 ;
 
 
-
 CREATE OR REPLACE TABLE `x-marketing.blend360.abm_density_segment` AS
 WITH account_count AS (
   SELECT customer_segment,
@@ -1430,7 +1429,6 @@ SELECT customer_segment,
        _quarter_count
 FROM reduced_quarter
 ;
-
 
 CREATE OR REPLACE TABLE `x-marketing.blend360.abm_density_score` AS
 SELECT _all.*,
