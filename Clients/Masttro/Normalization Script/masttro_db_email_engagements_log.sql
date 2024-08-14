@@ -27,7 +27,9 @@ INSERT INTO `x-marketing.masttro.db_email_engagements_log` (
     _lifecycleStage,
     _contentTitle,
     _campaignSubject
-  ) WITH prospect_info AS (
+  ) 
+  
+  WITH prospect_info AS (
     SELECT properties.email.value AS _email,
       CAST(vid AS STRING) AS _prospectID,
       CONCAT(
@@ -138,197 +140,197 @@ INSERT INTO `x-marketing.masttro.db_email_engagements_log` (
         ORDER BY id
       ) = 1
   ),
-  engagements AS (
-    WITH email_fields AS (
-      SELECT activity.id,
-        activity._sdc_sequence AS _sdc_sequence,
-        activity.recipient AS _email,
-        CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-        campaign.name AS _campaignName,
-        CAST(activity.created AS TIMESTAMP) AS _timestamp,
-        activity.url AS _description,
-        INITCAP(activity.devicetype) AS _device_type,
-        CAST(activity.linkid AS STRING) AS _linkid,
-        CAST(activity.duration AS STRING) AS _duration,
-        activity.response AS _response,
-        activity.type AS _type,
-        FROM `x-marketing.masttro_hubspot.email_events` activity
-        JOIN `x-marketing.masttro_hubspot.campaigns` campaign ON activity.emailcampaignid = campaign.id
-        AND campaign.name IS NOT NULL
-    ),
-    Dropped AS (
-      SELECT *
-      EXCEPT(_type, id),
-        'Dropped' AS _engagement,
-        FROM email_fields
-      WHERE _type = 'DROPPED' QUALIFY ROW_NUMBER() OVER (
-          PARTITION BY _email,
-          _campaignName
-          ORDER BY _timestamp DESC
-        ) = 1
-    ),
-    Deferred AS (
-      SELECT *
-      EXCEPT(_type, id),
-        'Deferred' AS _engagement,
-        FROM email_fields
-      WHERE _type = 'DEFERRED' QUALIFY ROW_NUMBER() OVER (
-          PARTITION BY _email,
-          _campaignName
-          ORDER BY _timestamp DESC
-        ) = 1
-    ),
-    Suppressed AS (
-      SELECT *
-      EXCEPT(_type, id),
-        'Suppressed' AS _engagement,
-        FROM email_fields
-      WHERE _type = 'SUPPRESSED' QUALIFY ROW_NUMBER() OVER (
-          PARTITION BY _email,
-          _campaignName
-          ORDER BY _timestamp DESC
-        ) = 1
-    ),
-    Opened AS (
-      SELECT *
-      EXCEPT(_type, id),
-        'Opened' AS _engagement,
-        FROM email_fields
-      WHERE _type = 'OPEN' QUALIFY ROW_NUMBER() OVER (
-          PARTITION BY _email,
-          _campaignName
-          ORDER BY _timestamp DESC
-        ) = 1
-    ),
-    Clicked AS (
-      SELECT *
-      EXCEPT(_type, id),
-        'Clicked' AS _engagement,
-        FROM email_fields
-      WHERE _type = 'CLICK' QUALIFY ROW_NUMBER() OVER (
-          PARTITION BY _email,
-          _campaignName
-          ORDER BY _timestamp DESC
-        ) = 1
-    ),
-    Unsubscribed AS (
-      SELECT email_fields.*
-      EXCEPT(_type, id),
-        'Unsubscribed' AS _engagement,
-        FROM `x-marketing.masttro_hubspot.subscription_changes`,
-        UNNEST(changes) AS status
-        JOIN email_fields ON status.value.causedbyevent.id = email_fields.id
-      WHERE _type = 'STATUSCHANGE'
-        AND status.value.change = 'UNSUBSCRIBED' QUALIFY ROW_NUMBER() OVER (
-          PARTITION BY _email,
-          _campaignName
-          ORDER BY _timestamp DESC
-        ) = 1
-    ),
-    Downloaded AS (
-      SELECT activity._sdc_sequence,
-        activity.email AS _email,
-        -- CAST(campaign.id AS STRING) AS _campaignID,
-        activity._utmcontent AS _campaignID,
-        --COALESCE(form_title, campaign.name) AS _campaignName,
-        form_title AS _campaignName,
-        activity.timestamp AS _timestamp,
-        activity.description AS _description,
-        activity.devicetype,
-        '' AS linkid,
-        '' AS duration,
-        '' AS response,
-        'Downloaded' AS _engagement,
-        FROM (
-          SELECT contacts._sdc_sequence,
-            contacts.properties.email.value AS email,
-            form.value.title AS form_title,
-            form.value.timestamp AS timestamp,
-            form.value.page_url AS description,
-            CAST(NULL AS STRING) AS devicetype,
-            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_source=([^&]+)') AS _utmsource,
-            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_campaign=([^&]+)') AS _utmcampaign,
-            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_medium=([^&]+)') AS _utmmedium,
-            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_content=([^&]+)') AS _utmcontent,
-            FROM `x-marketing.masttro_hubspot.contacts` contacts,
-            UNNEST(form_submissions) AS form
-            JOIN `x-marketing.masttro_hubspot.forms` forms ON form.value.form_id = forms.guid
-        ) activity
-        LEFT JOIN `x-marketing.masttro_hubspot.campaigns` campaign ON activity._utmcontent = CAST(campaign.id AS STRING) QUALIFY ROW_NUMBER() OVER (
-          PARTITION BY _email,
-          _campaignName
-          ORDER BY _timestamp DESC
-        ) = 1
-    ),
-    SoftBounced AS (
-      SELECT *
-      EXCEPT(_type, id),
-        'Soft Bounced' AS _engagement,
-        FROM email_fields
-      WHERE _type = 'BOUNCE' QUALIFY ROW_NUMBER() OVER (
-          PARTITION BY _email,
-          _campaignName
-          ORDER BY _timestamp DESC
-        ) = 1
-    ),
-    HardBounced AS (
-      SELECT hb.*
-      FROM(
-          SELECT email_fields.*
-          EXCEPT(_type, id),
-            'Hard Bounced' AS _engagement
-          FROM `x-marketing.masttro_hubspot.subscription_changes`,
-            UNNEST(changes) AS status
-            JOIN email_fields ON status.value.causedbyevent.id = email_fields.id
-          WHERE status.value.change = 'BOUNCED' QUALIFY ROW_NUMBER() OVER (
-              PARTITION BY _email,
-              _campaignName
-              ORDER BY _timestamp DESC
-            ) = 1
-        ) hb
-        JOIN SoftBounced ON hb._email = SoftBounced._email
-        AND hb._campaignID = SoftBounced._campaignID
-    ),
-    Sent AS (
-      SELECT sent.*
-      FROM(
-          SELECT *
-          EXCEPT(_type, id),
-            'Sent' AS _engagement,
-            FROM email_fields
-          WHERE _type = 'SENT' QUALIFY ROW_NUMBER() OVER (
-              PARTITION BY _email,
-              _campaignName
-              ORDER BY _timestamp DESC
-            ) = 1
-        ) sent
-        LEFT JOIN HardBounced ON sent._email = HardBounced._email
-        AND sent._campaignID = HardBounced._campaignID
-        LEFT JOIN Dropped ON sent._email = Dropped._email
-        AND sent._campaignID = Dropped._campaignID
-      WHERE HardBounced._email IS NULL
-        AND Dropped._email IS NULL
-    ),
-    Delivered AS (
-      SELECT delivered.*
+  email_fields AS (
+    SELECT activity.id,
+      activity._sdc_sequence AS _sdc_sequence,
+      activity.recipient AS _email,
+      CAST(activity.emailcampaignid AS STRING) AS _campaignID,
+      campaign.name AS _campaignName,
+      CAST(activity.created AS TIMESTAMP) AS _timestamp,
+      activity.url AS _description,
+      INITCAP(activity.devicetype) AS _device_type,
+      CAST(activity.linkid AS STRING) AS _linkid,
+      CAST(activity.duration AS STRING) AS _duration,
+      activity.response AS _response,
+      activity.type AS _type,
+      FROM `x-marketing.masttro_hubspot.email_events` activity
+      JOIN `x-marketing.masttro_hubspot.campaigns` campaign ON activity.emailcampaignid = campaign.id
+      AND campaign.name IS NOT NULL
+  ),
+  Dropped AS (
+    SELECT *
+    EXCEPT(_type, id),
+      'Dropped' AS _engagement,
+      FROM email_fields
+    WHERE _type = 'DROPPED' QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY _email,
+        _campaignName
+        ORDER BY _timestamp DESC
+      ) = 1
+  ),
+  Deferred AS (
+    SELECT *
+    EXCEPT(_type, id),
+      'Deferred' AS _engagement,
+      FROM email_fields
+    WHERE _type = 'DEFERRED' QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY _email,
+        _campaignName
+        ORDER BY _timestamp DESC
+      ) = 1
+  ),
+  Suppressed AS (
+    SELECT *
+    EXCEPT(_type, id),
+      'Suppressed' AS _engagement,
+      FROM email_fields
+    WHERE _type = 'SUPPRESSED' QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY _email,
+        _campaignName
+        ORDER BY _timestamp DESC
+      ) = 1
+  ),
+  Opened AS (
+    SELECT *
+    EXCEPT(_type, id),
+      'Opened' AS _engagement,
+      FROM email_fields
+    WHERE _type = 'OPEN' QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY _email,
+        _campaignName
+        ORDER BY _timestamp DESC
+      ) = 1
+  ),
+  Clicked AS (
+    SELECT *
+    EXCEPT(_type, id),
+      'Clicked' AS _engagement,
+      FROM email_fields
+    WHERE _type = 'CLICK' QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY _email,
+        _campaignName
+        ORDER BY _timestamp DESC
+      ) = 1
+  ),
+  Unsubscribed AS (
+    SELECT email_fields.*
+    EXCEPT(_type, id),
+      'Unsubscribed' AS _engagement,
+      FROM `x-marketing.masttro_hubspot.subscription_changes`,
+      UNNEST(changes) AS status
+      JOIN email_fields ON status.value.causedbyevent.id = email_fields.id
+    WHERE _type = 'STATUSCHANGE'
+      AND status.value.change = 'UNSUBSCRIBED' QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY _email,
+        _campaignName
+        ORDER BY _timestamp DESC
+      ) = 1
+  ),
+  Downloaded AS (
+    SELECT activity._sdc_sequence,
+      activity.email AS _email,
+      -- CAST(campaign.id AS STRING) AS _campaignID,
+      activity._utmcontent AS _campaignID,
+      --COALESCE(form_title, campaign.name) AS _campaignName,
+      form_title AS _campaignName,
+      activity.timestamp AS _timestamp,
+      activity.description AS _description,
+      activity.devicetype,
+      '' AS linkid,
+      '' AS duration,
+      '' AS response,
+      'Downloaded' AS _engagement,
       FROM (
-          SELECT *
-          EXCEPT(_type, id),
-            'Delivered' AS _engagement,
-            FROM email_fields
-          WHERE _type = 'DELIVERED' QUALIFY ROW_NUMBER() OVER (
-              PARTITION BY _email,
-              _campaignName
-              ORDER BY _timestamp DESC
-            ) = 1
-        ) delivered
-        LEFT JOIN HardBounced ON delivered._email = HardBounced._email
-        AND delivered._campaignID = HardBounced._campaignID
-        LEFT JOIN Dropped ON delivered._email = Dropped._email
-        AND delivered._campaignID = Dropped._campaignID
-      WHERE HardBounced._email IS NULL
-        AND Dropped._email IS NULL
-    )
+        SELECT contacts._sdc_sequence,
+          contacts.properties.email.value AS email,
+          form.value.title AS form_title,
+          form.value.timestamp AS timestamp,
+          form.value.page_url AS description,
+          CAST(NULL AS STRING) AS devicetype,
+          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_source=([^&]+)') AS _utmsource,
+          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_campaign=([^&]+)') AS _utmcampaign,
+          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_medium=([^&]+)') AS _utmmedium,
+          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_content=([^&]+)') AS _utmcontent,
+          FROM `x-marketing.masttro_hubspot.contacts` contacts,
+          UNNEST(form_submissions) AS form
+          JOIN `x-marketing.masttro_hubspot.forms` forms ON form.value.form_id = forms.guid
+      ) activity
+      LEFT JOIN `x-marketing.masttro_hubspot.campaigns` campaign ON activity._utmcontent = CAST(campaign.id AS STRING) QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY _email,
+        _campaignName
+        ORDER BY _timestamp DESC
+      ) = 1
+  ),
+  SoftBounced AS (
+    SELECT *
+    EXCEPT(_type, id),
+      'Soft Bounced' AS _engagement,
+      FROM email_fields
+    WHERE _type = 'BOUNCE' QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY _email,
+        _campaignName
+        ORDER BY _timestamp DESC
+      ) = 1
+  ),
+  HardBounced AS (
+    SELECT hb.*
+    FROM(
+        SELECT email_fields.*
+        EXCEPT(_type, id),
+          'Hard Bounced' AS _engagement
+        FROM `x-marketing.masttro_hubspot.subscription_changes`,
+          UNNEST(changes) AS status
+          JOIN email_fields ON status.value.causedbyevent.id = email_fields.id
+        WHERE status.value.change = 'BOUNCED' QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY _email,
+            _campaignName
+            ORDER BY _timestamp DESC
+          ) = 1
+      ) hb
+      JOIN SoftBounced ON hb._email = SoftBounced._email
+      AND hb._campaignID = SoftBounced._campaignID
+  ),
+  Sent AS (
+    SELECT sent.*
+    FROM(
+        SELECT *
+        EXCEPT(_type, id),
+          'Sent' AS _engagement,
+          FROM email_fields
+        WHERE _type = 'SENT' QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY _email,
+            _campaignName
+            ORDER BY _timestamp DESC
+          ) = 1
+      ) sent
+      LEFT JOIN HardBounced ON sent._email = HardBounced._email
+      AND sent._campaignID = HardBounced._campaignID
+      LEFT JOIN Dropped ON sent._email = Dropped._email
+      AND sent._campaignID = Dropped._campaignID
+    WHERE HardBounced._email IS NULL
+      AND Dropped._email IS NULL
+  ),
+  Delivered AS (
+    SELECT delivered.*
+    FROM (
+        SELECT *
+        EXCEPT(_type, id),
+          'Delivered' AS _engagement,
+          FROM email_fields
+        WHERE _type = 'DELIVERED' QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY _email,
+            _campaignName
+            ORDER BY _timestamp DESC
+          ) = 1
+      ) delivered
+      LEFT JOIN HardBounced ON delivered._email = HardBounced._email
+      AND delivered._campaignID = HardBounced._campaignID
+      LEFT JOIN Dropped ON delivered._email = Dropped._email
+      AND delivered._campaignID = Dropped._campaignID
+    WHERE HardBounced._email IS NULL
+      AND Dropped._email IS NULL
+  ),
+  engagements AS (
     SELECT *
     FROM Sent
     UNION ALL
