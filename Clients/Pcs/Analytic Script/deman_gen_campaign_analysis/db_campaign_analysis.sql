@@ -88,36 +88,57 @@ INSERT INTO `x-marketing.pcs.db_campaign_analysis` (
    Converted_to_New_Plan__c, 
    Converted_to_New_Plan__c_name, 
    plan_id,
+   territory_external_wholesaler__c,
+   _unqualified_reason__c,
    _showExport,
    _dropped,
    _isBot
   --, _salesforce_lead_status,_last_timestamp_sec
   )
  WITH prospect_info AS (
-  WITH  plan AS (
-  SELECT p.id, p.name AS Converted_to_New_Plan__c_name
-FROM `x-marketing.pcs_salesforce.Plan__c`  p
-JOIN `x-marketing.pcs_salesforce.PlanLead__c`  l ON p.id = l.Converted_to_New_Plan__c
-
- ),planlead AS (
-  SELECT name AS plan_lead_name, 
-  planname__c , 
-  excl_pcs_revenue__c, forecast_amount_of_assets__c, participants__c,PROP_Total_Participants__c,StageName__c,WIN_E_mail_Date__c,	Converted_to_New_Plan__c,c.id AS plan_id, advisor__c,Converted_to_New_Plan__c_name
-FROM `x-marketing.pcs_salesforce.PlanLead__c` c
-LEFT JOIN plan on c.converted_to_new_plan__c = plan.id
- )
- , opps_id  AS  (
-    SELECT l.id AS ops_lead_id,g.id as  opsid
-FROM `x-marketing.pcs_salesforce.Lead` l
-JOIN `x-marketing.pcs_salesforce.Opportunity` g ON l.id = g.lead_id__c
-WHERE  g.recordtypeid  = '0125x00000071cnAAA'
- ), lead_history AS
-(
-  SELECT leadid,field,oldvalue,newvalue
-  FROM `x-marketing.pcs_salesforce.LeadHistory` 
-  WHERE field IN ('leadConverted','leadMerged')
-) ,status_change AS (
-     SELECT  
+  WITH 
+  plan AS (
+    SELECT 
+    p.id, 
+    p.name AS Converted_to_New_Plan__c_name
+    FROM `x-marketing.pcs_salesforce.Plan__c`  p
+    JOIN `x-marketing.pcs_salesforce.PlanLead__c`  l ON p.id = l.Converted_to_New_Plan__c
+  )
+  , planlead AS (
+    SELECT 
+    name AS plan_lead_name, 
+    planname__c , 
+    excl_pcs_revenue__c, 
+    forecast_amount_of_assets__c,
+    participants__c,
+    PROP_Total_Participants__c,
+    StageName__c,
+    WIN_E_mail_Date__c,
+    Converted_to_New_Plan__c,c.id AS plan_id,
+    advisor__c,
+    Converted_to_New_Plan__c_name
+    FROM `x-marketing.pcs_salesforce.PlanLead__c` c
+    LEFT JOIN plan on c.converted_to_new_plan__c = plan.id
+  )
+  , opps_id AS (
+    SELECT 
+    l.id AS ops_lead_id,
+    g.id as  opsid
+    FROM `x-marketing.pcs_salesforce.Lead` l
+    JOIN `x-marketing.pcs_salesforce.Opportunity` g ON l.id = g.lead_id__c
+    WHERE  g.recordtypeid  = '0125x00000071cnAAA'
+  )
+  , lead_history AS (
+    SELECT 
+    leadid,
+    field,
+    oldvalue,
+    newvalue
+    FROM `x-marketing.pcs_salesforce.LeadHistory` 
+    WHERE field IN ('leadConverted','leadMerged')
+  )
+  , status_change AS (
+    SELECT  
     news.status AS new_status,
     old.status AS old_status,
     old.masterrecordid AS old_masterrecordid ,
@@ -127,17 +148,26 @@ WHERE  g.recordtypeid  = '0125x00000071cnAAA'
     old.email AS _old_email,news.email AS _new_email,
     news.mql_source__c AS mql_source,
     news.mql_date__c
-FROM `x-marketing.pcs_salesforce.Lead` old
-JOIN `x-marketing.pcs_salesforce.Lead` News ON old.masterrecordid=news.id
-)
-, contact AS
-(
-  SELECT id AS _contactid,
-  segment__c,leadsource
-  FROM `x-marketing.pcs_salesforce.Contact`
-)
-, leads AS
-(
+    FROM `x-marketing.pcs_salesforce.Lead` old
+    JOIN `x-marketing.pcs_salesforce.Lead` News ON old.masterrecordid=news.id
+  )
+  , contact AS (
+    SELECT 
+    id AS _contactid,
+    segment__c,
+    leadsource
+    FROM `x-marketing.pcs_salesforce.Contact`
+  ), assign_to AS (
+    SELECT 
+   whoid AS id,
+   CASE WHEN j.name LIKE '%Dev User%' THEN 'Dev User' ELSE j.name END  as Assign_to,
+   j.id AS Assign_to_id
+    FROM `x-marketing.pcs_salesforce.Task` k
+    LEFT JOIN `x-marketing.pcs_salesforce.User` j ON j.id = k.ownerid
+   WHERE isdeleted IS FALSE and LOWER(subject) LIKE '%contact submitted primerica campaign form follow up%'
+   QUALIFY ROW_NUMBER() OVER( PARTITION BY whoid ORDER BY k.createddate DESC) = 1
+  )
+  , leads AS (
     SELECT
     routable.name, 
     routable.firstname, 
@@ -155,18 +185,21 @@ JOIN `x-marketing.pcs_salesforce.Lead` News ON old.masterrecordid=news.id
     routable.title, 
     dd_bd_title_categories__c, 
     routable.phone, 
-    CASE WHEN state._code IS NULL THEN IF(UPPER(routable.state) = 'INDIANA', 'IN', UPPER(routable.state)) ELSE UPPER(state._code) END AS _state, 
+    CASE 
+    WHEN state._code IS NULL THEN IF(UPPER(routable.state) = 'INDIANA', 'IN', UPPER(routable.state))
+    ELSE UPPER(state._code) END AS _state, 
     routable.email,
     leadsource,
-    CASE WHEN status = "Open" THEN 1 
-          WHEN status = "Nurture" THEN 6
-          WHEN status = "Sales Qualified" THEN 5 
-          WHEN status = "Archived" THEN 7
-          WHEN status = "Contacted" THEN 3
-          WHEN status= "Engaged" THEN 4
-          WHEN status = "Unqualified" THEN 8
-          WHEN status = "New" THEN 2
-          END AS _salesforceLeadStage,
+    CASE 
+    WHEN status = "Open" THEN 1 
+    WHEN status = "Nurture" THEN 6
+    WHEN status = "Sales Qualified" THEN 5 
+    WHEN status = "Archived" THEN 7
+    WHEN status = "Contacted" THEN 3
+    WHEN status= "Engaged" THEN 4
+    WHEN status = "Unqualified" THEN 8
+    WHEN status = "New" THEN 2
+    END AS _salesforceLeadStage,
     CONCAT('https://pcsretirement.lightning.force.com/lightning/r/Lead/',routable.id,'/view') AS link,
     CASE WHEN j.name LIKE '%Dev User%' THEN 'Dev User' ELSE j.name END AS ownername,
     routable.ownerid AS ownerid, 
@@ -174,14 +207,16 @@ JOIN `x-marketing.pcs_salesforce.Lead` News ON old.masterrecordid=news.id
     number_of_retirement_plans__c,
     retirement_aum__c, 
     of_plans_acquired_per_year__c,
-   CASE WHEN routable.id = '00Q5x00001wOJ3MEAW' THEN 'Form Submission' 
-   WHEN routable.id = '00Q5x00001wOOBpEAO' THEN 'Form Submission'
-WHEN routable.id = '00Q5x00001wNmV6EAK' THEN 'Video'
+    CASE 
+    WHEN routable.id = '00Q5x00001wOJ3MEAW' THEN 'Form Submission' 
+    WHEN routable.id = '00Q5x00001wOOBpEAO' THEN 'Form Submission'
+    WHEN routable.id = '00Q5x00001wNmV6EAK' THEN 'Video'
     WHEN routable.id = '00Q5x00001wNwUcEAK' THEN 'Video'
     WHEN routable.id = '00Q5x00001wNoiJEAS' THEN 'Form Submission'
     WHEN routable.id = '00Q5x00001wOMIHEA4' THEN 'Form Submission'
     WHEN routable.id = '00Q5x00001wOR57EAG' THEN 'Form Submission'
-      ELSE mql_source__c END AS mql_source__c,
+    ELSE mql_source__c 
+    END AS mql_source__c,
     convertedcontactid,
     convertedopportunityid,
     isconverted,
@@ -191,86 +226,161 @@ WHEN routable.id = '00Q5x00001wNmV6EAK' THEN 'Video'
     masterrecordid,
     CONCAT('https://pcsretirement.lightning.force.com/lightning/r/Lead/',masterrecordid,'/view') AS link_m,
     total_lead_score__c,
-    CASE WHEN mql_date__c IS NULL THEN routable.createddate ELSE mql_date__c END AS _mql_date,
-    routable.createddate
-    
-
-    /*
-    dd_current_ria_firm_1_crd__c, 
-    dd_current_ria_firm_2_crd__c, 
-    dd_current_bd_firm_1_crd__c, 
-    dd_primary_bd_firm_crd__c, 
-    dd_primary_ria_firm_crd__c, 
-    dd_primary_firm_crd__c, 
-    dd_prior_firm_2_firm_crd__c, 
-    dd_prior_firm_1_firm_crd__c, 
-    dd_prior_firm_3_firm_crd__c,
-    dd_branch_address_id__c,individual_crd__c,
-    firm_crd__c,
-    dd_home_address_id__c*/
+    CASE 
+    WHEN mql_date__c IS NULL THEN routable.createddate 
+    ELSE mql_date__c 
+    END AS _mql_date,
+   routable.createddate,
+   CAST(numberofemployees AS STRING) AS _employees,employee_range__c,unqualified_reason__c,company,
+   '' AS territory_external_wholesaler__c
     FROM `x-marketing.pcs_salesforce.Lead` routable
     LEFT JOIN `x-marketing.pcs.db_state_code_lookup` state on CAST(routable.state AS STRING) = CAST(state._state AS STRING) or routable.state = state._code
     LEFT JOIN `x-marketing.pcs_salesforce.User` j ON j.id = routable.ownerid
-    --WHERE id = '00Q5x000021VdQjEAK'
-)
-SELECT * EXCEPT(_rownum,createddate)
-FROM (
-SELECT * ,
-ROW_NUMBER() OVER(PARTITION BY email,id ORDER BY createddate DESC) AS _rownum
-FROM (
-SELECT name, 
-    firstname, 
-    lastname, 
-    id, 
-    status, 
-    state__c, 
+    UNION ALL
+     SELECT
+    routable.name, 
+    routable.firstname, 
+    routable.lastname, 
+    routable.id, 
+    '' AS status, 
+    Leads.state__c, 
     state, 
-    territory__c, 
-    firm_crd__c, 
-    individual_crd__c,
-    data_link2__ddl_firmid__c,
-    data_link2__ddl_repid__c,
-    industry, 
-    title, 
-    dd_bd_title_categories__c, 
-    phone, 
-    _state, 
-    email,
-    leads.leadsource,
-    _salesforceLeadStage,
-    link,
-    ownername,
-    ownerid, 
-    average_retirement_plan_size_aua__c, 
-    number_of_retirement_plans__c,
-    retirement_aum__c, 
-    of_plans_acquired_per_year__c,
-    mql_source__c ,
-    convertedcontactid,
-    opsid AS  convertedopportunityid,
-    isconverted,
-    converteddate,
-    convertedaccountid,
-    isdeleted,
-    masterrecordid,
-    link_m,
-    lead_history.*,
-    segment__c,
-    new_status,
-    mql_source,total_lead_score__c,_mql_date,
-createddate,
-plan_lead_name, 
-  planname__c , 
-  excl_pcs_revenue__c, forecast_amount_of_assets__c, participants__c,PROP_Total_Participants__c,StageName__c,WIN_E_mail_Date__c,	Converted_to_New_Plan__c,Converted_to_New_Plan__c_name,plan_id, 
-FROM leads
-LEFT JOIN contact ON leads.convertedcontactid = contact._contactid
-LEFT JOIN status_change ON leads.id = old_id
-LEFT JOIN lead_history ON leads.id = leadid
-LEFT JOIN opps_id  ON leads.id = opps_id.ops_lead_id
-LEFT JOIN planlead  ON leads.convertedcontactid = planlead.advisor__c
-) 
-)
-WHERE _rownum = 1
+    routable.territory__c, 
+    Leads.firm_crd__c, 
+    Leads.individual_crd__c,
+    routable.data_link2__ddl_firmid__c,
+    routable.data_link2__ddl_repid__c,
+    Leads.industry, 
+    routable.title, 
+    routable.dd_bd_title_categories__c, 
+    routable.phone, 
+    CASE 
+    WHEN state._code IS NULL THEN IF(UPPER(routable.mailingstate) = 'INDIANA', 'IN', UPPER(routable.mailingstate))
+    ELSE UPPER(state._code) END AS _state, 
+    routable.email,
+    routable.leadsource,
+    CASE 
+    WHEN status = "Open" THEN 1 
+    WHEN status = "Nurture" THEN 6
+    WHEN status = "Sales Qualified" THEN 5 
+    WHEN status = "Archived" THEN 7
+    WHEN status = "Contacted" THEN 3
+    WHEN status= "Engaged" THEN 4
+    WHEN status = "Unqualified" THEN 8
+    WHEN status = "New" THEN 2
+    END AS _salesforceLeadStage,
+    CONCAT('https://pcsretirement.lightning.force.com/lightning/r/Contact/',routable.id,'/view') AS link,
+    --CASE WHEN j.name LIKE '%Dev User%' THEN 'Dev User' ELSE j.name END 
+    Assign_to AS ownername,
+    routable.ownerid AS ownerid, 
+    Leads.average_retirement_plan_size_aua__c, 
+    routable.number_of_retirement_plans__c,
+    routable.retirement_aum__c, 
+    Leads.of_plans_acquired_per_year__c,
+    Leads. mql_source__c ,
+    routable.id,
+    Leads.convertedopportunityid,
+    Leads.isconverted,
+    CAST(converteddate AS DATETIME) AS converteddate,
+    Leads.convertedaccountid,
+    routable.isdeleted,
+    routable.masterrecordid,
+    CONCAT('https://pcsretirement.lightning.force.com/lightning/r/Lead/',routable.masterrecordid,'/view') AS link_m,
+    Leads.total_lead_score__c,
+   CASE 
+    WHEN mql_date__c IS NULL THEN routable.createddate 
+    ELSE mql_date__c 
+    END AS _mql_date,
+   routable.createddate,
+  CAST(numberofemployees AS STRING) AS _employees,
+   Leads.employee_range__c,
+   Leads.unqualified_reason__c,
+   account_name__c,
+   territory_external_wholesaler__c
+  
+    FROM `x-marketing.pcs_salesforce.Contact` routable
+    LEFT JOIN `x-marketing.pcs_salesforce.Lead` Leads ON routable.id = Leads.convertedcontactid
+    LEFT JOIN `x-marketing.pcs.db_state_code_lookup` state on CAST(routable.mailingstate AS STRING) = CAST(state._state AS STRING) or routable.mailingstate = state._code
+    LEFT JOIN `x-marketing.pcs_salesforce.User` j ON j.id = routable.ownerid
+    LEFT JOIN assign_to k ON routable.id = k.id
+  --WHERE routable.isdeleted IS FALSE
+     QUALIFY ROW_NUMBER() OVER(PARTITION BY routable.id ORDER BY routable.createddate DESC)  = 1
+    )
+    SELECT * 
+    EXCEPT(_rownum,createddate)
+    FROM (
+      SELECT * ,
+      ROW_NUMBER() OVER(PARTITION BY email,id ORDER BY createddate DESC) AS _rownum
+      FROM (
+        SELECT 
+        name, 
+        firstname, 
+        lastname, 
+        id, 
+        status, 
+        state__c, 
+        state, 
+        territory__c, 
+        firm_crd__c, 
+        individual_crd__c,
+        data_link2__ddl_firmid__c,
+        data_link2__ddl_repid__c,
+        industry, 
+        title, 
+        dd_bd_title_categories__c, 
+        phone,
+        _state, 
+        email,
+        leads.leadsource,
+        _salesforceLeadStage,
+        link,
+        ownername,
+        ownerid, 
+        average_retirement_plan_size_aua__c, 
+        number_of_retirement_plans__c,
+        retirement_aum__c, 
+        of_plans_acquired_per_year__c,
+        mql_source__c ,
+        convertedcontactid,
+        opsid AS  convertedopportunityid,
+        isconverted,
+        converteddate,
+        convertedaccountid,
+        isdeleted,
+        masterrecordid,
+        link_m,
+        lead_history.*,
+        segment__c,
+        new_status,
+        mql_source,
+        total_lead_score__c,
+        _mql_date,
+        createddate,
+        plan_lead_name, 
+        planname__c , 
+        excl_pcs_revenue__c, 
+        forecast_amount_of_assets__c, 
+        participants__c,
+        PROP_Total_Participants__c,
+        StageName__c,
+        WIN_E_mail_Date__c,	
+        Converted_to_New_Plan__c,
+        Converted_to_New_Plan__c_name,
+        plan_id, 
+        _employees,
+        employee_range__c,
+        unqualified_reason__c,
+        company,
+        territory_external_wholesaler__c
+        FROM leads
+        LEFT JOIN contact ON leads.convertedcontactid = contact._contactid
+        LEFT JOIN status_change ON leads.id = old_id
+        LEFT JOIN lead_history ON leads.id = leadid
+        LEFT JOIN opps_id  ON leads.id = opps_id.ops_lead_id
+        LEFT JOIN planlead  ON leads.convertedcontactid = planlead.advisor__c
+        )
+        )
+        WHERE _rownum = 1
     
 ),email_campaign AS (
     SELECT * FROM (
@@ -280,85 +390,23 @@ WHERE _rownum = 1
   _notes, 
   _status, 
   _trimcode, 
-  _screenshot, _assettitle, _subject, _whatwedo, _campaignid, _utm_campaign, _preview, _code, _journeyname, _emailsegment AS _campaignname, _formsubmission, _id, _livedate, _utm_source, _emailname, _assignee, _utm_medium, _landingpage,
- -- CASE 
- /*WHEN _code = 'DG_EM1_W1_D1' THEN 125883
-  WHEN _code ='DG_EM1_W1_D2' THEN 125885
-  WHEN _code ='DG_EM1_W1_D3' THEN 125887
-  WHEN _code ='DG_EM1_W1_D4' THEN 127013
-  WHEN _code ='DG_EM1_W1_D5' THEN 128177
-  WHEN _code ='DG_EM1_W1_D6' THEN 128515*/
-  /*WHEN _code ='DG_EM1_W2_D1' THEN '129927'
-  WHEN _code ='DG_EM1_W2_D2' THEN '130701'
-  WHEN _code ='DG_EM1_W2_D3' THEN '131367'
-  WHEN _code ='DG_EM1_W2_D4' THEN '131369'
-  WHEN _code ='DG_EM6_W1-D2' THEN '160129'*/
-  /*WHEN _code ='DG_EM2_W1_D2' THEN 136530
-  WHEN _code ='DG_EM2_W1_D3' THEN 136532
-  WHEN _code ='DG_EM2_W2_D1' THEN 138604
-  WHEN _code ='DG_EM2_W2_D2' THEN 139767
-  WHEN _code ='DG_EM2_W2_D3' THEN 139769
-  WHEN _code ='DG_EM3_W1_D1' THEN 143847
-  WHEN _code ='DG_EM3_W1_D2' THEN 143850
-  WHEN _code ='DG_EM3_W2_D1' THEN 146385
-  WHEN _code ='DG_EM3_W2_D2' THEN 146387
-  WHEN _code ='DG_EM4_W1-D1' THEN 149402
-  WHEN _code ='DG_EM4_W1-D2' THEN 149404
-  WHEN _code ='DG_EM4_W2-D1' THEN 151003
-  WHEN _code ='DG_EM4_W2-D2' THEN 151005*/ 
-  --ELSE 
-  _campaignid 
-  --END 
-  AS id,
-  /*CASE WHEN _code = 'DG_EM1_W1_D1' THEN 'Email 1'
-      WHEN _code = 'DG_EM1_W1_D2' THEN 'Email 1'
-      WHEN _code = 'DG_EM1_W1_D3' THEN 'Email 1'
-      WHEN _code = 'DG_EM1_W1_D4' THEN 'Email 1'
-      WHEN _code = 'DG_EM1_W1_D5' THEN 'Email 1'
-      WHEN _code = 'DG_EM1_W1_D6' THEN 'Email 1'
-      WHEN _code = 'DG_EM1_W2_D1' THEN 'Email 1'
-      WHEN _code = 'DG_EM1_W2_D2' THEN 'Email 1'
-      WHEN _code = 'DG_EM1_W2_D3' THEN 'Email 1'
-      WHEN _code = 'DG_EM1_W2_D4' THEN 'Email 1'
-      WHEN _code = 'DG_EM2_W1_D1' THEN 'Email 2'
-      WHEN _code = 'DG_EM2_W1_D2' THEN 'Email 2'
-      WHEN _code = 'DG_EM2_W1_D3' THEN 'Email 2'
-      WHEN _code = 'DG_EM2_W2_D1' THEN 'Email 2'
-      WHEN _code = 'DG_EM2_W2_D2' THEN 'Email 2'
-      WHEN _code = 'DG_EM2_W2_D3' THEN 'Email 2'
-      WHEN _code = 'DG_EM3_W1_D1' THEN 'Email 3'
-      WHEN _code = 'DG_EM3_W1_D2' THEN 'Email 3'
-      WHEN _code = 'DG_EM3_W2_D1' THEN 'Email 3'
-      WHEN _code = 'DG_EM3_W2_D2' THEN 'Email 3'
-      WHEN _code = 'DG_EM4_W1-D1' THEN 'Email 4'
-      WHEN _code = 'DG_EM4_W1-D2' THEN 'Email 4'
-      WHEN _code = 'DG_EM4_W2-D1' THEN 'Email 4'
-      WHEN _code = 'DG_EM4_W2-D2' THEN 'Email 4'
-      WHEN _code LIKE  '%DG_EM5%' THEN 'Email 5'
-      WHEN _code LIKE  '%DG_EM6%' THEN 'Email 6'
-      WHEN _code LIKE  '%DG_EM7%' THEN 'Email 7'
-    WHEN _code LIKE  '%DG_EM8%' THEN 'Email 8'
-    WHEN _code LIKE  '%DG_EM9%' THEN 'Email 9'
-    WHEN _code LIKE  '%DG_EM10%' THEN 'Email 10'
-    WHEN _code LIKE  '%2023-04-18_PCS-EM-01_ADGN_C%' THEN 'Cold Nurture Email 1'
-    WHEN _code LIKE  '%2023-04-27_PCS-EM-01_ADGN_MH%' THEN 'Mod Hot Nurture Email 1'
-    WHEN _code LIKE  '%2023-05-02_PCS-EM-02_ADGN_C%' THEN 'Cold Nurture Email 2'
-    WHEN _code LIKE  '%2023-05-04_PCS-EM-02_ADGN_MH%' THEN 'Mod Hot Nurture Email 2'
-     END AS*//*CASE  WHEN _code ='DG_EM1_W2_D1' THEN 'Email 1'
-  WHEN _code ='DG_EM1_W2_D2' THEN 'Email 1'
-  WHEN _code ='DG_EM1_W2_D3' THEN 'Email 1'
-    WHEN _code ='DG_EM1_W2_D4' THEN 'Email 1'
-  WHEN _code ='DG_EM6_W1-D2' THEN 'Email 1'
-      WHEN _campaignID  = '160127' THEN 'Email 6'
-      WHEN _campaignID  = '169425' THEN 'Email 8'ELSE */
-      _emailsequence 
-      --END 
-      AS _email_segment
+  _screenshot, 
+  _assettitle, 
+  _subject, 
+  _whatwedo, 
+  _campaignid, 
+  _utm_campaign, 
+  _preview, 
+  _code, 
+  _rootcampaign AS _journeyname, 
+  _emailsegment AS _campaignname, _formsubmission, _id, _livedate, _utm_source, _emailname, _assignee, _utm_medium, _landingpage,
+  _campaignid AS id,
+  _emailsequence AS _email_segment,
+  
 
   FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
-  WHERE _rootcampaign = 'Demand Generation' AND  _campaignID  <> 'Obtain from DE>Campaign>Email JobID' 
-  AND _id <> 3321
-  ORDER BY _code
+  WHERE _rootcampaign IN ( 'Demand Generation','Primerica') AND  _campaignID  <> 'Obtain from DE>Campaign>Email JobID' 
+  AND _id NOT IN ( 3321, 13507)
     )
     ) WHERE _rownum = 1 
 
@@ -381,21 +429,8 @@ WHERE _rownum = 1
   airtable.id,
   _code,_trimcode, _screenshot, _assettitle, _subject, _preview AS _whatwedo, _campaignname AS campaignName, _id, 
   safe.timestamp(_livedate) AS _livedate, 
-  _utm_source, _utm_medium, _landingpage,_journeyname,_email_segment,
-  /*CASE WHEN airtable.id = 125885 THEN 'DG_W1_D2'
-  WHEN airtable.id = 125883 THEN 'DG_W1_D1'
-  WHEN airtable.id = 125887 THEN 'DG_W1_D3'
-  WHEN airtable.id = 127013 THEN 'DG_W1_D4' 
-  WHEN airtable.id = 128177 THEN 'DG_W1_D5' 
-  WHEN airtable.id = 128515  THEN 'DG_W1_D6' 
-  WHEN airtable.id = 129927  THEN 'DG_E1_W2_D1'
-  WHEN airtable.id = 130701  THEN 'DG_E1_W2_D2'
-  WHEN airtable.id = 131369  THEN 'DG_E1_W2_D4'
-  WHEN airtable.id = 131367  THEN 'DG_E1_W2_D3' 
-  WHEN airtable.id = 135657  THEN 'DG_EM2_W1_D1'
-  WHEN airtable.id = 136530  THEN 'DG_EM2_W1_D2' 
-  WHEN airtable.id = 125946 THEN 'DG-01' 
-  ENd AS _type*/_code AS _type,
+  _utm_source, _utm_medium, _landingpage, _journeyname,_email_segment,
+ _code AS _type,
   ROW_NUMBER() OVER(PARTITION BY emailname,airtable.id,emailid,_email_segment ORDER BY senddate DESC) AS _rownum
   FROM `x-marketing.pcs_sfmc.send` airtable, unnest (partnerproperties) name
   JOIN  email_campaign ON airtable.id  = SAFE_CAST(email_campaign.id AS INT64)
@@ -422,7 +457,11 @@ WHERE _rownum = 1
  '' AS _linked_clicked,
   ROW_NUMBER() OVER(PARTITION BY email,sendid ORDER BY eventdate DESC) AS _rownum
   FROM `x-marketing.pcs_sfmc.event` activity
-  JOIN `x-marketing.pcs_salesforce.Lead`  l ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
+  JOIN (SELECT id,email,firstname,lastname, company,territory__c, state 
+FROM `x-marketing.pcs_salesforce.Lead`
+UNION ALL 
+SELECT id,email,firstname,lastname, account_name__c,territory__c, dd_home_state__c
+FROM `x-marketing.pcs_salesforce.Contact`) l ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
   WHERE eventtype = 'Open' 
   /*AND subscriberkey NOT LIKE '%pcsretirement.com%' 
   AND subscriberkey NOT LIKE '%2x.marketing%'
@@ -432,70 +471,128 @@ WHERE _rownum = 1
    )
   WHERE _rownum = 1
 ),click_event AS (
-/*SELECT * EXCEPT (_rownum)
-FROM (
-SELECT *,
-ROW_NUMBER() OVER(PARTITION BY _email,_campaignID ORDER BY LENGTH(url) DESC) AS _rownum FROM (
-  SELECT
-  activity._sdc_sequence AS _scd_sequence,
-  activity.subscriberkey AS _prospectID,
-  CAST(sendid AS STRING) AS _campaignID,
-  'Clicked' AS _event_type,
-  email AS _email,
-  PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ",eventdate) AS _timestamp,
-  CONCAT(firstname, ' ', lastname ) AS _name, 
-  company AS _companyname, 
-  territory__c, 
-  --categoryid, 
-  state, 
-  --segment,
-  linkclick.url,
-  '' AS utm_source ,'' AS utm_content, '' AS utm_medium, '' AS content_downloaded,
-  CASE WHEN activity.url LIKE '%view.accountsvc.com%' THEN 'View as a Web Page'
-  WHEN activity.url LIKE '%pcsretirement.com%' THEN 'PCS'
-  WHEN activity.url LIKE '%pcsretirement-delivery%' THEN 'Privacy Policy'
-  WHEN activity.url LIKE '%PCSRetirement.accountsvc.com%' THEN 'DG-EM-01-LP'
-   ELSE 'Empty' END AS _linked_clicked,
-  FROM `x-marketing.pcs_sfmc.event` activity
-  JOIN `x-marketing.pcs_salesforce.Lead`  l ON /*activity.subscriberkey = l.email or activity.subscriberkey = id
-  LEFT JOIN (SELECT * FROM `x-marketing.pcs_sfmc.data_extension_Link_Clicks`  WHERE linkname LIKE '%DG-EM%' )linkclick ON activity.subscriberkey = linkclick.subscriberkey AND CAST(PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ",eventdate) AS DATE) = CAST(PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,linkclick.clickdate )AS DATE) 
-  WHERE eventtype = 'Click'
-  /*AND subscriberkey NOT LIKE '%pcsretirement.com%' 
-  AND subscriberkey NOT LIKE '%2x.marketing%'
-  AND email NOT LIKE '%pcsretirement.com%' 
-  AND email NOT LIKE '%2x.marketing%'*/ 
-  /*UNION ALL 
-  SELECT 
-  linkclick._sdc_sequence,
-  activity.subscriberkey,
-  CAST(sendid AS STRING) AS _campaignID, 
-  'Clicked' AS _event_type,
-  email AS _email,
-  PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,clickdate),
-    CONCAT(firstname, ' ', lastname ) AS _name, 
-  company AS _companyname, 
-  territory__c, 
-  state, 
-  linkclick.url AS urlss,
-  '' AS utm_source ,
-  '' AS utm_content, 
-  '' AS utm_medium, 
-  '' AS content_downloaded,
-  linkname, 
-FROM `x-marketing.pcs_sfmc.data_extension_Link_Clicks` linkclick
-JOIN `x-marketing.pcs_salesforce.Lead`  l ON /*activity.subscriberkey = l.email or*/ /*linkclick.subscriberkey = l.id
-LEFT JOIN `x-marketing.pcs_sfmc.event` activity ON activity.subscriberkey = linkclick.subscriberkey AND CAST(PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ",eventdate) AS DATE) = CAST(PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,linkclick.clickdate )AS DATE)
-WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
---))where _rownum = 1 
+   WITH smfc_event AS (
+    SELECT 
+    _sdc_sequence,
+    subscriberkey,
+    CAST(sendid AS STRING) AS sendid,
+    PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ",eventdate) AS eventdate, 
+    url,
+    eventtype
+    FROM 
+    `x-marketing.pcs_sfmc.event`
+    UNION ALL
+    SELECT 
+    _sdc_sequence, 
+    subscriberkey, 
+    jobid,
+    PARSE_TIMESTAMP('%m/%d/%Y %T %p',clickdate),
+    url , 
+    'Click' AS _event_type
+    FROM `x-marketing.pcs_sfmc.data_extension_Bot_Clicks` 
+    UNION ALL
+    SELECT _sdc_sequence, lead_id AS subscriberkey, CAST(job_id AS STRING),PARSE_TIMESTAMP('%m/%d/%Y %T %p',	click_date),url , 'Click' AS _event_type
+      FROM `x-marketing.pcs_sfmc.data_extension_All_Email_Link_Clicks`  
+    ), 
+    linked_click AS (
+    
+    WITH email_campaign AS (
     SELECT * 
---EXCEPT(_rownum)
+    FROM (
+    SELECT *,  
+    ROW_NUMBER() OVER(PARTITION BY id,_code ORDER BY _livedate DESC) AS _rownum
+    FROM (
+    SELECT 
+    DISTINCT 
+    _notes, 
+  _status, 
+  _trimcode, 
+  _screenshot, _assettitle, _subject, _whatwedo, _campaignid, _utm_campaign, _preview, _code, _rootcampaign AS _journeyname,_emailsegment AS _campaignname, _formsubmission, _id, _livedate, _utm_source, _emailname, _assignee, _utm_medium, _landingpage,
+  _campaignid  
+  AS id,
+  _emailsequence  AS _email_segment
+   FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
+  WHERE _rootcampaign IN ( 'Demand Generation','Primerica') AND  _campaignID  <> 'Obtain from DE>Campaign>Email JobID' 
+  AND _id <> 3321
+  ORDER BY _code
+    )
+    ) WHERE _rownum = 1 
+    )
+    ,airtable AS (
+    SELECT * EXCEPT(_rownum)
+    FROM (
+    SELECT 
+        sentdate, 
+        name.value.name AS _utm_campaign, 
+        senddate, 
+        status, 
+        airtable.emailid, 
+        TRIM(subject) AS subject, 
+        fromname, 
+        TRIM(airtable.emailname) AS emailname, 
+        --fromaddress, 
+        PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ",airtable.createddate) AS createddate, 
+        isalwayson,
+        airtable.id,
+        _code,_trimcode, _screenshot, _assettitle, _subject, _preview AS _whatwedo, _campaignname AS campaignName, 
+        _id, 
+        safe.timestamp(_livedate) AS _livedate, 
+        _utm_source, _utm_medium, _landingpage,_journeyname,_email_segment,
+        _code AS _type,
+        ROW_NUMBER() OVER(PARTITION BY emailname,airtable.id,emailid,_email_segment ORDER BY senddate DESC) AS _rownum
+        FROM `x-marketing.pcs_sfmc.send` airtable, unnest (partnerproperties) name
+        JOIN  email_campaign ON airtable.id  = SAFE_CAST(email_campaign.id AS INT64)
+        )
+        WHERE _rownum = 1
+        )SELECT l._sdc_sequence,subscriberkey ,CAST(k.id AS STRING) AS sendid,clickdate,url,
+        'Click' AS eventtype,
+        --ROW_NUMBER() OVER(PARTITION BY subscriberkey, l.emailname, url,linkname,k.id ORDER BY clickdate DESC ) AS rownum
+        FROM (
+
+        SELECT *
+        FROM (
+          SELECT  _sdc_sequence,subscriberkey, emailname, url, sf, linkname,id, PARSE_TIMESTAMP('%m/%d/%Y %T %p',clickdate) AS clickdate,
+          CASE WHEN url LIKE '%Job_ID=%' THEN SPLIT(SUBSTR(url, STRPOS(url, 'Job_ID=') + 7), '&')[ORDINAL(1)] 
+          WHEN   url LIKE '%j=%' THEN SPLIT(SUBSTR(url, STRPOS(url, 'j=') + 3), '&')[ORDINAL(1)] END  AS sendid
+          FROM `x-marketing.pcs_sfmc.data_extension_Link_Clicks` 
+          UNION ALL 
+          SELECT  _sdc_sequence,subscriberkey, emailname, url, sf, linkname,id,PARSE_TIMESTAMP('%m/%d/%Y %T %p',clickdate),
+          CASE WHEN url LIKE '%Job_ID=%' THEN SPLIT(SUBSTR(url, STRPOS(url, 'Job_ID=') + 7), '&')[ORDINAL(1)] 
+          WHEN   url LIKE '%j=%' THEN SPLIT(SUBSTR(url, STRPOS(url, 'j=') + 3), '&')[ORDINAL(1)] END  AS sendid 
+          FROM `x-marketing.pcs_sfmc.data_extension_Link_Clicks___Nurture___Mod_Hot` 
+          UNION ALL 
+          SELECT  _sdc_sequence,subscriberkey, emailname, url, sf, linkname,id, PARSE_TIMESTAMP('%m/%d/%Y %T %p',clickdate),
+          CASE WHEN url LIKE '%Job_ID=%' THEN SPLIT(SUBSTR(url, STRPOS(url, 'Job_ID=') + 7), '&')[ORDINAL(1)] 
+          WHEN   url LIKE '%j=%' THEN SPLIT(SUBSTR(url, STRPOS(url, 'j=') + 3), '&')[ORDINAL(1)] END  AS sendid
+          FROM `x-marketing.pcs_sfmc.data_extension_Link_Clicks___Nurture`
+          UNION ALL 
+          SELECT  _sdc_sequence,lead_id AS subscriberkey,email_name AS emailname, url, sf, link_name AS linkname,CONCAT(lead_id,link_name,click_date) AS id, PARSE_TIMESTAMP('%m/%d/%Y %T %p',click_date),
+          CASE WHEN url LIKE '%Job_ID=%' THEN SPLIT(SUBSTR(url, STRPOS(url, 'Job_ID=') + 7), '&')[ORDINAL(1)] ELSE  
+          SPLIT(SUBSTR(url, STRPOS(url, 'j=') + 3), '&')[ORDINAL(1)] END  AS sendid 
+          FROM `x-marketing.pcs_sfmc.data_extension_DG_Nurture_Email_Link_Clicks`
+          UNION ALL 
+          SELECT  _sdc_sequence,lead_id AS subscriberkey,email_name AS emailname, url, sf, link_name AS linkname,CONCAT(lead_id,link_name,click_date) AS id, PARSE_TIMESTAMP('%m/%d/%Y %T %p',click_date),
+          CASE WHEN url LIKE '%Job_ID=%' THEN SPLIT(SUBSTR(url, STRPOS(url, 'Job_ID=') + 7), '&')[ORDINAL(1)] ELSE  
+          SPLIT(SUBSTR(url, STRPOS(url, 'j=') + 3), '&')[ORDINAL(1)] END  AS sendid 
+          FROM `x-marketing.pcs_sfmc.data_extension_Primerica_DG_Email_Link_Clicks`
+          ) 
+          ) l
+          LEFT JOIN 
+          airtable k ON sendid = CAST(k.id AS STRING)
+    ),all_combine AS (
+        SELECT * FROM smfc_event
+    UNION ALL
+    SELECT * FROM linked_click
+)
+ SELECT * 
+
   FROM (  SELECT
   activity._sdc_sequence AS _scd_sequence,
   activity.subscriberkey AS _prospectID,
   CAST(sendid AS STRING) AS _campaignID,
   'Clicked' AS _event_type,
   email AS _email,
-  PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ",eventdate) AS _timestamp,
+  eventdate AS _timestamp,
   CONCAT(firstname, ' ', lastname ) AS _name, 
   company AS _companyname, 
   territory__c, 
@@ -523,37 +620,30 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
  WHEN activity.url LIKE "%https://view.accountsvc.com/?qs=73577fed4cf96d3157e31408fe4cdd8d9d05692460779bd52fcfd62846d722987dea421b93fd1dcb87f71b5f6e9ebbec45ce0736182a6b268de8b794cc5091f02e23613f9d7e6bbd78ccf69bb997db7b%" THEN "PL_DG_22_EM3"
  WHEN activity.url LIKE "%https://view.accountsvc.com/?qs=a20f46b6052c6899090975eeae4918da43285560bd881821423cbd3198665a8587338d43d57ca5a41137b159de5bd842cbb5855bef02bb16f574935370f92024b942844c03944eecffe43d5afca320fd%" THEN "PL_DG_22_EM2"
  WHEN activity.url LIKE "%https://view.accountsvc.com/?qs=e29027e2a262872b9b383c07c321ea0c20497e86d3a5beb55ffb34a18a1f9f53874c7acd16fa6ca655d99557904847d976e352ab661c6eb6c4855effbf33a01adb28468ac8c8ccc07423e5e5f687a424%" THEN "PL_DG_22_EM1"
- WHEN activity.url LIKE  "%click.accountsvc.com/unsub_center.aspx?%" THEN "Unsubscribe"
+ WHEN activity.url LIKE  "%click.accountsvc.com/unsub_center.aspx?%" OR  activity.url LIKE  "%https://PCSRetirement.accountsvc.com/2clickunsub?%"THEN "Unsubscribe"
  WHEN activity.url LIKE    "%click.accountsvc.com/subscription_center.aspx?%" THEN "Subscription Center"
-  WHEN activity.url LIKE '%view.accountsvc.com%' THEN 'Bot'
-  WHEN activity.url LIKE '%pcsretirement.com%' THEN 'PCS'
+   WHEN activity.url LIKE '%view.accountsvc.com%' THEN 'View as a Web Page'
+  
   WHEN activity.url LIKE '%pcsretirement-delivery%' THEN 'Privacy Policy'
   WHEN activity.url LIKE "%utm_content=cta_button01%" THEN "DG-EM-01-LP-A (cta_button01)"
   WHEN activity.url LIKE "%utm_content=cta_img%" THEN "DG-EM-01-LP-B (cta_img)"
   WHEN activity.url LIKE "%utm_content=cta_text01%" THEN "DG-EM-01-LP-C (cta_text01)"
   WHEN activity.url LIKE "%utm_content=cta_button02%" THEN "DG-EM-01-LP-D (cta_button02)"
-   WHEN activity.url LIKE "%utm_content=cta_text%" THEN "DG-EM-01-LP-E (cta_text)"
+  WHEN activity.url LIKE "%utm_content=cta_text%" THEN "DG-EM-01-LP-E (cta_text)"
+  WHEN activity.url LIKE "%utm_content=50462%" OR activity.url LIKE "%utm_content=50463%" OR activity.url LIKE "%utm_content=50464%" OR activity.url LIKE "%utm_content=50465%"OR activity.url LIKE "%utm_content=50467%" OR activity.url LIKE "%utm_content=50547%" OR activity.url LIKE "%utm_content=504%" THEN "DG-EM-01-LP-E"
   WHEN activity.url LIKE "%content_downloaded=%" THEN "Content_downloaded"
+  WHEN activity.url LIKE '%pcsretirement.com%' THEN 'PCS'
   --WHEN linkclick.url LIKE '%PCSRetirement.accountsvc.com%' OR linkclick.url LIKE '%pcsretirement.accountsvc.com%' THEN 'DG-EM-01-LP'
    ELSE 'Empty' END AS _linked_clicked,
-  --ROW_NUMBER() OVER(PARTITION BY email,sendid,activity.url,activity.subscriberkey ORDER BY eventdate DESC, activity.url DESC) AS _rownum
-  FROM `x-marketing.pcs_sfmc.event` activity
-  JOIN `x-marketing.pcs_salesforce.Lead`  l ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
-  /*LEFT JOIN (SELECT subscriberkey, emailname, url, sf, linkname,id, clickdate FROM `x-marketing.pcs_sfmc.data_extension_Link_Clicks`  WHERE 
-  linkname LIKE '%G-EM%' 
-  UNION ALL 
-  SELECT subscriberkey, emailname, url, sf, linkname,id, clickdate FROM `x-marketing.pcs_sfmc.data_extension_Link_Clicks___Nurture___Mod_Hot` 
-  WHERE linkname LIKE '%DGN%' 
-    UNION ALL 
-  SELECT subscriberkey, emailname, url, sf, linkname,id, clickdate FROM `x-marketing.pcs_sfmc.data_extension_Link_Clicks___Nurture` 
-  WHERE linkname LIKE '%DGN%' 
-  )linkclick ON activity.subscriberkey = linkclick.subscriberkey AND CAST(PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ",eventdate) AS DATE) = CAST(PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,linkclick.clickdate )AS DATE) */
+  FROM all_combine activity
+  JOIN (SELECT id,email,firstname,lastname, company,territory__c, state 
+FROM `x-marketing.pcs_salesforce.Lead`
+UNION ALL 
+SELECT id,email,firstname,lastname, account_name__c,territory__c, dd_home_state__c
+FROM `x-marketing.pcs_salesforce.Contact`)   l ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
+  
   WHERE eventtype = 'Click' 
-  --AND activity.subscriberkey = '00Q5x00001wOTneEAG'
-  /*AND subscriberkey NOT LIKE '%pcsretirement.com%' 
-  AND subscriberkey NOT LIKE '%2x.marketing%'
-  AND email NOT LIKE '%pcsretirement.com%' 
-  AND email NOT LIKE '%2x.marketing%'*/
+
   ORDER BY email asc
   ) 
   --WHERE 
@@ -580,7 +670,11 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
   '' AS _linked_clicked,
   ROW_NUMBER() OVER(PARTITION BY email,sendid ORDER BY eventdate DESC) AS _rownum
   FROM `x-marketing.pcs_sfmc.event` activity
-  JOIN `x-marketing.pcs_salesforce.Lead`  l ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
+  JOIN (SELECT id,email,firstname,lastname, company,territory__c, state 
+FROM `x-marketing.pcs_salesforce.Lead`
+UNION ALL 
+SELECT id,email,firstname,lastname, account_name__c,territory__c, dd_home_state__c
+FROM `x-marketing.pcs_salesforce.Contact`)    l ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
   WHERE eventtype = 'Sent' 
   /*AND subscriberkey NOT LIKE '%pcsretirement.com%' 
   AND subscriberkey NOT LIKE '%2x.marketing%'
@@ -612,13 +706,21 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
   '' AS _linked_clicked,
   ROW_NUMBER() OVER(PARTITION BY email,sendid ORDER BY eventdate DESC) AS _rownum
   FROM `x-marketing.pcs_sfmc.event` activity
-  JOIN `x-marketing.pcs_salesforce.Lead`  l ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
+  JOIN (SELECT id,email,firstname,lastname, company,territory__c, state 
+FROM `x-marketing.pcs_salesforce.Lead`
+UNION ALL 
+SELECT id,email,firstname,lastname, account_name__c,territory__c, dd_home_state__c
+FROM `x-marketing.pcs_salesforce.Contact`)    l ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
   JOIN (
-    SELECT * FROM  `x-marketing.pcs_sfmc.data_extension_Email_Bounce`
+    SELECT bounce_category, lead_id, bounce_subcategory, bounce_date, bounce_category_id, bounce_subcategory_id, categoryid, email_name  FROM  `x-marketing.pcs_sfmc.data_extension_Email_Bounce`
     UNION ALL 
-    SELECT * FROM  `x-marketing.pcs_sfmc.data_extension_Email_Bounce___Nurture___Mod_Hot`
+    SELECT bounce_category, lead_id, bounce_subcategory, bounce_date, bounce_category_id, bounce_subcategory_id, categoryid, email_name  FROM  `x-marketing.pcs_sfmc.data_extension_Email_Bounce___Nurture___Mod_Hot`
     UNION ALl 
-    SELECT * FROM  `x-marketing.pcs_sfmc.data_extension_Email_Bounce___Nurture`
+    SELECT bounce_category, lead_id, bounce_subcategory, bounce_date, bounce_category_id, bounce_subcategory_id, categoryid, email_name  FROM  `x-marketing.pcs_sfmc.data_extension_Email_Bounce___Nurture`
+    UNION ALL 
+    SELECT bounce_category, lead_id, bounce_subcategory, bounce_date, bounce_category_id, bounce_subcategory_id, categoryid, email_name  FROM `x-marketing.pcs_sfmc.data_extension_DG_Nurture_Email_Bounces`
+    UNION ALL 
+    SELECT bounce_category, lead_id, bounce_subcategory, bounce_date, bounce_category_id, bounce_subcategory_id, categoryid, email_name  FROM `x-marketing.pcs_sfmc.data_extension_Email_Bounce___All_Campaigns` 
     )  Bounce ON activity.subscriberkey = Bounce.lead_id AND CAST(PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ",eventdate) AS DATE) = CAST(PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,Bounce.bounce_date )AS DATE)
   WHERE eventtype IN ('HardBounce','OtherBounce','SoftBounce') 
   --AND subscriberkey NOT IN (SELECT subscriberkey FROM `x-marketing.pcs_sfmc.event` WHERE eventtype IN( 'Click','Open'))
@@ -646,7 +748,11 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
   '' AS _linked_clicked,
   ROW_NUMBER() OVER(PARTITION BY email,sendid ORDER BY eventdate DESC) AS _rownum
   FROM `x-marketing.pcs_sfmc.event` activity
-  JOIN `x-marketing.pcs_salesforce.Lead`  l ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
+  JOIN (SELECT id,email,firstname,lastname, company,territory__c, state 
+FROM `x-marketing.pcs_salesforce.Lead`
+UNION ALL 
+SELECT id,email,firstname,lastname, account_name__c,territory__c, dd_home_state__c
+FROM `x-marketing.pcs_salesforce.Contact`)  l ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
   WHERE eventtype = 'Unsubscribe'
   /*AND subscriberkey NOT LIKE '%pcsretirement.com%' 
   AND subscriberkey NOT LIKE '%2x.marketing%'
@@ -1207,10 +1313,10 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
     --state AS state, 
     --'' AS segment,
     --url AS url,
-    utm_source , utm_content, utm_medium, content_downloaded,
+    utm_source , utm_content, utm_medium, CASE WHEN lead_id = '00Q5x00001wOObxEAG' THEN "EM_2023-04-18_PCS-EM-01_ADGN_C_VB" ELSE  content_downloaded END AS content_downloaded ,
     '' AS _linked_clicked,utm_campaign
    
-    FROM x-marketing.pcs_sfmc.data_extension_PCS_Demand_Gen_Cold_Nurture_Campaign activity
+    FROM `x-marketing.pcs_sfmc.data_extension_PCS_Demand_Gen_Cold_Nurture_Campaign` activity
     WHERE email_address NOT LIKE "%2x.marketing%" 
    ) 
     SELECT * EXCEPT (_rownum)
@@ -1232,12 +1338,14 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
     state AS state, 
     --'' AS segment,
     url AS url,
-    utm_source , utm_content, utm_medium, content_downloaded,
+    utm_source , activity.utm_content, utm_medium, content_downloaded,
     '' AS _linked_clicked,
    FROM activity
-    JOIN (SELECT *, CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
-    ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _campaign FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
-            AND utm_campaign = _campaign)
+   JOIN (SELECT *, CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
+    ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _campaign,
+    REGEXP_EXTRACT(url, r'content_downloaded=([^&]+)') AS _content_downloaded, REGEXP_EXTRACT(url, r'utm_content=([0-9]+)') AS utm_content FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
+        AND campaignn.utm_content = activity.utm_content) OR (campaignn.subscriberkey = activity.lead_id 
+        AND campaignn._content_downloaded = activity.content_downloaded)
     LEFT JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
     LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON TRIM(emailname) = utm_campaign
     --WHERE eventtype = 'Click' AND url LIKE '%PCSRetirement.accountsvc.com%'
@@ -1246,19 +1354,17 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
     WITH activity AS (
       SELECT
     activity._sdc_sequence AS _scd_sequence,
-   CASE WHEN email_address = 'timothy.maher@raymondjames.com' THEN '00Q5x00001wOAH7EAO' 
-   WHEN email_address = 'melanie@larmannfinancial.com' THEN '00Q5x00001wNrrBEAS'
-   WHEN email_address = 'sunflower.0606@outlook.com' THEN '00Q5x00001wO9I7EAK'
-    ELSE lead_id END  AS lead_id,
+   CASE WHEN email_address = 'timothy.maher@raymondjames.com' THEN '00Q5x00001wOAH7EAO'
+    WHEN email_address = 'melanie@larmannfinancial.com' THEN '00Q5x00001wNrrBEAS'
+    WHEN email_address = 'sunflower.0606@outlook.com' THEN '00Q5x00001wO9I7EAK'
+    ELSE lead_id END  AS lead_id,  
     --CAST(sendid AS STRING) AS _campaignID,
     --CAST(sendid AS STRING) AS _campaignID,
     'Downloaded'AS _event_type ,
      CASE WHEN lead_id =  '00Q5x00001wOUNEEA4' THEN 'j.trachta@fi.com'
-     WHEN lead_id =  '00Q5x00001zzSI5EAM' THEN 'gbarjesteh@firstrepublic.com'
-     WHEN email_address = 'melanie@larmannfinancial.com' THEN 'matt@larmannfinancial.com' 
-      ELSE  email_address END  email_address,
+     WHEN lead_id =  '00Q5x00001zzSI5EAM' THEN 'gbarjesteh@firstrepublic.com' ELSE  email_address END  email_address,
     PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,activity.created_date ) AS _timestamp,
-    CASE WHEN CONCAT(first_name, ' ', last_name ) = 'Melanie Jacobsen' THEN 'Matthew Larmann' ELSE CONCAT(first_name, ' ', last_name ) END AS _name, 
+    CONCAT(first_name, ' ', last_name ) AS _name, 
     --l.company AS _companyname, 
     --territory__c AS territory__c, 
     --0 AS categoryid, 
@@ -1266,11 +1372,10 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
     --'' AS segment,
     --url AS url,
     utm_source , utm_content, utm_medium, content_downloaded,
-    '' AS _linked_clicked,CASE WHEN lead_id =  '00Q5x00001zzSTVEA2' THEN 'DG_N' ELSE utm_campaign END AS utm_campaign
+    '' AS _linked_clicked,utm_campaign
    
-    FROM x-marketing.pcs_sfmc.data_extension_PCS_Demand_Gen_Mod_Hot_Nurture_Campaign activity
-    WHERE email_address NOT LIKE "%2x.marketing%" 
-
+    FROM `x-marketing.pcs_sfmc.data_extension_PCS_Demand_Gen_Mod_Hot_Nurture_Campaign` activity
+    WHERE email_address NOT LIKE "%2x.marketing%"  
    ) 
     SELECT * EXCEPT (_rownum)
  FROM (
@@ -1279,7 +1384,8 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
     SELECT
     _scd_sequence AS _scd_sequence,
     l.id AS _prospectID,
-     CASE WHEN l.id = '00Q5x00001wO9I7EAK' THEN "189106" ELSE CAST(sendid AS STRING) END AS _campaignID,
+     CASE WHEN l.id = '00Q5x00001wO9I7EAK' THEN "189106"  
+     WHEN l.id = '00Q5x000024YRXjEAO' THEN "212520" ELSE CAST(sendid AS STRING) END AS _campaignID,
     --CAST(sendid AS STRING) AS _campaignID,
     'Downloaded'AS _event_type ,
      email AS _email,
@@ -1294,15 +1400,17 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
     utm_source , utm_content, utm_medium, content_downloaded,
     '' AS _linked_clicked,
    FROM activity
-    LEFT JOIN (SELECT *, CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
-    ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _campaign FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
-            AND utm_campaign = _campaign)
-    LEFT JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
+   LEFT JOIN (SELECT * EXCEPT (subscriberkey), CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
+   WHEN subscriberkey = 'bryan.chan@2x.marketing' AND CAST(sendid AS STRING) = '212439' THEN '212520'
+   WHEN subscriberkey = '00Q5x00001wO9I7EAK' THEN "189106"  
+  
+    ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'content_downloaded') + 19), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _campaign, CASE WHEN subscriberkey = 'bryan.chan@2x.marketing' THEN "00Q5x000024YRXjEAO" ELSE subscriberkey END AS subscriberkey,
+      FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
+            AND content_downloaded = _campaign)
+    JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
     LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON TRIM(emailname) = utm_campaign
-    --WHERE l.id IN (  '00Q5x00001wO9I7EAK',"00Q5x00001wOOfGEAW")
     --WHERE eventtype = 'Click' AND url LIKE '%PCSRetirement.accountsvc.com%'
-        )
-        )WHERE _rownum = 1 AND _prospectID IS NOT NULL
+        ))WHERE _rownum = 1
 ),lead_form_download11 AS (
       WITH activity AS (
       SELECT
@@ -1624,6 +1732,60 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
     '' AS _linked_clicked,utm_campaign
    
     FROM x-marketing.pcs_sfmc.data_extension_Demand_Gen_Campaign_Universal activity
+    WHERE email_address NOT LIKE "%2x.marketing%"  AND lead_id <> '00Q5x00001wOTD6EAO'
+   ) 
+    SELECT * EXCEPT (_rownum)
+ FROM (
+    SELECT * , ROW_NUMBER() OVER(PARTITION BY _email,_campaignID ORDER BY LENGTH(url) DESC)  AS _rownum
+    FROM (
+    SELECT
+    _scd_sequence AS _scd_sequence,
+    l.id AS _prospectID,
+     CAST(sendid AS STRING) AS _campaignID,
+    --CAST(sendid AS STRING) AS _campaignID,
+    'Downloaded'AS _event_type ,
+     email_address AS _email,
+    _timestamp,
+    CONCAT(firstname, ' ', lastname ) AS _name, 
+    l.company AS _companyname, 
+    territory__c AS territory__c, 
+    --0 AS categoryid, 
+    state AS state, 
+    --'' AS segment,
+    url AS url,
+    utm_source , utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked,
+   FROM activity
+   JOIN (SELECT *, CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
+    ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'content_downloaded') + 19), '&')[ORDINAL(1)], '%ModHot_', ' '), '%ModHot_',':') AS _campaign,REGEXP_EXTRACT(url, r'email_name=([^&]+)') AS email_name  FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
+            AND content_downloaded = _campaign) OR (campaignn.subscriberkey = activity.lead_id 
+            AND TRIM(content_downloaded) = TRIM(email_name))
+    LEFT JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
+    LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON TRIM(emailname) = utm_campaign
+    --WHERE eventtype = 'Click' AND url LIKE '%PCSRetirement.accountsvc.com%'
+        ))WHERE _rownum = 1
+
+ ), lead_nurture_insights AS (
+     WITH activity AS (
+      SELECT
+    activity._sdc_sequence AS _scd_sequence,
+   CASE WHEN email_address = 'timothy.maher@raymondjames.com' THEN '00Q5x00001wOAH7EAO' ELSE lead_id END  AS lead_id,
+    --CAST(sendid AS STRING) AS _campaignID,
+    --CAST(sendid AS STRING) AS _campaignID,
+    'Downloaded'AS _event_type ,
+     email_address ,
+    PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,activity.created_date ) AS _timestamp,
+    --CONCAT(firstname, ' ', lastname ) AS _name, 
+    --l.company AS _companyname, 
+    --territory__c AS territory__c, 
+    --0 AS categoryid, 
+    --state AS state, 
+    --'' AS segment,
+    --url AS url,
+    utm_source , utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked,utm_campaign
+   
+    FROM `x-marketing.pcs_sfmc.data_extension_DG_Nurture_Insights` activity
     WHERE email_address NOT LIKE "%2x.marketing%" 
    ) 
     SELECT * EXCEPT (_rownum)
@@ -1656,7 +1818,186 @@ WHERE eventtype = 'Click' AND linkname LIKE '%DG-EM-01-LP%'*/
     --WHERE eventtype = 'Click' AND url LIKE '%PCSRetirement.accountsvc.com%'
         ))WHERE _rownum = 1
 
- ), 
+ ) , nurture_dg_lead_form AS (
+     WITH activity AS (
+      SELECT
+    activity._sdc_sequence AS _scd_sequence,
+   CASE WHEN email_address = 'timothy.maher@raymondjames.com' THEN '00Q5x00001wOAH7EAO' ELSE lead_id END  AS lead_id,
+    --CAST(sendid AS STRING) AS _campaignID,
+    --CAST(sendid AS STRING) AS _campaignID,
+    'Downloaded'AS _event_type ,
+     email_address ,
+    PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,activity.created_date ) AS _timestamp,
+    --CONCAT(firstname, ' ', lastname ) AS _name, 
+    --l.company AS _companyname, 
+    --territory__c AS territory__c, 
+    --0 AS categoryid, 
+    --state AS state, 
+    --'' AS segment,
+    --url AS url,
+    utm_source , utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked,utm_campaign
+   
+    FROM `x-marketing.pcs_sfmc.data_extension_DG_Nurture_Lead_Form` activity
+    WHERE email_address NOT LIKE "%2x.marketing%" 
+   ) 
+    SELECT * EXCEPT (_rownum)
+ FROM (
+    SELECT * , ROW_NUMBER() OVER(PARTITION BY _email,_campaignID ORDER BY LENGTH(url) DESC)  AS _rownum
+    FROM (
+    SELECT
+    _scd_sequence AS _scd_sequence,
+    l.id AS _prospectID,
+     CAST(sendid AS STRING) AS _campaignID,
+    --CAST(sendid AS STRING) AS _campaignID,
+    'Downloaded'AS _event_type ,
+     email_address AS _email,
+    _timestamp,
+    CONCAT(firstname, ' ', lastname ) AS _name, 
+    l.company AS _companyname, 
+    territory__c AS territory__c, 
+    --0 AS categoryid, 
+    state AS state, 
+    --'' AS segment,
+    url AS url,
+    utm_source , utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked,
+   FROM activity
+    JOIN (SELECT *, CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
+    ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'content_downloaded') + 19), '&')[ORDINAL(1)], '%ModHot_', ' '), '%ModHot_',':') AS _campaign FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
+            AND content_downloaded = _campaign)
+    LEFT JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
+    LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON TRIM(emailname) = utm_campaign
+    --WHERE eventtype = 'Click' AND url LIKE '%PCSRetirement.accountsvc.com%'
+        ))WHERE _rownum = 1
+ ), nurture_2024 AS (
+    WITH activity AS (
+      
+    SELECT
+    activity._sdc_sequence AS _scd_sequence,
+   CASE WHEN email_address = 'timothy.maher@raymondjames.com' THEN '00Q5x00001wOAH7EAO' ELSE lead_id END  AS lead_id,
+    --CAST(sendid AS STRING) AS _campaignID,
+    --CAST(sendid AS STRING) AS _campaignID,
+    'Clicked Downloaded'AS _event_type ,
+     CASE WHEN lead_id =  '00Q5x00001wOUNEEA4' THEN 'j.trachta@fi.com'
+     WHEN lead_id =  '00Q5x00001zzSI5EAM' THEN 'gbarjesteh@firstrepublic.com' ELSE  email_address END  email_address,
+    PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,activity.created_date ) AS _timestamp,
+    CONCAT(first_name, ' ', last_name ) AS _name, 
+    --l.company AS _companyname, 
+    --territory__c AS territory__c, 
+    --0 AS categoryid, 
+    --state AS state, 
+    --'' AS segment,
+    --url AS url,
+    utm_source ,  utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked,utm_campaign
+   
+    FROM `x-marketing.pcs_sfmc.data_extension_DG_Nurture_Q1_2024` activity 
+    WHERE email_address NOT LIKE "%2x.marketing%" 
+    
+   ) 
+    SELECT * EXCEPT (_rownum)
+ FROM (
+    SELECT * , ROW_NUMBER() OVER(PARTITION BY _email,_campaignID ORDER BY LENGTH(url) DESC)  AS _rownum
+    FROM (
+    SELECT
+    _scd_sequence AS _scd_sequence,
+    l.id AS _prospectID,
+    CASE WHEN l.id = '00Q5x00001wO3QPEA0' THEN "244778" ELSE CAST(sendid AS STRING) END AS _campaignID,
+    --CAST(sendid AS STRING) AS _campaignID,
+    'Downloaded'AS _event_type ,
+     email_address AS _email,
+    _timestamp,
+    CONCAT(firstname, ' ', lastname ) AS _name, 
+    l.company AS _companyname, 
+    territory__c AS territory__c, 
+    --0 AS categoryid, 
+    state AS state, 
+    --'' AS segment,
+    url AS url,
+    utm_source ,  campaignn.utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked,
+   FROM activity
+    LEFT JOIN (SELECT *, CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
+    WHEN CAST(sendid AS STRING) = '246483' THEN '244778'
+    ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _campaign,
+    
+    REGEXP_EXTRACT(url, r'content_downloaded=([^&]+)') AS _content_downloaded, REGEXP_EXTRACT(url, r'utm_content=([0-9]+)') AS utm_content
+    
+     FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' 
+     ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
+        AND campaignn.utm_content = activity.utm_content) OR (campaignn.subscriberkey = activity.lead_id 
+        AND campaignn._content_downloaded = activity.content_downloaded)
+    LEFT JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
+    LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON TRIM(emailname) = utm_campaign
+        --WHERE eventtype = 'Click' AND url LIKE '%PCSRetirement.accountsvc.com%'
+        ))WHERE _rownum = 1
+
+ ), ungated_2024 AS (
+    WITH activity AS (
+      
+    SELECT
+    activity._sdc_sequence AS _scd_sequence,
+   CASE WHEN email_address = 'timothy.maher@raymondjames.com' THEN '00Q5x00001wOAH7EAO' ELSE lead_id END  AS lead_id,
+    --CAST(sendid AS STRING) AS _campaignID,
+    --CAST(sendid AS STRING) AS _campaignID,
+    'Clicked Downloaded'AS _event_type ,
+     CASE WHEN lead_id =  '00Q5x00001wOUNEEA4' THEN 'j.trachta@fi.com'
+     WHEN lead_id =  '00Q5x00001zzSI5EAM' THEN 'gbarjesteh@firstrepublic.com' ELSE  email_address END  email_address,
+    PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,activity.created_date ) AS _timestamp,
+    CONCAT(first_name, ' ', last_name ) AS _name, 
+    --l.company AS _companyname, 
+    --territory__c AS territory__c, 
+    --0 AS categoryid, 
+    --state AS state, 
+    --'' AS segment,
+    --url AS url,
+    utm_source ,  utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked,utm_campaign
+   
+    FROM `x-marketing.pcs_sfmc.data_extension_DG_Nurture_2024_Q1___Ungated_Asset_Download_Tracking` activity 
+    WHERE email_address NOT LIKE "%2x.marketing%" 
+    
+   ) 
+    SELECT * EXCEPT (_rownum)
+ FROM (
+    SELECT * , ROW_NUMBER() OVER(PARTITION BY _email,_campaignID ORDER BY LENGTH(url) DESC)  AS _rownum
+    FROM (
+    SELECT
+    _scd_sequence AS _scd_sequence,
+    l.id AS _prospectID,
+     CAST(sendid AS STRING) AS _campaignID,
+    --CAST(sendid AS STRING) AS _campaignID,
+    'Clicked Downloaded'AS _event_type ,
+     email_address AS _email,
+    _timestamp,
+    CONCAT(firstname, ' ', lastname ) AS _name, 
+    l.company AS _companyname, 
+    territory__c AS territory__c, 
+    --0 AS categoryid, 
+    state AS state, 
+    --'' AS segment,
+    url AS url,
+    utm_source ,  campaignn.utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked,
+   FROM activity
+    LEFT JOIN (SELECT *, CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
+    WHEN CAST(sendid AS STRING) = '246483' THEN '244778'
+    ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _campaign,
+    
+    REGEXP_EXTRACT(url, r'content_downloaded=([^&]+)') AS _content_downloaded, REGEXP_EXTRACT(url, r'utm_content=([0-9]+)') AS utm_content
+    
+     FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' 
+     ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
+        AND campaignn.utm_content = activity.utm_content) OR (campaignn.subscriberkey = activity.lead_id 
+        AND campaignn._content_downloaded = activity.content_downloaded)
+    LEFT JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
+    LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON TRIM(emailname) = utm_campaign
+        --WHERE eventtype = 'Click' AND url LIKE '%PCSRetirement.accountsvc.com%'
+        ))WHERE _rownum = 1
+
+
+ ),
  website AS (
 
   SELECT * 
@@ -1696,7 +2037,7 @@ WHEN k.id = '00Q5x00001wNmV6EAK' THEN 'Video'
 /*AND k.email not LIKE "%test.com%"*/
 ),lead_score AS (
 
-  SELECT *
+   SELECT *
  FROM (
  SELECT
     k._sdc_sequence AS _scd_sequence,
@@ -1727,14 +2068,13 @@ WHEN k.id = '00Q5x00001wNmV6EAK' THEN 'Video'
     WHEN k.id = '00Q5x00001wOR57EAG' THEN 'Form Submission'
       ELSE mql_source__c  END AS mql_source__c,
 
-  ROW_NUMBER() OVER(PARTITION BY email ORDER BY eventdate DESC) AS _rownum
+   ROW_NUMBER() OVER(PARTITION BY email ORDER BY DATE_DIFF(COALESCE(CAST(mql_date__c AS DATE), CAST(k.createddate AS DATE)), CAST(DATETIME(PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ",eventdate),'America/New_York') AS DATE), DAY) IN (0,1) DESC,eventdate DESC,senddate DESC) AS _rownum
   FROM `x-marketing.pcs_sfmc.event` activity
   JOIN `x-marketing.pcs_salesforce.Lead`  k ON /*activity.subscriberkey = l.email or*/ activity.subscriberkey = id
   JOIN airtable ON  activity.sendid = airtable.id
-  WHERE eventtype NOT IN ('Sent','HardBounce','OtherBounce','SoftBounce','Unsubscribe') AND  mql_source__c = "MQL Score" AND
-
-   total_lead_score__c >= 75
- AND isdeleted IS NOT TRUE AND k.id NOT IN ('00Q5x00001wOOBpEAO','00Q5x00001xufRBEAY','00Q5x00001wO02LEAS','00Q5x00001wNngXEAS','00Q5x00001wOJ3MEAW')
+  WHERE eventtype NOT IN ('Sent','HardBounce','OtherBounce','SoftBounce','Unsubscribe') AND  mql_source__c = "MQL Score" 
+--   AND total_lead_score__c >= 75
+ AND isdeleted IS NOT TRUE AND k.id NOT IN ('00Q5x00001wOOBpEAO','00Q5x00001xufRBEAY','00Q5x00001wO02LEAS','00Q5x00001wNngXEAS','00Q5x00001wOJ3MEAW','00Q5x00001wNqVCEA0')
  ) WHERE _rownum = 1
 )/*,downloaded AS (
 
@@ -1771,13 +2111,13 @@ WHEN k.id = '00Q5x00001wNmV6EAK' THEN 'Video'
 )*/
 --, all_engagement AS (
 , click_download AS (
-    WITH activity AS (
+   WITH activity AS (
       SELECT
     activity._sdc_sequence AS _scd_sequence,
    CASE WHEN email_address = 'timothy.maher@raymondjames.com' THEN '00Q5x00001wOAH7EAO' ELSE lead_id END  AS lead_id,
     --CAST(sendid AS STRING) AS _campaignID,
     --CAST(sendid AS STRING) AS _campaignID,
-    'Downloaded'AS _event_type ,
+    'Clicked Downloaded'AS _event_type ,
      CASE WHEN lead_id =  '00Q5x00001wOUNEEA4' THEN 'j.trachta@fi.com'
      WHEN lead_id =  '00Q5x00001zzSI5EAM' THEN 'gbarjesteh@firstrepublic.com' ELSE  email_address END  email_address,
     PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,activity.created_date ) AS _timestamp,
@@ -1788,11 +2128,35 @@ WHEN k.id = '00Q5x00001wNmV6EAK' THEN 'Video'
     --state AS state, 
     --'' AS segment,
     --url AS url,
-    utm_source , utm_content, utm_medium, content_downloaded,
+    utm_source , value AS utm_content, utm_medium, content_downloaded,
     '' AS _linked_clicked,utm_campaign
    
-    FROM `x-marketing.pcs_sfmc.data_extension_Demand_Gen_Campaign_Ungated_Asset` activity
+    FROM `x-marketing.pcs_sfmc.data_extension_DG_Nurture_2024_Q1___Ungated_Asset_Download_Tracking` activity ,UNNEST(SPLIT(utm_content, ',')) AS value
     WHERE email_address NOT LIKE "%2x.marketing%" 
+    --AND lead_id = '00Q5x000023Y8ymEAC'
+    UNION ALL 
+    SELECT
+    activity._sdc_sequence AS _scd_sequence,
+   CASE WHEN email_address = 'timothy.maher@raymondjames.com' THEN '00Q5x00001wOAH7EAO' ELSE lead_id END  AS lead_id,
+    --CAST(sendid AS STRING) AS _campaignID,
+    --CAST(sendid AS STRING) AS _campaignID,
+    'Clicked Downloaded'AS _event_type ,
+     CASE WHEN lead_id =  '00Q5x00001wOUNEEA4' THEN 'j.trachta@fi.com'
+     WHEN lead_id =  '00Q5x00001zzSI5EAM' THEN 'gbarjesteh@firstrepublic.com' ELSE  email_address END  email_address,
+    PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,activity.created_date ) AS _timestamp,
+    CONCAT(first_name, ' ', last_name ) AS _name, 
+    --l.company AS _companyname, 
+    --territory__c AS territory__c, 
+    --0 AS categoryid, 
+    --state AS state, 
+    --'' AS segment,
+    --url AS url,
+    utm_source ,  utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked,utm_campaign
+   
+    FROM `x-marketing.pcs_sfmc.data_extension_DG_Nurture_2024_Q1___Ungated_Asset_Download_Tracking` activity 
+    WHERE email_address NOT LIKE "%2x.marketing%" 
+    AND utm_content IS NULL 
    ) 
     SELECT * EXCEPT (_rownum)
  FROM (
@@ -1813,20 +2177,73 @@ WHEN k.id = '00Q5x00001wNmV6EAK' THEN 'Video'
     state AS state, 
     --'' AS segment,
     url AS url,
-    utm_source , utm_content, utm_medium, content_downloaded,
+    utm_source ,  campaignn.utm_content, utm_medium, content_downloaded,
     '' AS _linked_clicked,
    FROM activity
-    JOIN (SELECT *, CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
+    LEFT JOIN (SELECT *, CASE WHEN CAST(sendid AS STRING) = '137757' THEN '143847'
     ELSE CAST(sendid AS STRING) END AS _sendid,  REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _campaign,
     
-    REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'content_downloaded=') + 19), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _content_downloaded
+    REGEXP_EXTRACT(url, r'content_downloaded=([^&]+)') AS _content_downloaded, REGEXP_EXTRACT(url, r'utm_content=([0-9]+)') AS utm_content
     
-     FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
-        AND content_downloaded = _content_downloaded)
+     FROM `x-marketing.pcs_sfmc.event`  WHERE eventtype = 'Click' 
+     ) campaignn ON (campaignn.subscriberkey = activity.lead_id 
+        AND campaignn.utm_content = activity.utm_content) OR (campaignn.subscriberkey = activity.lead_id 
+        AND campaignn._content_downloaded = activity.content_downloaded)
     LEFT JOIN `x-marketing.pcs_salesforce.Lead` l ON activity.lead_id= l.id /*or activity.subscriberkey = contactid*/
     LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON TRIM(emailname) = utm_campaign
         --WHERE eventtype = 'Click' AND url LIKE '%PCSRetirement.accountsvc.com%'
         ))WHERE _rownum = 1
+), primerica_lead_download AS (
+  WITH activity AS (
+    SELECT
+    activity._sdc_sequence AS _scd_sequence,
+    lead_id,
+    'Downloaded'AS _event_type ,
+     email_address ,
+    PARSE_TIMESTAMP('%m/%d/%Y %T %p' ,activity.created_date ) AS _timestamp,
+    utm_source , 
+    utm_content, 
+    '' AS utm_medium, 
+    content_downloaded,
+    '' AS _linked_clicked,utm_campaign
+    FROM `x-marketing.pcs_sfmc.data_extension_Primerica_Lead_Form`  activity
+    ),downloaded AS ( 
+      SELECT * EXCEPT (_rownum)
+      FROM (
+        SELECT * , ROW_NUMBER() OVER(PARTITION BY _prospectID,_campaignID ORDER BY LENGTH(url) DESC)  AS _rownum
+        FROM (
+          SELECT
+          _scd_sequence AS _scd_sequence,
+          lead_id AS _prospectID,
+          CAST(sendid AS STRING) AS _campaignID,
+           'Downloaded'AS _event_type ,
+     email AS _email,
+    _timestamp,
+    CONCAT(firstname, ' ', lastname ) AS _name, 
+    l.company AS _companyname, 
+    territory__c AS territory__c, 
+    --0 AS categoryid, 
+    state AS state, 
+    --'' AS segment,
+    url AS url,
+    utm_source , utm_content, utm_medium, content_downloaded,
+    '' AS _linked_clicked,
+          FROM activity
+          JOIN (SELECT *,    REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _campaign,
+          REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(url, STRPOS(url, 'content_downloaded=') + 19), '&')[ORDINAL(1)], '%EM_', ' '), '%EM_',':') AS _content_downloaded
+          FROM `x-marketing.pcs_sfmc.event`
+      ) campaignn ON campaignn.subscriberkey = activity.lead_id 
+            AND content_downloaded = _content_downloaded
+            LEFT JOIN  (SELECT id,email,firstname,lastname, company,territory__c, state 
+FROM `x-marketing.pcs_salesforce.Lead`
+UNION ALL 
+SELECT id,email,firstname,lastname, account_name__c,territory__c, dd_home_state__c
+FROM `x-marketing.pcs_salesforce.Contact`)   l ON activity.lead_id= l.id
+            LEFT JOIN `x-marketing.pcs_sfmc.send` campaign ON TRIM(emailname) = utm_campaign
+            WHERE eventtype = 'Click' 
+           
+        ))WHERE _rownum = 1
+    )SELECT * FROM downloaded
 ), combine_all AS (
 SELECT 
     engagements._scd_sequence,
@@ -1913,7 +2330,9 @@ SELECT
   WIN_E_mail_Date__c,	
   Converted_to_New_Plan__c,
   Converted_to_New_Plan__c_name,
-  plan_id
+  plan_id,
+  territory_external_wholesaler__c,
+  unqualified_reason__c
 
 
   FROM (
@@ -2016,7 +2435,9 @@ SELECT
   WIN_E_mail_Date__c,	
   Converted_to_New_Plan__c,
   Converted_to_New_Plan__c_name,
-  plan_id
+  plan_id,
+  territory_external_wholesaler__c,
+  unqualified_reason__c
 
 
   FROM (
@@ -2055,6 +2476,16 @@ SELECT
   SELECT * FROM lead_universal
   UNION ALL 
   SELECT * FROM click_download 
+  UNION ALL 
+  SELECT * FROM lead_nurture_insights
+  UNION ALL 
+  SELECT * FROM nurture_dg_lead_form 
+  UNION ALL 
+  SELECT * FROM nurture_2024
+  UNION ALL
+  SELECT * FROM ungated_2024
+  UNION ALL 
+  SELECT * FROM primerica_lead_download
   ) engagements
 LEFT JOIN airtable ON CAST(engagements._campaignID AS INT64) = airtable.id
 LEFT JOIN prospect_info ON  engagements._prospectID = prospect_info.id
@@ -2116,7 +2547,7 @@ SELECT
     retirement_aum__c, 
     of_plans_acquired_per_year__c,
     engagements.mql_source__c,
-        convertedcontactid,
+    convertedcontactid,
     convertedopportunityid,
     isconverted,
     converteddate,
@@ -2142,7 +2573,9 @@ SELECT
   WIN_E_mail_Date__c,	
   Converted_to_New_Plan__c,
   Converted_to_New_Plan__c_name,
-  plan_id
+  plan_id,
+  territory_external_wholesaler__c,
+  unqualified_reason__c
   FROM (
   SELECT * FROM lead_score
   UNION ALL
@@ -2200,7 +2633,10 @@ AND origin._event_type IN('Soft bounce','Hard bounce','Block bounce'))
 LEFT JOIN _isBot scenarios ON (origin._email = scenarios._email 
 AND origin._campaignID = scenarios._campaignID 
 AND origin._prospectID = scenarios._prospectID
-AND origin._event_type = "Clicked" AND _linked_clicked LIKE  "%DG-EM%");
+AND origin._event_type = "Clicked" AND _linked_clicked LIKE  "%DG-EM%") OR  (origin._email = scenarios._email 
+AND origin._campaignID = scenarios._campaignID 
+AND origin._prospectID = scenarios._prospectID
+AND origin._event_type = "Clicked" AND _linked_clicked LIKE  "Content_downloaded");
 
 
 INSERT INTO `x-marketing.pcs.db_campaign_analysis` (
@@ -2463,7 +2899,8 @@ CONCAT(first_name, ' ', last_name),
 email_address,Lead_scoring.categoryid*/
 
 CREATE OR REPLACE TABLE `x-marketing.pcs.Lead_Scoring_SFMC` AS
-SELECT * EXCEPT(_rownum),SUM(_cta+_open+_download+_unsubscribe+_bounced) AS _total_score,CASE WHEN COUNT(submitted) > 1 THEN 'Multiple Touchpoint' ELSE 'Single Touchpoint' END AS _touchpoint,0 AS _total_score_contact
+WITH engagement AS (
+  SELECT * EXCEPT(_rownum),SUM(_cta+_open+_download+_unsubscribe+_bounced) AS _total_score,CASE WHEN COUNT(submitted) > 1 THEN 'Multiple Touchpoint' ELSE 'Single Touchpoint' END AS _touchpoint
 FROM (
 SELECT
 CASE WHEN _engagement = 'Clicked' AND _linked_clicked = 'DG-EM-01-LP' OR _linked_clicked = 'DG-EM-01-LP2-W2' OR _linked_clicked = 'DG-EM-01-LP-W2' THEN 5
@@ -2554,17 +2991,16 @@ ELSE Upper(state) END AS state,_landingPage,
  LEFT JOIN `x-marketing.pcs_sfmc.data_extension_Lead_Scoring_List` m  ON m.lead_id = k._prospectID
 )
 WHERE _rownum = 1 
-GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39;
-
-UPDATE `x-marketing.pcs.Lead_Scoring_SFMC`  origin
-SET _touchpoint = k._touchpoint,_total_score_contact = l
-FROM ( 
-SELECT * FROM (
+GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39
+), touchpoint AS (
+  SELECT * FROM (
 SELECT lead_id,firstname,lastname,lead_name,company,_customobjectkey,email,/*CASE WHEN COUNT(DISTINCT campaignName) > 1 THEN 'Multiple Touchpoint' ELSE */'Single Touchpoint' /*END*/ AS _touchpoint,MAX(lastmodifieddate),SUM(_total_score)l
- FROM `x-marketing.pcs.Lead_Scoring_SFMC`
-GROUP BY 1,2,3,4,5,6,7 
-) )k
-WHERE origin.lead_id = k.lead_id;
+ FROM engagement
+GROUP BY 1,2,3,4,5,6,7
+)
+ ) SELECT origin.*,
+l FROM engagement origin
+ LEFT JOIN touchpoint k ON origin.lead_id = k.lead_id ;
 
 
 
@@ -2870,21 +3306,21 @@ all_holiday_dates AS (
     UNION ALL
 
     -- [8] Columbus Day (Second Monday in Oct)
-    SELECT 
-        "Columbus Day" AS holiday_name,
-        DATE_TRUNC(
-            DATE_ADD(
-                DATE_ADD(
-                    DATE(year, 10, 1),
-                    INTERVAL 7 DAY
-                ), 
-                INTERVAL 6 DAY
-            ), 
-            WEEK(MONDAY)
-        ) AS holiday_date 
-    FROM unique_years_involved
+    -- SELECT 
+    --     "Columbus Day" AS holiday_name,
+    --     DATE_TRUNC(
+    --         DATE_ADD(
+    --             DATE_ADD(
+    --                 DATE(year, 10, 1),
+    --                 INTERVAL 7 DAY
+    --             ), 
+    --             INTERVAL 6 DAY
+    --         ), 
+    --         WEEK(MONDAY)
+    --     ) AS holiday_date 
+    -- FROM unique_years_involved
 
-    UNION ALL
+    -- UNION ALL
 
     -- [9] Veterans Day (Nov 11)
     -- SELECT 
@@ -3253,7 +3689,7 @@ listid,  invalidaddresses, existingundeliverables, forwardedemails,_download as 
 LEFT JOIN `x-marketing.pcs_sfmc.list_send` list  ON list.sendid = airtable.id
 LEFT JOIN clicks ON airtable.id = clicks.sendid 
 LEFT JOIN click_unique ON airtable.id = CAST(click_unique._campaignID AS INT64)
-WHERE numbersent > 80
+--WHERE numbersent > 80
 ORDER BY senddate DESC;
 
 CREATE OR REPLACE TABLE `x-marketing.pcs.MQLs_Disposition` AS
@@ -3690,21 +4126,21 @@ all_holiday_dates AS (
     UNION ALL
 
     -- [8] Columbus Day (Second Monday in Oct)
-    SELECT 
-        "Columbus Day" AS holiday_name,
-        DATE_TRUNC(
-            DATE_ADD(
-                DATE_ADD(
-                    DATE(year, 10, 1),
-                    INTERVAL 7 DAY
-                ), 
-                INTERVAL 6 DAY
-            ), 
-            WEEK(MONDAY)
-        ) AS holiday_date 
-    FROM unique_years_involved
+    -- SELECT 
+    --     "Columbus Day" AS holiday_name,
+    --     DATE_TRUNC(
+    --         DATE_ADD(
+    --             DATE_ADD(
+    --                 DATE(year, 10, 1),
+    --                 INTERVAL 7 DAY
+    --             ), 
+    --             INTERVAL 6 DAY
+    --         ), 
+    --         WEEK(MONDAY)
+    --     ) AS holiday_date 
+    -- FROM unique_years_involved
 
-    UNION ALL
+    -- UNION ALL
 
     -- [9] Veterans Day (Nov 11)
     -- SELECT 
@@ -3967,7 +4403,7 @@ count_total_weekends_between_date_range AS (
             END in_date_range_previous_lead_status_change_date_net
         FROM count_total_weekends_between_date_range
     )
-    GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197
+    GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199
 
 ),
 
@@ -4580,21 +5016,21 @@ all_holiday_dates AS (
     UNION ALL
 
     -- [8] Columbus Day (Second Monday in Oct)
-    SELECT 
-        "Columbus Day" AS holiday_name,
-        DATE_TRUNC(
-            DATE_ADD(
-                DATE_ADD(
-                    DATE(year, 10, 1),
-                    INTERVAL 7 DAY
-                ), 
-                INTERVAL 6 DAY
-            ), 
-            WEEK(MONDAY)
-        ) AS holiday_date 
-    FROM unique_years_involved
+    -- SELECT 
+    --     "Columbus Day" AS holiday_name,
+    --     DATE_TRUNC(
+    --         DATE_ADD(
+    --             DATE_ADD(
+    --                 DATE(year, 10, 1),
+    --                 INTERVAL 7 DAY
+    --             ), 
+    --             INTERVAL 6 DAY
+    --         ), 
+    --         WEEK(MONDAY)
+    --     ) AS holiday_date 
+    -- FROM unique_years_involved
 
-    UNION ALL
+    -- UNION ALL
 
     -- [9] Veterans Day (Nov 11)
     -- SELECT 
@@ -4957,7 +5393,9 @@ WHERE stagename = 'Closed Lost'
             CASE WHEN j.name LIKE '%Dev User%' THEN 'Dev User' ELSE j.name END AS ownername,
              CASE WHEN main.id = "0065x000029iEMyAAM" THEN "00Q5x00001tbJcaEAE"
              ELSE main.contactid END AS contactid,
-              main.recordtypeid,main.recordtype_name__c,lead_id__c,CONCAT("https://pcsretirement.lightning.force.com/lightning/r/Opportunity/",main.id,"/view") AS opportunity_link
+              main.recordtypeid,main.recordtype_name__c,CASE WHEN main.id = '006Uy00000AwgFeIAJ' THEN '00Q5x00001zzgkgEAA' 
+              WHEN main.id = '006Uy00000B9p09IAB' THEN '00Q5x00001wO55eEAC' 
+              ELSE lead_id__c END  AS lead_id__c ,CONCAT("https://pcsretirement.lightning.force.com/lightning/r/Opportunity/",main.id,"/view") AS opportunity_link
         FROM `x-marketing.pcs_salesforce.Opportunity` main
         JOIN `x-marketing.pcs_salesforce.OpportunityHistory` side
         ON main.id = side.opportunityid
@@ -5110,21 +5548,21 @@ all_holiday_dates AS (
     UNION ALL
 
     -- [8] Columbus Day (Second Monday in Oct)
-    SELECT 
-        "Columbus Day" AS holiday_name,
-        DATE_TRUNC(
-            DATE_ADD(
-                DATE_ADD(
-                    DATE(year, 10, 1),
-                    INTERVAL 7 DAY
-                ), 
-                INTERVAL 6 DAY
-            ), 
-            WEEK(MONDAY)
-        ) AS holiday_date 
-    FROM unique_years_involved
+    -- SELECT 
+    --     "Columbus Day" AS holiday_name,
+    --     DATE_TRUNC(
+    --         DATE_ADD(
+    --             DATE_ADD(
+    --                 DATE(year, 10, 1),
+    --                 INTERVAL 7 DAY
+    --             ), 
+    --             INTERVAL 6 DAY
+    --         ), 
+    --         WEEK(MONDAY)
+    --     ) AS holiday_date 
+    -- FROM unique_years_involved
 
-    UNION ALL
+    -- UNION ALL
 
     -- [9] Veterans Day (Nov 11)
     -- SELECT 
@@ -5249,7 +5687,7 @@ count_total_holidays_between_date_range AS (
             END in_date_range
         FROM count_total_weekends_between_date_range
     )
-    GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174
+    GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176
 ),
 
 calculate_days_in_new_stage AS (
@@ -5526,7 +5964,11 @@ SELECT * FROM (
             CASE WHEN j.name LIKE '%Dev User%' THEN 'Dev User' ELSE j.name END AS ownername,
              CASE WHEN main.id = "0065x000029iEMyAAM" THEN "00Q5x00001tbJcaEAE"
              ELSE main.contactid END AS contactid,
-              main.recordtypeid,main.recordtype_name__c,lead_id__c,CONCAT("https://pcsretirement.lightning.force.com/lightning/r/Opportunity/",main.id,"/view") AS opportunity_link
+              main.recordtypeid,main.recordtype_name__c,
+              CASE WHEN main.id = '006Uy00000AwgFeIAJ' THEN '00Q5x00001zzgkgEAA' 
+              WHEN main.id = '006Uy00000B9p09IAB' THEN '00Q5x00001wO55eEAC' 
+              ELSE lead_id__c END  AS lead_id__c ,
+              CONCAT("https://pcsretirement.lightning.force.com/lightning/r/Opportunity/",main.id,"/view") AS opportunity_link
         FROM `x-marketing.pcs_salesforce.Opportunity` main
         JOIN `x-marketing.pcs_salesforce.OpportunityHistory` side
         ON main.id = side.opportunityid
@@ -5977,7 +6419,9 @@ WITH new_status_leads AS (
     FROM (
 
         SELECT
-            lead_id__c,
+            CASE WHEN main.id = '006Uy00000AwgFeIAJ' THEN '00Q5x00001zzgkgEAA' 
+              WHEN main.id = '006Uy00000B9p09IAB' THEN '00Q5x00001wO55eEAC' 
+              ELSE lead_id__c END  AS lead_id__c ,
             main.ownerid 
             AS ownerid,
             lead.name AS name,
@@ -6130,29 +6574,29 @@ all_holiday_dates AS (
     UNION ALL
 
     -- [8] Columbus Day (Second Monday in Oct)
-    SELECT 
-        "Columbus Day" AS holiday_name,
-        DATE_TRUNC(
-            DATE_ADD(
-                DATE_ADD(
-                    DATE(year, 10, 1),
-                    INTERVAL 7 DAY
-                ), 
-                INTERVAL 6 DAY
-            ), 
-            WEEK(MONDAY)
-        ) AS holiday_date 
-    FROM unique_years_involved
+    -- SELECT 
+    --     "Columbus Day" AS holiday_name,
+    --     DATE_TRUNC(
+    --         DATE_ADD(
+    --             DATE_ADD(
+    --                 DATE(year, 10, 1),
+    --                 INTERVAL 7 DAY
+    --             ), 
+    --             INTERVAL 6 DAY
+    --         ), 
+    --         WEEK(MONDAY)
+    --     ) AS holiday_date 
+    -- FROM unique_years_involved
 
-    UNION ALL
+    -- UNION ALL
 
-    -- [9] Veterans Day (Nov 11)
-    SELECT 
-        "Veterans Day" AS holiday_name, 
-        DATE(year, 11, 11) AS holiday_date 
-    FROM unique_years_involved 
+    -- -- [9] Veterans Day (Nov 11)
+    -- SELECT 
+    --     "Veterans Day" AS holiday_name, 
+    --     DATE(year, 11, 11) AS holiday_date 
+    -- FROM unique_years_involved 
 
-    UNION ALL
+    -- UNION ALL
 
     -- [10] Thanksgiving (Fourth Thursday in Nov)
     SELECT 
@@ -6492,4 +6936,380 @@ FROM `x-marketing.pcs.db_campaign_analysis` WHERE _engagement IN ("Web",'Downloa
 LEFT JOIN opps_id ON opps_id.ops_lead_id = m._prospectID;
 
 
+CREATE OR REPLACE TABLE `pcs.contact_task_report` AS 
+WITH task AS(
+    SELECT 
+    task_type__c, 
+    tasksubtype, 
+    priority,ownername__c,
+    k.lastmodifieddate AS _task_lastmodified_date,
+    type_formula__c,
+    status,
+    subject,
+    ownerid,
+    completeddatetime,
+    type,
+    description,
+    k.createddate  AS _task_created_date,
+    whatid AS accountid,
+    whoid AS id,
+    k.id AS task_id,
+    j.name as Assign_to
+    FROM `x-marketing.pcs_salesforce.Task` k
+    LEFT JOIN `x-marketing.pcs_salesforce.User` j ON j.id = k.ownerid
+   WHERE k.ownerid <>  '00560000001R83WAAS' AND isdeleted IS FALSE 
+   --AND k.createddate >= "2022-08-23" AND 
+), assign_to AS (
+    SELECT 
+   whoid AS id,
+   CASE WHEN j.name LIKE '%Dev User%' THEN 'Dev User' ELSE j.name END  as Assign_to,
+   j.id AS Assign_to_id
+    FROM `x-marketing.pcs_salesforce.Task` k
+    LEFT JOIN `x-marketing.pcs_salesforce.User` j ON j.id = k.ownerid
+   WHERE isdeleted IS FALSE
+   QUALIFY ROW_NUMBER() OVER( PARTITION BY whoid ORDER BY k.createddate DESC) = 1
+),contact AS (
+     SELECT
+    routable.name, 
+    routable.firstname, 
+    routable.lastname, 
+    routable.id, 
+    state, 
+    routable.territory__c, 
+    routable.data_link2__ddl_firmid__c,
+    routable.data_link2__ddl_repid__c, 
+    routable.title, 
+    routable.dd_bd_title_categories__c, 
+    routable.phone, 
+    routable.email,
+    routable.leadsource,
+    CONCAT('https://pcsretirement.lightning.force.com/lightning/r/Contact/',routable.id,'/view') AS link,
+    asign.Assign_to AS ownername,
+    routable.ownerid AS ownerid, 
+    routable.number_of_retirement_plans__c,
+    routable.retirement_aum__c, 
+    routable.isdeleted,
+    routable.masterrecordid,
+    routable.lastactivitydate, 
+    routable.lastmodifieddate, 
+    routable.lastvieweddate, 
+    routable.lastreferenceddate, 
+    CONCAT('https://pcsretirement.lightning.force.com/lightning/r/Lead/',routable.masterrecordid,'/view') AS link_m,
+    routable.createddate,
+    account_name__c,
+    territory_external_wholesaler__c,
+    task.* EXCEPT (ownerid,id),
+    m._utm_campaign,
+   m._timestamp,
+   m.campaignName,
+    TIMESTAMP_DIFF(routable.lastactivitydate,_task_created_date, DAY) AS _duration,
+   SUM(TIMESTAMP_DIFF(CURRENT_DATETIME('America/New_York'), CAST(routable.lastactivitydate AS DATETIME), DAY)) OVER (PARTITION BY routable.id ORDER BY _task_created_date) AS running_total_date_diff_last_activity,
+   DATETIME(_task_created_date,'America/New_York') AS _task_created_dates,
+   CURRENT_DATE('America/New_York') AS extract_date,
+   TIMESTAMP_DIFF(CURRENT_DATETIME('America/New_York'), CAST(_task_created_date AS DATETIME), DAY) AS _date_diff,
+  
+    FROM `x-marketing.pcs_salesforce.Contact` routable
+    LEFT JOIN `x-marketing.pcs_salesforce.User` j ON j.id = routable.ownerid
+    LEFT JOIN task ON  routable.id = task.id
+    LEFT JOIN assign_to asign ON  routable.id = asign.id
+    JOIN (SELECT _prospectID,_timestamp,_utm_campaign,campaignName,_engagement FROM `x-marketing.pcs.db_campaign_analysis` WHERE _engagement IN ('Downloaded') ) m  ON routable.id = m._prospectID
+  WHERE routable.isdeleted IS FALSE
+     QUALIFY ROW_NUMBER() OVER(PARTITION BY routable.id,task_id ORDER BY routable.createddate DESC)  = 1
+) ,unique_years_involved AS (
+    SELECT
+        EXTRACT(YEAR FROM  lastactivitydate) AS year
+    FROM contact
+
+    UNION DISTINCT
+
+    SELECT
+        EXTRACT(YEAR FROM  _task_created_date) AS year
+    FROM contact
+
+    UNION DISTINCT
+
+    SELECT
+        EXTRACT(YEAR FROM extract_date) AS year
+    FROM contact
+
+),
+
+all_holiday_dates AS (
+    
+    -- [1] New Year's Day (Jan 1)
+    SELECT
+        "New Year's Day" AS holiday_name,
+        DATE(year, 1, 1) AS holiday_date
+    FROM unique_years_involved
+
+    UNION ALL
+
+    -- [2] Martin Luther King's Day (Third Monday in Jan)
+    SELECT 
+        "Martin Luther King's Day" AS holiday_name,
+        DATE_TRUNC(
+            DATE_ADD(
+                DATE_ADD(
+                    DATE(year, 1, 1),
+                    INTERVAL 14 DAY
+                ), 
+                INTERVAL 6 DAY
+            ), 
+            WEEK(MONDAY)
+        ) AS holiday_date
+    FROM unique_years_involved
+
+    UNION ALL
+
+    -- [3] Presidents' Day (Third Monday in Feb)
+    SELECT 
+        "Presidents' Day" AS holiday_name,
+        DATE_TRUNC(
+            DATE_ADD(
+                DATE_ADD(
+                    DATE(year, 2, 1),
+                    INTERVAL 14 DAY
+                ), 
+                INTERVAL 6 DAY
+            ), 
+            WEEK(MONDAY)
+        ) AS holiday_date
+    FROM unique_years_involved
+
+    UNION ALL
+
+    -- [4] Memorial Day (Last Monday in May)
+    SELECT 
+        "Memorial Day" AS holiday_name,
+        DATE_TRUNC(
+            LAST_DAY(DATE(year, 5, 1), MONTH), 
+            WEEK(MONDAY)
+        ) AS holiday_date
+    FROM unique_years_involved
+
+    UNION ALL 
+
+    -- [5] Juneteenth (Jun 19)
+    SELECT 
+        "Juneteenth" AS holiday_name, 
+        DATE(year, 6, 19) AS holiday_date
+    FROM unique_years_involved 
+
+    UNION ALL
+
+    -- [6] Independence Day (Jul 4)
+    SELECT 
+        "Independence Day" AS holiday_name,  
+        DATE(year, 7, 4) AS holiday_date 
+    FROM unique_years_involved     
+
+    UNION ALL
+
+    -- [7] Labor Day (First Monday in Sep)
+    SELECT 
+        "Labor Day" AS holiday_name, 
+        DATE_TRUNC(
+            DATE_ADD(
+                DATE(year, 9, 1), 
+                INTERVAL 6 DAY
+            ), 
+            WEEK(MONDAY)
+        ) AS holiday_date 
+    FROM unique_years_involved
+
+    UNION ALL
+
+    -- [8] Columbus Day (Second Monday in Oct)
+    -- SELECT 
+    --     "Columbus Day" AS holiday_name,
+    --     DATE_TRUNC(
+    --         DATE_ADD(
+    --             DATE_ADD(
+    --                 DATE(year, 10, 1),
+    --                 INTERVAL 7 DAY
+    --             ), 
+    --             INTERVAL 6 DAY
+    --         ), 
+    --         WEEK(MONDAY)
+    --     ) AS holiday_date 
+    -- FROM unique_years_involved
+
+    -- UNION ALL
+
+    -- [9] Veterans Day (Nov 11)
+    -- SELECT 
+    --     "Veterans Day" AS holiday_name, 
+    --     DATE(year, 11, 11) AS holiday_date 
+    -- FROM unique_years_involved 
+
+    -- UNION ALL
+
+    -- [10] Thanksgiving (Fourth Thursday in Nov)
+    SELECT 
+        "Thanksgiving" AS holiday_name,  
+        DATE_TRUNC(
+            DATE_ADD(
+                DATE_ADD(
+                    DATE(year, 11, 1),
+                    INTERVAL 21 DAY
+                ), 
+                INTERVAL 6 DAY
+            ), 
+            WEEK(THURSDAY)
+        ) AS holiday_date 
+    FROM unique_years_involved 
+
+    UNION ALL   
+
+    -- [11] Christmas Day (Dec 25)
+    SELECT 
+        "Christmas Day" AS holiday_name,
+        DATE(year, 12, 25) AS holiday_date 
+    FROM unique_years_involved 
+
+),
+
+add_filler_info AS (
+
+    SELECT 
+        EXTRACT(YEAR FROM holiday_date) AS year,
+        ROW_NUMBER() OVER(
+            PARTITION BY EXTRACT(YEAR FROM holiday_date)
+            ORDER BY holiday_date
+        ) AS holiday_order,
+        holiday_name,
+        holiday_date,
+        FORMAT_DATE('%A', holiday_date) AS day_of_holiday
+    FROM all_holiday_dates
+
+),
+
+replacement_holiday_dates AS (
+
+    SELECT
+        *,
+        CASE
+            WHEN day_of_holiday = 'Saturday' THEN 'Friday'
+            WHEN day_of_holiday = 'Sunday' THEN 'Monday'
+        END AS replacement_day,
+        CASE
+            WHEN day_of_holiday = 'Saturday' THEN DATE_SUB(holiday_date, INTERVAL 1 DAY)
+            WHEN day_of_holiday = 'Sunday' THEN DATE_ADD(holiday_date, INTERVAL 1 DAY)
+        END AS replacement_date
+    FROM add_filler_info
+
+),
+
+actual_holiday_dates AS (
+
+    SELECT
+        *,
+        COALESCE(replacement_date, holiday_date) AS actual_holiday_date
+    FROM replacement_holiday_dates
+
+)
+,
+cross_join_leads_with_holidays AS (
+
+    SELECT 
+        main.*,
+        side.actual_holiday_date
+    FROM contact AS main
+    CROSS JOIN actual_holiday_dates AS side
+
+)
+,
+
+count_total_days_between_date_range AS (
+
+    SELECT
+        *,
+       DATE_DIFF(extract_date,  CAST(lastactivitydate AS DATE), DAY)  AS total_days_lastactivitydate,
+        DATE_DIFF(extract_date,  CAST(createddate AS DATE), DAY)  AS total_days_created_date,
+        DATE_DIFF(extract_date,  CAST( _task_created_date AS DATE), DAY)  AS total_days_task_created_date,
+        
+    FROM cross_join_leads_with_holidays
+)
+,count_total_weekends_between_date_range AS (
+
+    SELECT
+        *,
+        (
+            -- Get the number of weekend days in between
+            (DATE_DIFF(extract_date,  CAST(lastactivitydate AS DATE), WEEK) * 2)
+            + 
+            -- If start date was Sunday, it won't add to weekends, so add it
+            CASE WHEN EXTRACT(DAYOFWEEK FROM  lastactivitydate) = 1 THEN 1 ELSE 0 END 
+            + 
+            -- If end date was Saturday, it won't add to weekends, so add it
+            CASE WHEN EXTRACT(DAYOFWEEK FROM extract_date) = 7 THEN 1 ELSE 0 END
+        ) AS total_weekends_lastactivitydate, 
+        
+                (
+            -- Get the number of weekend days in between
+            (DATE_DIFF(extract_date,  CAST(createddate AS DATE), WEEK) * 2)
+            + 
+            -- If start date was Sunday, it won't add to weekends, so add it
+            CASE WHEN EXTRACT(DAYOFWEEK FROM  createddate) = 1 THEN 1 ELSE 0 END 
+            + 
+            -- If end date was Saturday, it won't add to weekends, so add it
+            CASE WHEN EXTRACT(DAYOFWEEK FROM extract_date) = 7 THEN 1 ELSE 0 END
+        ) AS total_weekends_createddate,
+                (
+            -- Get the number of weekend days in between
+            (DATE_DIFF(extract_date,  CAST(_task_created_date AS DATE), WEEK) * 2)
+            + 
+            -- If start date was Sunday, it won't add to weekends, so add it
+            CASE WHEN EXTRACT(DAYOFWEEK FROM  _task_created_date) = 1 THEN 1 ELSE 0 END 
+            + 
+            -- If end date was Saturday, it won't add to weekends, so add it
+            CASE WHEN EXTRACT(DAYOFWEEK FROM extract_date) = 7 THEN 1 ELSE 0 END
+        ) AS total_weekends_task_created_date,
+               
+    FROM count_total_days_between_date_range
+
+)
+,count_total_holidays_between_date_range AS (
+
+    SELECT
+        * EXCEPT(actual_holiday_date, in_date_range_createddate,in_date_range_task_created_date),
+        COALESCE(SUM(in_date_range_lastactivitydate), 0) AS total_holidays_lastactivitydate,
+        COALESCE(SUM(in_date_range_createddate), 0) AS total_holidays_createddate,
+        COALESCE(SUM(in_date_range_task_created_date), 0) AS total_holidays_task_created_date,
+        
+    FROM (
+        SELECT
+            *,
+            
+            CASE
+                WHEN actual_holiday_date BETWEEN  CAST(lastactivitydate AS DATE) AND extract_date
+                THEN 1
+            END in_date_range_lastactivitydate,
+            CASE
+            WHEN actual_holiday_date BETWEEN  CAST(createddate AS DATE) AND extract_date
+            THEN 1
+            END in_date_range_createddate,
+            CASE
+            WHEN actual_holiday_date BETWEEN  CAST(_task_created_date  AS DATE) AND extract_date
+            THEN 1
+            END in_date_range_task_created_date ,
+           
+        FROM count_total_weekends_between_date_range
+    )
+    GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58
+
+),
+
+calculate_days_in_new_stage AS (
+
+    SELECT
+        *,
+         (total_days_lastactivitydate - total_weekends_lastactivitydate - total_holidays_lastactivitydate) AS net_days_stage_lastactivitydate,
+        (total_days_created_date - total_weekends_createddate - total_holidays_createddate) AS net_days_new_stage_createddate,
+        (total_days_task_created_date - total_weekends_task_created_date - total_holidays_task_created_date) AS net_days_new_stage_task_created_date,
+    FROM count_total_holidays_between_date_range
+
+)
+
+SELECT * FROM calculate_days_in_new_stage;
 
