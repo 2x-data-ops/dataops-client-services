@@ -126,10 +126,11 @@ INSERT INTO `x-marketing.masttro.db_opportunity_aggregate` (
   )
 SELECT 
   *,
-  CASE
-    WHEN _count_opp > 0 THEN SUM(_total_cost) OVER (PARTITION BY _date, _campaignName) / SUM(_count_opp) OVER (PARTITION BY _date, _campaignName)
-    ELSE 0
-  END AS _cost
+  IF(
+    _count_opp > 0,
+    SUM(_total_cost) OVER (PARTITION BY _date, _campaignName) / SUM(_count_opp) OVER (PARTITION BY _date, _campaignName),
+    0
+  ) AS _cost
 FROM combine
 ORDER BY _date DESC;
 
