@@ -56,8 +56,8 @@ WITH prospect_info AS (
             associated_company.properties.numberofemployees.value AS STRING
         ) AS _employees,
         CASE
-            WHEN REGEXP_CONTAINS(properties.lifecyclestage.value, r'[0-9]+') THEN NULL
             WHEN properties.lifecyclestage.value = '' THEN NULL
+            WHEN property_lifecyclestage.value = '65401112' THEN 'Nurture'
             WHEN property_lifecyclestage.value = 'marketingqualifiedlead' THEN 'Marketing Qualified Lead'
             WHEN property_lifecyclestage.value = 'salesqualifiedlead' THEN 'Sales Qualified Lead'
             ELSE INITCAP(CAST(properties.lifecyclestage.value AS STRING))
