@@ -398,6 +398,8 @@ campaign_fields AS (
 
             _campaignid,
             _accountvtr,
+            _linkedincampaignid,
+            -- _segment,
             CASE 
                 WHEN _budget = '-' THEN NULL
                 ELSE SAFE_CAST(REGEXP_REPLACE(_budget, r'[^0-9.-]', '') AS FLOAT64)
@@ -467,6 +469,23 @@ campaign_fields AS (
 
 ),
 
+ads_campaign_combined AS (
+  SELECT ads.*,
+      campaign_fields._linkedincampaignid,
+      -- campaign_fields._campaign_id,
+      campaign_fields._campaign_name,
+      campaign_fields._campaign_type,
+      campaign_fields._campaign_status,
+      campaign_fields._start_date,
+      campaign_fields._end_date,
+      campaign_fields._budget,
+      campaign_fields._newly_engaged_accounts,
+      campaign_fields._increased_engagement_accounts,
+      -- campaign_fields._segment
+  FROM ads
+  JOIN campaign_fields ON ads._campaignid = campaign_fields._campaignid
+),
+
 airtable_fields AS (
 
     SELECT DISTINCT 
@@ -484,39 +503,30 @@ airtable_fields AS (
 combined_data AS (
 
     SELECT
-
-        campaign_fields._campaign_name,
-        campaign_fields._campaign_type,
-        campaign_fields._campaign_status,
-        campaign_fields._start_date,
-        campaign_fields._end_date,
-        campaign_fields._budget,
-        ads.*,
+        ads_campaign_combined.*,
         airtable_fields._adgroup,
         airtable_fields._screenshot,
-        campaign_fields._newly_engaged_accounts,
-        campaign_fields._increased_engagement_accounts
 
     FROM 
-        ads
+        ads_campaign_combined
 
     LEFT JOIN
         airtable_fields 
     ON (
-            ads._adid = airtable_fields._adid
+            ads_campaign_combined._adid = airtable_fields._adid
         AND 
-            ads._campaignid = airtable_fields._campaignid
+            ads_campaign_combined._campaignid = airtable_fields._campaignid
     )
     OR (
             airtable_fields._adid IS NULL
         AND 
-            ads._campaignid = airtable_fields._campaignid
+            ads_campaign_combined._campaignid = airtable_fields._campaignid
     )
 
     LEFT JOIN 
         campaign_fields
     ON 
-        ads._campaignid = campaign_fields._campaignid
+        ads_campaign_combined._campaignid = campaign_fields._campaignid
 
 ),
 
@@ -728,91 +738,6 @@ reduced_campaign_numbers AS (
 )
 
 SELECT * FROM reduced_campaign_numbers;
-
-
--- Insert Linkedin data into ad performance
-INSERT INTO `smartcommnam.db_6sense_ad_performance` (
-_adid,
-_date,
-_spend,
-_clicks,
-_impressions,
-_campaign_type,
-_campaignid,
-_campaign_name,
-_campaign_status,
-_accountctr,
-_accountvtr,
-_start_date,
-_end_date,
-_budget,
-_advariation,
-_adgroup,
-_newly_engaged_accounts,
-_increased_engagement_accounts,
-_target_accounts,
-_reached_accounts,
-_6qa_accounts,
-_occurrence,
-_reduced_newly_engaged_accounts,
-_reduced_increased_engagement_accounts,
-_reduced_target_accounts,
-_reduced_reached_accounts,
-_reduced_6qa_accounts
-)
-WITH
-linkedin_ads AS (
-  SELECT
-    CAST(creative_id AS STRING) AS _adid,
-    CAST(start_at AS DATE) AS _date,
-    SUM(cost_in_usd) AS _spend, 
-    SUM(clicks) AS _clicks, 
-    SUM(impressions) AS _impressions,
-    'Linkedin' AS _campaign_type
-  FROM
-    `smartcomm_linkedin_ads.ad_analytics_by_creative`
-  GROUP BY creative_id, start_at
-),
-creative AS (
-  SELECT
-    SPLIT(SUBSTR(id, STRPOS(id, 'sponsoredCreative:')+18))[ORDINAL(1)] AS cID,
-    CAST(campaign_id AS STRING) AS _campaign_id
-  FROM `smartcomm_linkedin_ads.creatives`
-),
-campaign AS (
-  SELECT
-    name AS _campaign_name,
-    CAST(id AS STRING) AS id,
-    '' AS _campaign_status,
-    CAST(NULL AS FLOAT64) AS _accountctr,
-    CAST(NULL AS STRING) AS _accountvtr,
-    CAST(NULL AS DATE) AS _start_date,
-    CAST(NULL AS DATE) AS _end_date,
-    CAST(NULL AS FLOAT64) AS _budget,
-    '' AS _advariation,
-    '' AS _ad_group,
-    CAST(NULL AS INT64) AS _newly_engaged_accounts,
-    CAST(NULL AS INT64) AS _increased_engagement_accounts,
-    CAST(NULL AS INT64) AS _target_accounts,
-    CAST(NULL AS INT64) AS _reached_accounts,
-    CAST(NULL AS INT64) AS _6qa_accounts,
-    CAST(NULL AS INT64) AS _occurrence,
-    CAST(NULL AS INT64) AS _reduced_newly_engaged_accounts,
-    CAST(NULL AS INT64) AS _reduced_increased_engagement_accounts,
-    CAST(NULL AS INT64) AS _reduced_target_accounts,
-    CAST(NULL AS INT64) AS _reduced_reached_accounts,
-    CAST(NULL AS INT64) AS _reduced_6qa_accounts
-  FROM `smartcomm_linkedin_ads.campaigns`
-)
-SELECT
-  linkedin_ads.*,
-  creative.* EXCEPT(cID),
-  campaign.* EXCEPT (id)
-FROM linkedin_ads
-LEFT JOIN creative
-ON linkedin_ads._adid = creative.cID
-LEFT JOIN campaign
-ON campaign.id = creative._campaign_id;
 
 ----------------------------------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------
@@ -1193,6 +1118,694 @@ reached_accounts AS (
 )
 
 SELECT * FROM reached_accounts;
+
+--------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------
+-----------------------OPPORTUNITY FROM SALESFORCE--------------
+--------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------
+CREATE OR REPLACE TABLE `smartcommnam.opportunity_influenced_accelerated` AS
+
+-- Get account engagements of target account 
+WITH target_account_engagements AS (
+
+    SELECT DISTINCT 
+
+        _6sensecompanyname,
+        _6sensecountry,
+        _6sensedomain, 
+        _6qa_date,
+        _engagement, 
+        ROW_NUMBER() OVER() AS _eng_id,
+        _timestamp AS _eng_timestamp,
+        _description AS _eng_description,
+        -- _campaign_name,
+        _notes AS _eng_notes,
+
+        CASE
+            WHEN _engagement LIKE '%6sense%' THEN '6sense'
+            WHEN _engagement LIKE '%LinkedIn%' THEN 'LinkedIn'
+        END 
+        AS _channel
+
+    FROM 
+        `smartcommnam.db_6sense_engagement_log`
+    -- WHERE _campaign_name != 'Upsert - Replication Q3/4 main'
+    --     AND _campaign_name != "Unify - Global - Q3 '23 Match Tiger & Iceberg - Main"
+
+),
+
+-- Get all generated opportunities
+-- Wont be having the current stage and stage change date in this CTE
+opps_created AS (
+  WITH closedConversionRate AS (
+    SELECT DISTINCT
+      opp.id,
+      isocode,
+      opp.closedate,
+      rate.conversionrate,
+      opp.amount / rate.conversionrate AS converted
+    FROM `x-marketing.smartcomm_salesforce.DatedConversionRate` rate
+    LEFT JOIN `x-marketing.smartcomm_salesforce.Opportunity` opp
+    ON rate.isoCode = opp.currencyisocode
+      AND opp.closedate >= rate.startDate
+      AND opp.closedate < rate.nextStartDate
+    WHERE 
+      opp.isclosed = true
+    -- ORDER BY rate.startDate DESC
+  ),
+  openConversionRate AS (
+    SELECT 
+      * EXCEPT(rownum)
+    FROM (
+      SELECT DISTINCT
+        opp.id,
+        isocode,
+        rate.conversionrate,
+        rate.lastmodifieddate,
+        opp.closedate,
+        -- opp.total_price__c,
+        ROW_NUMBER() OVER(PARTITION BY isocode ORDER BY rate.lastmodifieddate DESC) AS rownum
+      FROM `x-marketing.smartcomm_salesforce.DatedConversionRate` rate
+      LEFT JOIN `x-marketing.smartcomm_salesforce.Opportunity` opp
+      ON opp.currencyisocode = rate.isocode
+      WHERE opp.isclosed = false
+      AND opp.currencyisocode != 'USD'
+    )
+    WHERE rownum = 1
+    ORDER BY isocode 
+  ),
+  opps_main AS (
+
+      SELECT DISTINCT 
+
+          opp.accountid AS _account_id, 
+          act.name AS _account_name,
+          REGEXP_REPLACE(act.website, r'^(https?://)?www\.(.*?)(?:/|$)', r'\2') AS _domain,
+          
+          COALESCE(
+              act.shippingcountry, 
+              act.billingcountry
+          )
+          AS _country,
+          
+          opp.id AS _opp_id,
+          opp.name AS _opp_name,
+          own.name AS _opp_owner_name,
+          opp.type AS _opp_type,
+          DATE(opp.createddate) AS _created_date,
+          DATE(opp.closedate) AS _closed_date,
+          opp.amount AS _amount,
+          opp.currencyisocode,
+          opp.isclosed,
+          opp.region__c AS _region,
+
+          -- For filling up those opps with missing first stage in the opp history
+          opp.stagename AS _current_stage,
+          DATE(opp.laststagechangedate) AS _stage_change_date
+
+      FROM 
+          `smartcomm_salesforce.Opportunity` opp
+      
+      LEFT JOIN
+          `smartcomm_salesforce.Account` act
+      ON 
+          opp.accountid = act.id 
+      
+      LEFT JOIN
+          `smartcomm_salesforce.User` own
+      ON 
+          opp.ownerid = own.id 
+      
+      WHERE 
+          opp.isdeleted = false
+    --no need filtering - get all the the opportunity
+    --   AND 
+    --       opp.createddate >= '2023-01-01'
+
+  )
+  SELECT
+    *
+  FROM (
+    SELECT DISTINCT
+      opps_main.* EXCEPT(_amount),
+      -- Opportunity.opportunityID,
+      -- Opportunity.createddate,
+      -- Opportunity.isclosed,
+      -- Opportunity.currencyisocode,
+      _amount AS original_amount,
+      CASE 
+        WHEN isclosed = true AND currencyisocode != 'USD'
+        THEN (
+          closedConversionRate.conversionRate
+        )
+        WHEN isclosed = false AND currencyisocode != 'USD'
+        THEN (
+          openConversionRate.conversionRate 
+        )
+      END AS conversionRate,
+      CASE 
+        WHEN isclosed = true AND currencyisocode != 'USD'
+        THEN (
+
+          closedConversionRate.converted
+        )
+        WHEN isclosed = false AND currencyisocode != 'USD'
+        THEN (
+          (_amount / openConversionRate.conversionrate) 
+        )
+        ELSE _amount
+      END AS _amount_converted,
+      -- sfdc_activity_casesafeid__c,
+      -- application_specialist__c,
+      -- Event_Status__c,
+      -- Web_Location__c
+    FROM opps_main
+    LEFT JOIN closedConversionRate ON closedConversionRate.id = opps_main._opp_id
+    LEFT JOIN openConversionRate ON openConversionRate.isocode = opps_main.currencyisocode
+  )
+  --no need filtering - get all the the opportunity
+--   WHERE _created_date >= '2023-01-01'
+),
+
+-- Get all historical stages of opp
+-- Perform necessary cleaning of the data
+opps_historical_stage AS (
+
+    SELECT
+
+        main.*,
+        side._previous_stage_prob,
+        side._next_stage_prob
+    
+    FROM (
+
+        SELECT DISTINCT 
+            
+            opportunityid AS _opp_id,
+            createddate AS _historical_stage_change_timestamp,
+            DATE(createddate) AS _historical_stage_change_date,
+            oldvalue AS _previous_stage,
+            newvalue AS _next_stage
+
+        FROM
+            `smartcomm_salesforce.OpportunityFieldHistory` 
+        WHERE
+            field = 'StageName'
+        AND 
+            isdeleted = false
+
+    ) main
+
+    JOIN (
+
+        SELECT DISTINCT 
+
+            opportunityid AS _opp_id,
+            createddate AS _historical_stage_change_timestamp,
+            oldvalue__fl AS _previous_stage_prob,
+            newvalue__fl AS _next_stage_prob,
+
+        FROM
+            `smartcomm_salesforce.OpportunityFieldHistory`
+        WHERE
+            field = 'ForecastProbability__c'
+        AND 
+            isdeleted = false
+
+    ) side
+
+    USING (
+        _opp_id,
+        _historical_stage_change_timestamp
+    )
+
+),
+
+-- There are several stages that can occur on the same day
+-- Get unique stage on each day 
+unique_opps_historical_stage AS (
+
+    SELECT
+        * EXCEPT(_rownum),
+
+        -- Setting the rank of the historical stage based on stage change date
+        ROW_NUMBER() OVER(
+
+            PARTITION BY  
+                _opp_id
+            ORDER BY 
+                _historical_stage_change_date DESC
+
+        )
+        AS _stage_rank
+
+    FROM (
+
+        SELECT
+            *,
+            
+            -- Those on same day are differentiated by timestamp
+            ROW_NUMBER() OVER(
+
+                PARTITION BY  
+                    _opp_id,
+                    _historical_stage_change_date
+                ORDER BY 
+                    _historical_stage_change_timestamp DESC
+
+            )
+            AS _rownum
+
+        FROM 
+            opps_historical_stage
+
+    )
+    WHERE
+        _rownum = 1
+
+),
+
+-- Generate a log to store stage history from latest to earliest
+get_aggregated_stage_history_text AS (
+
+    SELECT
+        *,
+
+        STRING_AGG( 
+            CONCAT(
+                '[ ', _historical_stage_change_date, ' ]',
+                ' : ', _next_stage
+            ),
+            '; '
+        ) 
+        OVER(
+            
+            PARTITION BY 
+                _opp_id
+            ORDER BY 
+                _stage_rank
+
+        )
+        AS _stage_history
+
+    FROM 
+        unique_opps_historical_stage
+
+),
+
+-- Obtain the current stage and the stage date in this CTE 
+get_current_stage_and_date AS (
+
+    SELECT
+        *,
+
+        CASE 
+            WHEN _stage_rank = 1 THEN _historical_stage_change_date
+        END  
+        AS _stage_change_date,
+
+        CASE 
+            WHEN _stage_rank = 1 THEN _next_stage
+        END  
+        AS _current_stage
+
+    FROM 
+        get_aggregated_stage_history_text
+
+),
+
+-- Add the stage related fields to the opps data
+opps_history AS (
+
+    SELECT
+
+        -- Remove the current stage from the opp created CTE
+        main.* EXCEPT(_current_stage, _stage_change_date),
+        
+        -- Fill the current stage and date for an opp
+        -- Will be the same in each row of an opp
+        -- If no stage and date, get the stage and date from the opp created CTE
+        COALESCE(
+            main._stage_change_date,
+            MAX(side._stage_change_date) OVER (PARTITION BY side._opp_id),
+            main._created_date
+        )
+        AS _stage_change_date,
+        
+        COALESCE(
+            MAX(side._current_stage) OVER (PARTITION BY side._opp_id),
+            main._current_stage
+        )
+        AS _current_stage,
+
+        -- Set the stage history to aid crosscheck
+        MAX(side._stage_history) OVER (PARTITION BY side._opp_id) AS _stage_history,
+
+        -- The stage and date fields here represent those of each historical stage
+        -- Will be different in each row of an opp
+        side._historical_stage_change_date,
+        side._next_stage AS _historical_stage,
+
+        -- Set the stage movement 
+        CASE
+            WHEN side._previous_stage_prob > side._next_stage_prob
+            THEN 'Downward' 
+            ELSE 'Upward'
+        END 
+        AS _stage_movement
+
+    FROM
+        opps_created AS main
+
+    LEFT JOIN 
+        get_current_stage_and_date AS side
+
+    ON 
+        main._opp_id = side._opp_id
+
+),
+
+-- Tie opportunities with stage history and account engagements
+combined_data AS (
+
+    SELECT
+
+        opp.*,
+        act.*,
+
+        CASE
+            WHEN act._engagement IS NOT NULL
+            THEN true 
+        END 
+        AS _is_matched_opp
+
+    FROM 
+        opps_history AS opp
+
+    LEFT JOIN 
+        target_account_engagements AS act
+        
+       ON (
+            opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
+            -- opp._domain = act._6sensedomain
+        AND 
+            LENGTH(opp._domain) > 1
+        AND 
+            LENGTH(act._6sensedomain) > 1
+    )
+        
+    OR (
+            opp._domain LIKE CONCAT('%', act._6sensedomain, '%')
+            -- opp._domain = act._6sensedomain
+        AND    
+            LOWER(opp._account_name) = LOWER(act._6sensecompanyname)
+        AND 
+            LENGTH(opp._account_name) > 1
+        AND 
+            LENGTH(act._6sensecompanyname) > 1
+    )
+
+        OR 
+    (
+        LOWER(opp._account_name) = LOWER(act._6sensecompanyname)
+        AND 
+            LENGTH(opp._account_name) > 1
+        AND 
+            LENGTH(act._6sensecompanyname) > 1
+    )
+        
+),
+
+-- Label the activty that influenced the opportunity
+set_influencing_activity AS (
+
+    SELECT
+
+        *,
+
+        CASE 
+            WHEN 
+                DATE(_eng_timestamp) 
+                    BETWEEN 
+                        DATE_SUB(_created_date, INTERVAL 90 DAY) 
+                    AND 
+                        DATE(_created_date)
+                -- AND 
+                --     REGEXP_CONTAINS(
+                --         _engagement, 
+                --         '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
+                --     )                     
+            THEN true 
+        END 
+        AS _is_influencing_activity
+
+    FROM 
+        combined_data
+
+),
+
+-- Mark every other rows of the opportunity as influenced 
+-- If there is at least one influencing activity
+label_influenced_opportunity AS (
+    
+    SELECT
+
+        *,
+
+        MAX(_is_influencing_activity) OVER(
+            PARTITION BY _opp_id
+        )
+        AS _is_influenced_opp
+
+    FROM 
+        set_influencing_activity
+
+),
+
+-- Label the activty that accelerated the opportunity
+set_accelerating_activity AS (
+
+    SELECT 
+
+        *,
+        
+        CASE 
+            WHEN 
+                _is_influenced_opp IS NULL
+            AND 
+                _eng_timestamp > _created_date 
+            AND 
+                _eng_timestamp <= _historical_stage_change_date
+            AND 
+                _stage_movement = 'Upward'
+            -- AND 
+            --     REGEXP_CONTAINS(
+            --         _engagement, 
+            --         '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
+            --     )
+
+            THEN true
+        END 
+        AS _is_accelerating_activity
+
+    FROM
+        label_influenced_opportunity
+
+),
+
+-- Mark every other rows of the opportunity as accelerated 
+-- If there is at least one accelerating activity
+label_accelerated_opportunity AS (
+    
+    SELECT
+    
+        *,
+
+        MAX(_is_accelerating_activity) OVER(
+            PARTITION BY _opp_id
+        )
+        AS _is_accelerated_opp
+
+    FROM 
+        set_accelerating_activity
+
+),
+
+-- Label the activty that accelerated an influenced opportunity
+set_accelerating_activity_for_influenced_opportunity AS (
+
+    SELECT 
+
+        *,
+        
+        CASE 
+            WHEN 
+                _is_influenced_opp IS NOT NULL
+            AND 
+                _eng_timestamp > _created_date 
+            AND 
+                _eng_timestamp <= _historical_stage_change_date
+            AND 
+                _stage_movement = 'Upward'
+            -- AND 
+            --     REGEXP_CONTAINS(
+            --         _engagement, 
+            --         '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
+            --     )
+            THEN true
+        END 
+        AS _is_later_accelerating_activity
+
+    FROM
+        label_accelerated_opportunity
+
+),
+
+-- Mark every other rows of the opportunity as infuenced cum accelerated 
+-- If there is at least one accelerating activity for the incluenced opp
+label_influenced_opportunity_that_continue_to_accelerate AS (
+    
+    SELECT
+    
+        *,
+
+        MAX(_is_later_accelerating_activity) OVER(
+            PARTITION BY _opp_id
+        )
+        AS _is_later_accelerated_opp
+
+    FROM 
+        set_accelerating_activity_for_influenced_opportunity
+
+),
+
+-- Mark opportunities that were matched but werent influenced or accelerated or influenced cum accelerated as stagnant 
+label_stagnant_opportunity AS (
+
+    SELECT
+        *,
+
+        CASE
+            WHEN 
+                _is_matched_opp = true 
+            AND 
+                _is_influenced_opp IS NULL 
+            AND 
+                _is_accelerated_opp IS NULL 
+            AND 
+                _is_later_accelerated_opp IS NULL
+            THEN
+                true 
+        END 
+        AS _is_stagnant_opp
+
+    FROM 
+        label_influenced_opportunity_that_continue_to_accelerate
+
+),
+
+
+-- Get the latest stage of each opportunity 
+-- While carrying forward all its boolean fields' value caused by its historical changes 
+latest_stage_opportunity_only AS (
+
+    SELECT
+        * EXCEPT(_rownum)
+    FROM (
+
+        SELECT DISTINCT
+
+            -- Remove fields that are unique for each historical stage of opp
+            * EXCEPT(
+                _historical_stage_change_date,
+                _historical_stage,
+                _stage_movement
+            ),
+
+            -- For removing those with values in the activity boolean fields
+            -- Different historical stages may have caused the influencing or accelerating
+            -- This is unlike the opportunity boolean that is uniform among the all historical stage of opp 
+            ROW_NUMBER() OVER(
+                PARTITION BY 
+                    _opp_id,
+                    _eng_id
+                ORDER BY 
+                    _is_influencing_activity DESC,
+                    _is_accelerating_activity DESC,
+                    _is_later_accelerating_activity DESC
+            )
+            AS _rownum
+
+        FROM 
+            label_stagnant_opportunity
+    
+    )
+    WHERE _rownum = 1
+
+)
+
+SELECT * FROM latest_stage_opportunity_only;
+
+
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+
+-- Opportunity Influenced + Accelerated Without Engagements
+
+CREATE OR REPLACE TABLE `smartcommnam.opportunity_summarized` AS
+
+-- Opportunity information are duplicated by channel field which has ties to engagement
+-- The influencing and accelerating boolean fields together with the channel are unique
+-- Remove the duplicate channels and prioritize the channels with boolean values
+    SELECT DISTINCT
+      _account_id,
+      _account_name,
+      _country,
+      _domain,
+      _6qa_date,
+      _opp_id,
+      _opp_name,
+      _opp_owner_name,
+      _opp_type,
+      _created_date,
+      _closed_date,
+      _amount_converted,
+      _region,
+      _stage_change_date,
+      _current_stage,
+      _stage_history,
+      _6sensecompanyname,
+      _6sensecountry,
+      _6sensedomain,
+      -- _campaign_name,
+      _is_matched_opp,
+      _is_influenced_opp,
+      MAX(_is_influencing_activity) OVER(
+          PARTITION BY 
+              _opp_id,
+              _channel
+      )
+      AS _is_influencing_activity,
+      _is_accelerated_opp,
+      MAX(_is_accelerating_activity) OVER(
+          PARTITION BY 
+              _opp_id,
+              _channel
+      )
+      AS _is_accelerating_activity,
+      _is_later_accelerated_opp,
+      MAX(_is_later_accelerating_activity) OVER(
+          PARTITION BY 
+              _opp_id,
+              _channel
+      )
+      AS _is_later_accelerating_activity,
+      _is_stagnant_opp,
+      _channel
+  FROM 
+      `smartcommnam.opportunity_influenced_accelerated`;
 
 ----------------------------------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------
