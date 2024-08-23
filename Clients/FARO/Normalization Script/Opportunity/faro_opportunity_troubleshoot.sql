@@ -45,12 +45,13 @@ INSERT INTO `faro.opportunity_raw` (
   _createdBy, 
   _createdByTitle, 
   _lastModifiedDate,
-  contactID,
+  _contactID,
   applicationSpecialist,
   actualOwner,
   opportunityName,
   marketSegment,
   accountType,
+  _workflow,
   original_amount,
   conversionRate, 
   total_price, 
@@ -142,7 +143,8 @@ Opportunity AS (
     opp.actual_owner__c AS actualOwner,
     opp.name AS opportunityName,
     opp.market_segment_read_only__c AS marketSegment,
-    acc.type AS accountType
+    acc.type AS accountType,
+    opp.workflow__c AS _workflow
     -- createddate,
     -- lastactivitydate,
     -- event.sfdc_activity_casesafeid__c,
@@ -252,14 +254,17 @@ WITH event_raw AS(
     event.country__c AS country,
     event.state_region__c AS region,
     event.event_status__c AS eventStatus,
-    event.opportunity__c AS opportunityID,
+    event.opp_id__c AS opportunityID,
     event.created_by_role__c AS roleCreatedBy,
     event.subject AS subject,
     event.division_region__c,
     event.vertical__c,
     event.lastmodifieddate,
-    event.accountid,
-    event.contact_id__c
+    event.accountid AS accountID,
+    event.contact_id__c AS contactID,
+    event.ownerid AS _owner_id,
+    event.ischild AS _is_child,
+    event.isgroupevent AS _is_group_event
   FROM `x-marketing.faro_salesforce.Event` event
   WHERE isdeleted IS false
 ),
@@ -272,8 +277,11 @@ event_relation AS (
 ),
 user AS (
   SELECT
-    id,
-    name
+    id AS _user_id,
+    name,
+    username AS _username,
+    manager__c AS _manager_c,
+    workday_position__c AS _workday_position_c
   FROM `x-marketing.faro_salesforce.User` 
 ),
 id_name AS (
@@ -296,14 +304,15 @@ id_name AS (
   ON cont.sfdc_lead_id__c = leads.id
 )
 SELECT 
-  event_raw.*,
+  event_raw.* EXCEPT(opportunityID),
   user.name AS createdByName,
+  user.* EXCEPT(name),
   event_relation.isinvitee,
-  id_name.* EXCEPT(opportunity_id)
+  id_name.*
 FROM event_raw
-LEFT JOIN user ON event_raw.createdbyid = user.id
+LEFT JOIN user ON event_raw.createdbyid = user._user_id
 LEFT JOIN event_relation ON event_relation.eventid = event_raw.sfdc_activity_casesafeid__c
-LEFT JOIN id_name ON event_raw.opportunityID = id_name.opportunity_id
+LEFT JOIN id_name ON event_raw.opportunityID = LEFT(id_name.opportunity_id, 15)
 WHERE 
 -- EXTRACT(YEAR FROM createddate) >= 2022
 -- AND 
