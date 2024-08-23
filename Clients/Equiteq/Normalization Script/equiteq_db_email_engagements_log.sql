@@ -106,7 +106,7 @@ shared_fields AS (
         ON activity.emailcampaignid = campaign.id
     AND campaign.name IS NOT NULL
 ),
-Dropped AS (
+dropped AS (
     SELECT *
     EXCEPT(_type, id, _filteredevent),
         'Dropped' AS _engagement,
@@ -118,7 +118,7 @@ Dropped AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-Deferred AS (
+deferred AS (
     SELECT *
     EXCEPT(_type, id, _filteredevent),
         'Deferred' AS _engagement,
@@ -130,7 +130,7 @@ Deferred AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-Suppressed AS (
+suppressed AS (
     SELECT *
     EXCEPT(_type, id, _filteredevent),
         'Suppressed' AS _engagement,
@@ -142,7 +142,7 @@ Suppressed AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-Opened AS (
+opened AS (
     SELECT *
     EXCEPT(_type, id, _filteredevent),
         'Opened' AS _engagement,
@@ -155,7 +155,7 @@ Opened AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-Clicked AS (
+clicked AS (
     SELECT *
     EXCEPT(_type, id, _filteredevent),
         'Clicked' AS _engagement,
@@ -168,7 +168,7 @@ Clicked AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-Unsubscribed AS (
+unsubscribed AS (
     SELECT 
         shared_fields.*
     EXCEPT(_type, id, _filteredevent),
@@ -202,7 +202,7 @@ form_filled AS (
     JOIN `x-marketing.equiteq_hubspot.forms` forms 
         ON form.value.form_id = forms.guid
 ),
-Downloaded AS (
+downloaded AS (
     SELECT 
         activity._sdc_sequence,
         activity.email AS _email,
@@ -224,7 +224,7 @@ Downloaded AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-SoftBounced AS (
+softbounced AS (
     SELECT *
     EXCEPT(_type, id, _filteredevent),
         'Soft Bounced' AS _engagement,
@@ -236,7 +236,7 @@ SoftBounced AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-HardBounced AS (
+hardbounced AS (
     SELECT 
         shared_fields.*
     EXCEPT(_type, id, _filteredevent),
@@ -252,7 +252,7 @@ HardBounced AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-Sent AS (
+sent AS (
     SELECT *
     EXCEPT(_type, id, _filteredevent),
         'Sent' AS _engagement,
@@ -264,7 +264,7 @@ Sent AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-Delivered AS (
+delivered AS (
     SELECT *
     EXCEPT(_type, id, _filteredevent),
         'Delivered' AS _engagement,
@@ -276,91 +276,89 @@ Delivered AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-Sent_Filtered AS (
+sent_filtered AS (
     SELECT
-        Sent.*
-    FROM Sent
-    LEFT JOIN Dropped 
-        ON Sent._email = Dropped._email
-        AND Sent._campaignID = Dropped._campaignID
-    WHERE Dropped._email IS NULL
+        sent.*
+    FROM sent
+    LEFT JOIN dropped 
+        ON sent._email = dropped._email
+        AND sent._campaignID = dropped._campaignID
+    WHERE dropped._email IS NULL
 ),
-Delivered_Filtered AS (
+delivered_filtered AS (
     SELECT
-        Delivered.*
-    FROM Delivered
-    LEFT JOIN HardBounced
-        ON Delivered._email = HardBounced._email
-        AND Delivered._campaignID = HardBounced._campaignID
-    LEFT JOIN Dropped 
-        ON Delivered._email = Dropped._email
-        AND Delivered._campaignID = Dropped._campaignID
-    WHERE HardBounced._email IS NULL
-        AND Dropped._email IS NULL
+        delivered.*
+    FROM delivered
+    LEFT JOIN hardbounced
+        ON delivered._email = hardbounced._email
+        AND delivered._campaignID = hardbounced._campaignID
+    LEFT JOIN dropped 
+        ON delivered._email = dropped._email
+        AND delivered._campaignID = dropped._campaignID
+    WHERE hardbounced._email IS NULL
+        AND dropped._email IS NULL
 ),
-SoftBounced_Filtered AS (
+softbounced_filtered AS (
     SELECT
-        SoftBounced.*
-    FROM SoftBounced
-    LEFT JOIN HardBounced
-        ON SoftBounced._email = HardBounced._email
-        AND SoftBounced._campaignID = HardBounced._campaignID
-    LEFT JOIN Delivered
-        ON SoftBounced._email = Delivered._email
-        AND SoftBounced._campaignID = Delivered._campaignID
-    WHERE HardBounced._email IS NULL
-        AND Delivered._email IS NULL
+        softbounced.*
+    FROM softbounced
+    LEFT JOIN hardbounced
+        ON softbounced._email = hardbounced._email
+        AND softbounced._campaignID = hardbounced._campaignID
+    LEFT JOIN delivered
+        ON softbounced._email = delivered._email
+        AND softbounced._campaignID = delivered._campaignID
+    WHERE hardbounced._email IS NULL
+        AND delivered._email IS NULL
 ),
-HardBounced_Filtered AS (
+hardbounced_filtered AS (
     SELECT 
-        HardBounced.*
-    FROM HardBounced
-    JOIN SoftBounced 
-        ON HardBounced._email = SoftBounced._email
-        AND HardBounced._campaignID = SoftBounced._campaignID
+        hardbounced.*
+    FROM hardbounced
+    JOIN softbounced 
+        ON hardbounced._email = softbounced._email
+        AND hardbounced._campaignID = softbounced._campaignID
 ),
 engagements AS (
     SELECT *
-    FROM Sent_Filtered
+    FROM sent_filtered
     UNION ALL
     SELECT *
-    FROM Dropped
+    FROM dropped
     UNION ALL
     SELECT *
-    FROM Deferred
+    FROM deferred
     UNION ALL
     SELECT *
-    FROM Suppressed
+    FROM suppressed
     UNION ALL
     SELECT *
-    FROM Delivered_Filtered
+    FROM delivered_filtered
     UNION ALL
     SELECT *
-    FROM Opened
+    FROM opened
     UNION ALL
     SELECT *
-    FROM Clicked
+    FROM clicked
     UNION ALL
     SELECT *
-    FROM Unsubscribed
+    FROM unsubscribed
     UNION ALL
     SELECT *
-    FROM HardBounced_Filtered
+    FROM hardbounced_filtered
     UNION ALL
     SELECT *
-    FROM SoftBounced_Filtered
+    FROM softbounced_filtered
     UNION ALL
     SELECT *
-    FROM Downloaded
+    FROM downloaded
 )
 SELECT 
     engagements.*,
-    prospect_info.*
-EXCEPT (_email),
-    airtable_info.*
-EXCEPT (_campaignID),
-    FROM engagements
-    LEFT JOIN prospect_info 
-        ON engagements._email = prospect_info._email
-    JOIN airtable_info 
-        ON engagements._campaignid = CAST(airtable_info._campaignID AS STRING);
+    prospect_info.* EXCEPT (_email),
+    airtable_info.* EXCEPT (_campaignID),
+FROM engagements
+LEFT JOIN prospect_info 
+    ON engagements._email = prospect_info._email
+JOIN airtable_info 
+    ON engagements._campaignid = CAST(airtable_info._campaignID AS STRING);
