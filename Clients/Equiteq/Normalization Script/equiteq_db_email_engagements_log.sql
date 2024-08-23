@@ -100,6 +100,7 @@ shared_fields AS (
         CAST(activity.duration AS STRING) AS _duration,
         activity.response AS _response,
         activity.type AS _type,
+        activity.filteredevent AS _filteredevent
     FROM `x-marketing.equiteq_hubspot.email_events` activity
     JOIN `x-marketing.equiteq_hubspot.campaigns` campaign 
         ON activity.emailcampaignid = campaign.id
@@ -107,7 +108,7 @@ shared_fields AS (
 ),
 Dropped AS (
     SELECT *
-    EXCEPT(_type, id),
+    EXCEPT(_type, id, _filteredevent),
         'Dropped' AS _engagement,
     FROM shared_fields
     WHERE _type = 'DROPPED' 
@@ -119,7 +120,7 @@ Dropped AS (
 ),
 Deferred AS (
     SELECT *
-    EXCEPT(_type, id),
+    EXCEPT(_type, id, _filteredevent),
         'Deferred' AS _engagement,
     FROM shared_fields
     WHERE _type = 'DEFERRED' 
@@ -131,7 +132,7 @@ Deferred AS (
 ),
 Suppressed AS (
     SELECT *
-    EXCEPT(_type, id),
+    EXCEPT(_type, id, _filteredevent),
         'Suppressed' AS _engagement,
     FROM shared_fields
     WHERE _type = 'SUPPRESSED' 
@@ -143,10 +144,11 @@ Suppressed AS (
 ),
 Opened AS (
     SELECT *
-    EXCEPT(_type, id),
+    EXCEPT(_type, id, _filteredevent),
         'Opened' AS _engagement,
     FROM shared_fields
     WHERE _type = 'OPEN' 
+        AND _filteredevent = FALSE
     QUALIFY ROW_NUMBER() OVER (
         PARTITION BY _email,
         _campaignName
@@ -155,10 +157,11 @@ Opened AS (
 ),
 Clicked AS (
     SELECT *
-    EXCEPT(_type, id),
+    EXCEPT(_type, id, _filteredevent),
         'Clicked' AS _engagement,
-    FROM shared_fields
+        FROM shared_fields
     WHERE _type = 'CLICK' 
+        AND _filteredevent = FALSE
     QUALIFY ROW_NUMBER() OVER (
         PARTITION BY _email,
         _campaignName
@@ -168,7 +171,7 @@ Clicked AS (
 Unsubscribed AS (
     SELECT 
         shared_fields.*
-    EXCEPT(_type, id),
+    EXCEPT(_type, id, _filteredevent),
         'Unsubscribed' AS _engagement,
     FROM `x-marketing.equiteq_hubspot.subscription_changes`,
         UNNEST(changes) AS status
@@ -223,7 +226,7 @@ Downloaded AS (
 ),
 SoftBounced AS (
     SELECT *
-    EXCEPT(_type, id),
+    EXCEPT(_type, id, _filteredevent),
         'Soft Bounced' AS _engagement,
     FROM shared_fields
     WHERE _type = 'BOUNCE' 
@@ -233,10 +236,10 @@ SoftBounced AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-subs_change_bounce AS (
+HardBounced AS (
     SELECT 
         shared_fields.*
-    EXCEPT(_type, id),
+    EXCEPT(_type, id, _filteredevent),
         'Hard Bounced' AS _engagement
     FROM `x-marketing.equiteq_hubspot.subscription_changes`,
         UNNEST(changes) AS status
@@ -249,17 +252,9 @@ subs_change_bounce AS (
         ORDER BY _timestamp DESC
     ) = 1
 ),
-HardBounced AS (
-    SELECT 
-        subs_change_bounce.*
-    FROM subs_change_bounce
-    JOIN SoftBounced 
-        ON subs_change_bounce._email = SoftBounced._email
-        AND subs_change_bounce._campaignID = SoftBounced._campaignID
-),
 Sent AS (
     SELECT *
-    EXCEPT(_type, id),
+    EXCEPT(_type, id, _filteredevent),
         'Sent' AS _engagement,
     FROM shared_fields
     WHERE _type = 'SENT' 
@@ -271,19 +266,62 @@ Sent AS (
 ),
 Delivered AS (
     SELECT *
-    EXCEPT(_type, id),
+    EXCEPT(_type, id, _filteredevent),
         'Delivered' AS _engagement,
     FROM shared_fields
-    WHERE _type = 'DELIVERED' 
+    WHERE _type = 'DELIVERED'
     QUALIFY ROW_NUMBER() OVER (
         PARTITION BY _email,
         _campaignName
         ORDER BY _timestamp DESC
     ) = 1
 ),
+Sent_Filtered AS (
+    SELECT
+        Sent.*
+    FROM Sent
+    LEFT JOIN Dropped 
+        ON Sent._email = Dropped._email
+        AND Sent._campaignID = Dropped._campaignID
+    WHERE Dropped._email IS NULL
+),
+Delivered_Filtered AS (
+    SELECT
+        Delivered.*
+    FROM Delivered
+    LEFT JOIN HardBounced
+        ON Delivered._email = HardBounced._email
+        AND Delivered._campaignID = HardBounced._campaignID
+    LEFT JOIN Dropped 
+        ON Delivered._email = Dropped._email
+        AND Delivered._campaignID = Dropped._campaignID
+    WHERE HardBounced._email IS NULL
+        AND Dropped._email IS NULL
+),
+SoftBounced_Filtered AS (
+    SELECT
+        SoftBounced.*
+    FROM SoftBounced
+    LEFT JOIN HardBounced
+        ON SoftBounced._email = HardBounced._email
+        AND SoftBounced._campaignID = HardBounced._campaignID
+    LEFT JOIN Delivered
+        ON SoftBounced._email = Delivered._email
+        AND SoftBounced._campaignID = Delivered._campaignID
+    WHERE HardBounced._email IS NULL
+        AND Delivered._email IS NULL
+),
+HardBounced_Filtered AS (
+    SELECT 
+        HardBounced.*
+    FROM HardBounced
+    JOIN SoftBounced 
+        ON HardBounced._email = SoftBounced._email
+        AND HardBounced._campaignID = SoftBounced._campaignID
+),
 engagements AS (
     SELECT *
-    FROM Sent
+    FROM Sent_Filtered
     UNION ALL
     SELECT *
     FROM Dropped
@@ -295,7 +333,7 @@ engagements AS (
     FROM Suppressed
     UNION ALL
     SELECT *
-    FROM Delivered
+    FROM Delivered_Filtered
     UNION ALL
     SELECT *
     FROM Opened
@@ -307,10 +345,10 @@ engagements AS (
     FROM Unsubscribed
     UNION ALL
     SELECT *
-    FROM HardBounced
+    FROM HardBounced_Filtered
     UNION ALL
     SELECT *
-    FROM SoftBounced
+    FROM SoftBounced_Filtered
     UNION ALL
     SELECT *
     FROM Downloaded
