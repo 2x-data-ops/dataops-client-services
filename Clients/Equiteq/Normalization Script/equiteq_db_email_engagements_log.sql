@@ -104,7 +104,7 @@ shared_fields AS (
     FROM `x-marketing.equiteq_hubspot.email_events` activity
     JOIN `x-marketing.equiteq_hubspot.campaigns` campaign 
         ON activity.emailcampaignid = campaign.id
-    AND campaign.name IS NOT NULL
+        AND campaign.name IS NOT NULL
 ),
 dropped AS (
     SELECT *
@@ -148,7 +148,7 @@ opened AS (
         'Opened' AS _engagement,
     FROM shared_fields
     WHERE _type = 'OPEN' 
-        AND _filteredevent = FALSE
+      AND _filteredevent = FALSE
     QUALIFY ROW_NUMBER() OVER (
         PARTITION BY _email,
         _campaignName
@@ -161,7 +161,7 @@ clicked AS (
         'Clicked' AS _engagement,
         FROM shared_fields
     WHERE _type = 'CLICK' 
-        AND _filteredevent = FALSE
+      AND _filteredevent = FALSE
     QUALIFY ROW_NUMBER() OVER (
         PARTITION BY _email,
         _campaignName
@@ -178,7 +178,7 @@ unsubscribed AS (
     JOIN shared_fields 
         ON status.value.causedbyevent.id = shared_fields.id
     WHERE _type = 'STATUSCHANGE'
-        AND status.value.change = 'UNSUBSCRIBED' 
+      AND status.value.change = 'UNSUBSCRIBED' 
     QUALIFY ROW_NUMBER() OVER (
         PARTITION BY _email,
         _campaignName
@@ -296,7 +296,7 @@ delivered_filtered AS (
         ON delivered._email = dropped._email
         AND delivered._campaignID = dropped._campaignID
     WHERE hardbounced._email IS NULL
-        AND dropped._email IS NULL
+      AND dropped._email IS NULL
 ),
 softbounced_filtered AS (
     SELECT
@@ -309,7 +309,7 @@ softbounced_filtered AS (
         ON softbounced._email = delivered._email
         AND softbounced._campaignID = delivered._campaignID
     WHERE hardbounced._email IS NULL
-        AND delivered._email IS NULL
+      AND delivered._email IS NULL
 ),
 hardbounced_filtered AS (
     SELECT 
