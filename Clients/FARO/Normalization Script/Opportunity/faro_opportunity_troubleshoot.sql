@@ -45,12 +45,13 @@ INSERT INTO `faro.opportunity_raw` (
   _createdBy, 
   _createdByTitle, 
   _lastModifiedDate,
-  contactID,
+  _contactID,
   applicationSpecialist,
   actualOwner,
   opportunityName,
   marketSegment,
   accountType,
+  _workflow,
   original_amount,
   conversionRate, 
   total_price, 
@@ -66,7 +67,7 @@ WITH closedConversionRate AS (
     opp.amount / rate.conversionrate AS total_price_USD
   FROM `x-marketing.faro_salesforce.DatedConversionRate` rate
   LEFT JOIN `x-marketing.faro_salesforce.Opportunity` opp
-  ON rate.isoCode = opp.currencyisocode
+    ON rate.isoCode = opp.currencyisocode
     AND opp.closedate >= rate.startDate
     AND opp.closedate < rate.nextStartDate
   WHERE 
@@ -74,25 +75,18 @@ WITH closedConversionRate AS (
   -- ORDER BY rate.startDate DESC
 ),
 openConversionRate AS (
-  SELECT 
-    * EXCEPT(rownum)
-  FROM (
-    SELECT DISTINCT
-      opp.id,
-      isocode,
-      rate.conversionrate,
-      rate.lastmodifieddate,
-      opp.closedate,
-      -- opp.total_price__c,
-      ROW_NUMBER() OVER(PARTITION BY isocode ORDER BY rate.lastmodifieddate DESC) AS rownum
-    FROM `x-marketing.faro_salesforce.DatedConversionRate` rate
-    LEFT JOIN `x-marketing.faro_salesforce.Opportunity` opp
+  SELECT DISTINCT
+    opp.id,
+    isocode,
+    rate.conversionrate,
+    rate.lastmodifieddate,
+    opp.closedate
+  FROM `x-marketing.faro_salesforce.DatedConversionRate` rate
+  LEFT JOIN `x-marketing.faro_salesforce.Opportunity` opp
     ON opp.currencyisocode = rate.isocode
-    WHERE opp.isclosed = false
+  WHERE opp.isclosed = false
     AND opp.currencyisocode != 'USD'
-  )
-  WHERE rownum = 1
-  ORDER BY isocode 
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY isocode ORDER BY rate.lastmodifieddate DESC) = 1
 ),
 Opportunity AS (
   SELECT DISTINCT
@@ -142,7 +136,8 @@ Opportunity AS (
     opp.actual_owner__c AS actualOwner,
     opp.name AS opportunityName,
     opp.market_segment_read_only__c AS marketSegment,
-    acc.type AS accountType
+    acc.type AS accountType,
+    opp.workflow__c AS _workflow
     -- createddate,
     -- lastactivitydate,
     -- event.sfdc_activity_casesafeid__c,
@@ -151,11 +146,11 @@ Opportunity AS (
     -- event.Web_Location__c
   FROM `x-marketing.faro_salesforce.Opportunity` opp
   LEFT JOIN `x-marketing.faro_salesforce.Account` acc 
-  ON acc.id = opp.accountid
+    ON acc.id = opp.accountid
   LEFT JOIN `x-marketing.faro_salesforce.User` user 
-  ON user.id = opp.createdbyid
+    ON user.id = opp.createdbyid
   LEFT JOIN `x-marketing.faro_salesforce.Campaign` campaign
-  ON campaign.id = opp.campaignid
+    ON campaign.id = opp.campaignid
   -- LEFT JOIN `x-marketing.faro_salesforce.Event` event
   -- ON event.createdbyid = user.id
   WHERE opp.isdeleted = false
@@ -202,8 +197,10 @@ FROM (
     -- Event_Status__c,
     -- Web_Location__c
   FROM Opportunity
-  LEFT JOIN closedConversionRate ON closedConversionRate.id = Opportunity.opportunityID
-  LEFT JOIN openConversionRate ON openConversionRate.isocode = Opportunity.currencyisocode
+  LEFT JOIN closedConversionRate 
+    ON closedConversionRate.id = Opportunity.opportunityID
+  LEFT JOIN openConversionRate 
+    ON openConversionRate.isocode = Opportunity.currencyisocode
 );
 -- WHERE EXTRACT(YEAR FROM createddate) >= 2022;
 -- AND opportunityID = '0063p000010tU94AAE'
@@ -252,14 +249,17 @@ WITH event_raw AS(
     event.country__c AS country,
     event.state_region__c AS region,
     event.event_status__c AS eventStatus,
-    event.opportunity__c AS opportunityID,
+    event.opp_id__c AS opportunityID,
     event.created_by_role__c AS roleCreatedBy,
     event.subject AS subject,
     event.division_region__c,
     event.vertical__c,
     event.lastmodifieddate,
-    event.accountid,
-    event.contact_id__c
+    event.accountid AS accountID,
+    event.contact_id__c AS contactID,
+    event.ownerid AS _owner_id,
+    event.ischild AS _is_child,
+    event.isgroupevent AS _is_group_event
   FROM `x-marketing.faro_salesforce.Event` event
   WHERE isdeleted IS false
 ),
@@ -268,12 +268,16 @@ event_relation AS (
     eventid,
     isinvitee
   FROM `x-marketing.faro_salesforce.EventRelation` e
-  JOIN `x-marketing.faro_salesforce.Contact` c ON e.relationid = c.id 
+  JOIN `x-marketing.faro_salesforce.Contact` c 
+    ON e.relationid = c.id 
 ),
 user AS (
   SELECT
-    id,
-    name
+    id AS _user_id,
+    name,
+    username AS _username,
+    manager__c AS _manager_c,
+    workday_position__c AS _workday_position_c
   FROM `x-marketing.faro_salesforce.User` 
 ),
 id_name AS (
@@ -289,21 +293,33 @@ id_name AS (
     cont.mailingcountry
   FROM `x-marketing.faro_salesforce.Opportunity` opp
   LEFT JOIN `x-marketing.faro_salesforce.Contact` cont
-  ON opp.contact__c = cont.id
+    ON opp.contact__c = cont.id
   LEFT JOIN `x-marketing.faro_salesforce.Account` acc
-  ON opp.accountid = acc.id
+    ON opp.accountid = acc.id
   LEFT JOIN `x-marketing.faro_salesforce.Lead` leads
-  ON cont.sfdc_lead_id__c = leads.id
+    ON cont.sfdc_lead_id__c = leads.id
 )
 SELECT 
-  event_raw.*,
-  user.name AS createdByName,
+  event_raw.* EXCEPT(opportunityID),
+  CASE 
+    WHEN event_raw.createdbyid = user._user_id
+    THEN user.name 
+  END AS createdByName,
+  CASE 
+    WHEN event_raw._owner_id = user._user_id
+    THEN user.name 
+  END AS ownerName,
+  user.* EXCEPT(name),
   event_relation.isinvitee,
-  id_name.* EXCEPT(opportunity_id)
+  id_name.*
 FROM event_raw
-LEFT JOIN user ON event_raw.createdbyid = user.id
-LEFT JOIN event_relation ON event_relation.eventid = event_raw.sfdc_activity_casesafeid__c
-LEFT JOIN id_name ON event_raw.opportunityID = id_name.opportunity_id
+LEFT JOIN user 
+  ON event_raw.createdbyid = user._user_id
+  OR event_raw._owner_id = user._user_id
+LEFT JOIN event_relation 
+  ON event_relation.eventid = event_raw.sfdc_activity_casesafeid__c
+LEFT JOIN id_name 
+  ON event_raw.opportunityID = LEFT(id_name.opportunity_id, 15)
 WHERE 
 -- EXTRACT(YEAR FROM createddate) >= 2022
 -- AND 
@@ -318,18 +334,19 @@ sfdc_activity_casesafeid__c NOT IN (
 
 TRUNCATE TABLE `x-marketing.faro.event_relation`;
 INSERT INTO `x-marketing.faro.event_relation` 
-SELECT id,
-eventid, 
-relationid,
-iswhat, 
-isparent, 
-isinvitee, 
-status, 
-accountid, 
-response, 
-systemmodstamp, 
-createddate, 
-respondeddate 
+SELECT 
+  id,
+  eventid, 
+  relationid,
+  iswhat, 
+  isparent, 
+  isinvitee, 
+  status, 
+  accountid, 
+  response, 
+  systemmodstamp, 
+  createddate, 
+  respondeddate 
 FROM `x-marketing.faro_salesforce.EventRelation` 
 WHERE isdeleted IS FALSE;
 
@@ -421,5 +438,7 @@ SELECT
   opportunity.opportunity_name,
   contact.contact_name
 FROM feedback
-LEFT JOIN opportunity ON feedback.opportunity__c = opportunity.opportunity_id
-LEFT JOIN contact ON feedback.contact__c = contact.contact_id
+LEFT JOIN opportunity 
+  ON feedback.opportunity__c = opportunity.opportunity_id
+LEFT JOIN contact 
+  ON feedback.contact__c = contact.contact_id
