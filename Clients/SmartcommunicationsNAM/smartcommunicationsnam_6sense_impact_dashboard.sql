@@ -778,6 +778,7 @@ creative AS (
     SPLIT(SUBSTR(id, STRPOS(id, 'sponsoredCreative:')+18))[ORDINAL(1)] AS cID,
     CAST(campaign_id AS STRING) AS _campaign_id
   FROM `smartcomm_linkedin_ads.creatives`
+  WHERE campaign_id IN (314779896, 314830366)
 ),
 campaign AS (
   SELECT
