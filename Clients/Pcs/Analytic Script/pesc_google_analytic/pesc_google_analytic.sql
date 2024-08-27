@@ -1,6 +1,8 @@
 CREATE OR REPLACE TABLE `x-marketing.pcs.googleanalytic_contact` AS 
+
+-- Step 1: Optimize the Contact CTE
 WITH contact AS (
-  SELECT
+   SELECT
     acc.id,
     acc.accountid AS _sfdcAccountID,
     CONCAT(acc.firstname, ' ', acc.lastname) AS _name,
@@ -59,117 +61,136 @@ FROM (
     ) WHERE rownum = 1 ) fin ON acc.id =  fin.account_holder__c
   LEFT JOIN `x-marketing.pcs_salesforce.User` j ON j.id = fin.ownerid 
   WHERE acc.isdeleted IS FALSE 
-), prep AS (
-  select
-  event_date, 
-  event.value.string_value AS page_title,
-  user_id, 
-  user.value.string_value AS ids,
-  concat(user_pseudo_id,(select value.int_value from unnest(event_params) where key = 'ga_session_id')) as session_id,
-  (max(event_timestamp)-min(event_timestamp))/1000000 as session_length_in_seconds,
-  from
-  -- change this to your google analytics 4 export location in bigquery
-  `x-marketing.analytics_411351491.events_*` ,UNNEST(event_params) event,UNNEST (user_properties) user
-  group by
-  event_date,event.value.string_value, user_id,user.value.string_value,
- session_id
-), avg AS (
+),
 
-select
-event_date, page_title,user_id,ids,
+-- Step 2: Optimize the Prep CTE by reducing the use of UNNEST
+prep AS (
+  SELECT
+    event_date, 
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_title') AS page_title,
+    user_id, 
+    (SELECT value.string_value FROM UNNEST(user_properties) WHERE key = 'ids') AS ids,
+    CONCAT(user_pseudo_id, CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)) AS session_id,
+    (MAX(event_timestamp) - MIN(event_timestamp))/1000000 AS session_length_in_seconds
+  FROM `x-marketing.analytics_411351491.events_*`
+  GROUP BY event_date, page_title, user_id, ids, session_id
+),
 
-  -- average session duration (metric | the average duration (in seconds) of users' sessions)
-  sum(session_length_in_seconds) / count(distinct session_id) as average_session_duration_seconds
-from
-  prep
-  group by
-  event_date,
-  page_title,user_id,ids
- ) , ga AS ( 
- SELECT *
+-- Step 3: Optimize the Avg CTE by using the previously optimized Prep CTE
+avg AS (
+  SELECT
+    event_date, 
+    page_title,
+    user_id,
+    ids,
+    SUM(session_length_in_seconds) / COUNT(DISTINCT session_id) AS average_session_duration_seconds
+  FROM prep
+  GROUP BY event_date, page_title, user_id, ids
+),
+
+-- Step 4: Utilize the GA CTE without modifications (already optimized)
+ga AS ( 
+  SELECT *
   FROM avg
- ),email_campaign AS (
-  SELECT * EXCEPT (rownum)
+),
+
+-- Step 5: Optimize the Email Campaign CTE by reducing unnecessary columns and filters
+email_campaign AS (
+  SELECT *
   FROM (
     SELECT 
-      *,  
+      _notes, 
+      _status, 
+      _trimcode, 
+      _screenshot, 
+      _assettitle, 
+      _subject, 
+      _whatwedo, 
+      _campaignid AS airtable_id, 
+      _utm_campaign, 
+      _preview, 
+      _code, 
+      _journeyname,
+      _campaignname, 
+      _formsubmission, 
+      _id, 
+      _livedate, 
+      _utm_source, 
+      _emailname, 
+      _assignee, 
+      _utm_medium, 
+      _landingpage,
+      _emailsequence AS _segment,
+      _link,
+      _rootcampaign,
+      _emailsegment,
       ROW_NUMBER() OVER(
-          PARTITION BY airtable_id,_code 
+          PARTITION BY _campaignid, _code 
           ORDER BY _livedate DESC
       ) AS rownum
-    FROM (
-      SELECT DISTINCT 
-        _notes, 
-        _status, 
-        _trimcode, 
-        _screenshot, 
-        _assettitle, 
-        _subject, 
-        _whatwedo, 
-        _campaignid AS airtable_id, 
-        _utm_campaign, 
-        _preview, 
-        _code, 
-        _journeyname,
-        _campaignname, 
-        _formsubmission, 
-        _id, 
-        _livedate, 
-        _utm_source, 
-        _emailname, 
-        _assignee, 
-        _utm_medium, 
-        _landingpage,
-        _emailsequence AS _segment,
-        _link,
-        _rootcampaign,
-        _emailsegment
-      FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
-      WHERE _rootcampaign = 'Participant Education Series'
-      )
-  ) 
+    FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement`
+    WHERE _rootcampaign = 'Participant Education Series' 
+      AND _campaignid IS NOT NULL 
+      AND _campaignid != ''
+  )
   WHERE rownum = 1
-  AND airtable_id != ''
-  AND airtable_id IS NOT NULL 
-  --AND id = "221593"
-),get_campaignid AS (
+),
+
+-- Step 6: Optimize the Get Campaign ID CTE by reducing UNNEST usage
+get_campaignid AS (
   SELECT 
-  CONCAT(event_date,event_timestamp,event_name)AS _id,
-  CASE WHEN event.key= 'page_location' THEN REGEXP_EXTRACT(event.value.string_value, r'[\?&]j=([^&]*)') END AS campaign_id,
-  concat(user_pseudo_id,(select value.int_value from unnest(event_params) where key = 'ga_session_id'))  AS ga_id
-  FROM `x-marketing.analytics_411351491.events_*`, UNNEST (event_params) event
-)
-,campaign_ids AS (
-  SELECT 
-  DISTINCT 
-  _id,
-  campaign_id,
-  ga_id 
-  FROM get_campaignid 
+    CONCAT(event_date, event_timestamp, event_name) AS _id,
+    REGEXP_EXTRACT((SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location'), r'[\?&]j=([^&]*)') AS campaign_id,
+    CONCAT(user_pseudo_id, CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)) AS ga_id
+  FROM `x-marketing.analytics_411351491.events_*`
+  WHERE (SELECT COUNT(*) FROM UNNEST(event_params) WHERE key = 'page_location') > 0
+),
+
+-- Step 7: Optimize the Campaign IDs CTE
+campaign_ids AS (
+  SELECT DISTINCT 
+    _id,
+    campaign_id,
+    ga_id 
+  FROM get_campaignid
   WHERE campaign_id IS NOT NULL
-) 
-, google_analytic_activity AS (
-  SELECT activity.*,
-  SPLIT(SUBSTR(traffic_source.name, STRPOS(traffic_source.name, '?j=') + 3), '&')[ORDINAL(1)] AS _campaignids,
-  PARSE_TIMESTAMP('%Y%m%d',activity.event_date) AS _timestamp,
-  COALESCE(event.value.string_value,CAST(event.value.int_value AS STRING), CAST(event.value.float_value AS STRING), CAST(event.value.double_value AS STRING),CAST(TIMESTAMP_MICROS(event_previous_timestamp) AS STRING)) AS events,
-  concat(user_pseudo_id,(select value.int_value from unnest(event_params) where key = 'ga_session_id')) as session_id,
-  FROM `x-marketing.analytics_411351491.events_*`  activity ,UNNEST(event_params) event,UNNEST (user_properties) user
-) 
-, all_data AS (
+),
+
+-- Step 8: Optimize the Google Analytic Activity CTE
+google_analytic_activity AS (
   SELECT 
-  activity.*,
-  l.*,
-  c.campaign_id
-  
-  FROM google_analytic_activity activity, UNNEST (user_properties) user
-  LEFT JOIN Contact  l ON /*activity.subscriberkey = l.email or*/ user.value.string_value = id
-  LEFT JOIN ga on user.value.string_value = ids and ga.event_date = activity.event_date
-  LEFT JOIN campaign_ids c ON session_id = ga_id
-) 
+    activity.*,
+    SPLIT(SUBSTR(traffic_source.name, STRPOS(traffic_source.name, '?j=') + 3), '&')[ORDINAL(1)] AS _campaignids,
+    PARSE_TIMESTAMP('%Y%m%d', activity.event_date) AS _timestamp,
+    COALESCE(
+      (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'event_value'),
+      CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'event_value') AS STRING),
+      CAST((SELECT value.float_value FROM UNNEST(event_params) WHERE key = 'event_value') AS STRING),
+      CAST((SELECT value.double_value FROM UNNEST(event_params) WHERE key = 'event_value') AS STRING),
+      CAST(TIMESTAMP_MICROS(event_previous_timestamp) AS STRING)
+    ) AS events,
+    CONCAT(user_pseudo_id, CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING)) AS session_id,
+    user.value.string_value AS user_value -- Include this to capture the `user` data
+  FROM `x-marketing.analytics_411351491.events_*` activity
+  LEFT JOIN UNNEST(user_properties) AS user -- Unnest user properties to access `user.value.string_value`
+  WHERE EXISTS (SELECT 1 FROM UNNEST(event_params) WHERE key = 'ga_session_id')
+),
+
+-- Step 9: Optimize the All Data CTE by using the previously optimized CTEs
+all_data AS (
+  SELECT 
+    activity.*,
+    l.*,
+    c.campaign_id
+  FROM google_analytic_activity activity
+  LEFT JOIN contact l ON activity.user_value = l.id -- Use `activity.user_value` to join with `contact`
+  LEFT JOIN ga ON activity.user_value = ga.ids AND ga.event_date = activity.event_date
+  LEFT JOIN campaign_ids c ON activity.session_id = c.ga_id
+)
+
+-- Final Select with Optimized Joins and Filters
 SELECT 
-datas.*,
-email_campaign.*
---CASE WHEN event.key= 'page_location' THEN REGEXP_EXTRACT(event.value.string_value, r'[?&]j=([^&]+)') END AS _campaignid
-FROM all_data AS datas,UNNEST(event_params) event
-LEFT JOIN email_campaign ON campaign_id = email_campaign.airtable_id;
+  datas.*,
+  email_campaign.*
+FROM all_data AS datas
+LEFT JOIN email_campaign ON datas.campaign_id = email_campaign.airtable_id;
