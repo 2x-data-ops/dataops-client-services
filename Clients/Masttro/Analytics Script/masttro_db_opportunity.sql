@@ -140,30 +140,34 @@ ORDER BY _date DESC;
 
 TRUNCATE TABLE `x-marketing.masttro.db_opportunity`;
 INSERT INTO `x-marketing.masttro.db_opportunity` (
-    _campaignID,
-    _campaignName,
-    _date,
-    _dealID,
-    _amount,
-    _amount_usd,
-    _total_cost,
-    _count_opp,
-    _cost,
-    _dealName,
-    _campaign,
-    _keywords,
-    _dealPipeline,
-    _dealStage,
-    _currency,
-    _dealCreatedDate,
-    _dealClosedDate,
-    _dealOriginalSource,
-    _dealType,
-    _companyName,
-    _companyIndustry,
-    _prospectID,
-    _name,
-    _lifecycleStage
+  _date,	
+  _campaignID,	
+  _campaignName,	
+  _dealID,	
+  _dealName,	
+  _dealPipeline,	
+  _dealStage,	
+  _dealCreatedDate,	
+  _dealClosedDate,	
+  _dealOriginalSource,	
+  _dealType,	
+  _currency,	
+  _amount,	
+  _amount_usd,	
+  _amount_usd_split,	
+  _total_cost,
+  _total_cost_split,
+  _count_opp,	
+  _cost,	
+  _companyName,	
+  _companyIndustry,	
+  _prospectID,	
+  _name,	
+  _lifecycleStage,	
+  _keywords,	
+  _ad_group_criterion_status,	
+  _match_type,	
+  _total_cost_keywords	
   ) 
   
   WITH contacts AS (
@@ -261,7 +265,7 @@ INSERT INTO `x-marketing.masttro.db_opportunity` (
       AND deals.isdeleted = false QUALIFY ROW_NUMBER() OVER(PARTITION BY _dealStageTimestamp, _dealID) = 1
     ORDER BY _dealStageTimestamp DESC
   ),
-  combine_all AS (
+  combine_contact AS (
     SELECT
       opps_created.*
     EXCEPT(_dealStageTimestamp, _prospectID),
@@ -270,15 +274,96 @@ INSERT INTO `x-marketing.masttro.db_opportunity` (
       LEFT JOIN contacts 
         ON opps_created._prospectID = contacts._prospectID
   ),
-  opp AS (
+  all_opp AS (
     SELECT 
       *
-    FROM combine_all
+    FROM combine_contact
+  ),
+  aggregate_opp AS (
+    SELECT 
+      agg.*,
+      all_opp.* EXCEPT(_date, _campaignName, _dealID),
+    FROM `x-marketing.masttro.db_opportunity_aggregate` agg
+    LEFT JOIN all_opp 
+    ON CONCAT(agg._date, agg._campaignName, agg._dealID) = CONCAT(all_opp._date, all_opp._campaignName, all_opp._dealID)
+  ),
+  blended_opp AS (
+    SELECT
+    key_perf.*,
+    aggregate_opp.* EXCEPT (_campaignID, _campaignName, _date, _campaign, _keywords)
+
+    FROM `x-marketing.masttro.google_search_keyword_performance` key_perf
+
+    LEFT JOIN aggregate_opp
+    ON CONCAT(key_perf._campaignID, key_perf._campaignName, key_perf._date) = CONCAT(aggregate_opp._campaignID, aggregate_opp._campaignName, aggregate_opp._date)
+  ),
+  count_rows AS (
+    SELECT
+    *,
+
+    COUNT(*) OVER (PARTITION BY _campaignID, _campaignName, _date)
+    AS _count_rows,
+
+    COUNT(_dealID) OVER (PARTITION BY _campaignID, _campaignName, _date, _dealID)
+    AS _count_rows_per_deals,
+
+    FROM blended_opp
+  ),
+  split_amount_cost AS (
+    SELECT
+    *,
+
+    IF (
+      _amount_usd > 0,
+      _amount_usd / _count_rows_per_deals,
+      0
+    )
+    AS _amount_usd_split,
+
+    IF(
+      _total_cost IS NOT NULL,
+      _total_cost / _count_rows,
+      0
+    )
+    AS _total_cost_split
+
+    FROM count_rows
   )
-SELECT 
-  agg.*,
-  opp.*
-EXCEPT(_date, _campaignName, _dealID),
-FROM `x-marketing.masttro.db_opportunity_aggregate` agg
-LEFT JOIN opp 
-ON CONCAT(agg._date, agg._campaignName, agg._dealID) = CONCAT(opp._date, opp._campaignName, opp._dealID);
+  
+
+  SELECT
+  _date,
+  _campaignID,
+  _campaignName,
+  _dealID,
+  _dealName,
+  _dealPipeline,
+  _dealStage,
+  _dealCreatedDate,
+  _dealClosedDate,
+  _dealOriginalSource,
+  _dealType,
+  _currency,
+  _amount,
+  _amount_usd,
+  _amount_usd_split,
+  _total_cost,
+  _total_cost_split,
+  _count_opp,
+  _cost,
+  _companyName,
+  _companyIndustry,
+  _prospectID,
+  _name,
+  _lifecycleStage,
+  _keywords,
+  _ad_group_criterion_status,
+  _match_type,
+  _total_cost_keywords,
+  
+
+  FROM split_amount_cost
+
+  ORDER BY _date DESC, _campaignID, _dealID, _keywords
+  
+  ;
