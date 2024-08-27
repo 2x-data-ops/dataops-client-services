@@ -1,5 +1,6 @@
 CREATE OR REPLACE TABLE `x-marketing.pcs.googleanalytic_contact` AS 
 
+
 WITH financial_account_data AS (
     
     SELECT 
