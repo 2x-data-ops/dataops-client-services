@@ -130,7 +130,7 @@ WITH target_accounts AS (
                         END ) AS _added_on,
                     CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
                 FROM `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam`
-                GROUP BY 2
+                GROUP BY _country_account
             ) scenario 
             ON main._country_account = scenario._country_account 
             AND main._added_on = scenario._added_on
@@ -350,7 +350,7 @@ WITH ads AS (
                 FROM `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
                 JOIN `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense` side
                 ON main._segmentname = side._segment)
-            GROUP BY 1
+            GROUP BY _campaignid
         ) target
     USING(_campaignid)
 
@@ -372,7 +372,7 @@ WITH ads AS (
             JOIN `smartcommnam_mysql.smartcommnam_db_6sense_reached_accounts_nam` extra
             USING(_6sensecompanyname, _6sensecountry, _6sensedomain, _campaignid)
         )
-        GROUP BY 1
+        GROUP BY _campaignid
     ) reach
     USING(_campaignid)
 
@@ -395,7 +395,7 @@ WITH ads AS (
             USING(_6sensecompanyname, _6sensecountry, _6sensedomain)
             WHERE extra._6qa_date IS NOT NULL
         )
-        GROUP BY 1
+        GROUP BY _campaignid
     )
     USING(_campaignid)
 
