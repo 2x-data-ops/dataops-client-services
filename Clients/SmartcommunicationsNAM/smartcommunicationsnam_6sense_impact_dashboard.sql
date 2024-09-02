@@ -130,6 +130,7 @@ WITH target_accounts AS (
                         END ) AS _added_on,
                     CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
                 FROM `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam`
+                GROUP BY 2
             ) scenario 
             ON main._country_account = scenario._country_account 
             AND main._added_on = scenario._added_on
@@ -349,6 +350,7 @@ WITH ads AS (
                 FROM `smartcommnam_mysql.smartcommnam_db_6sense_target_accounts_nam` main
                 JOIN `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense` side
                 ON main._segmentname = side._segment)
+            GROUP BY 1
         ) target
     USING(_campaignid)
 
@@ -370,6 +372,7 @@ WITH ads AS (
             JOIN `smartcommnam_mysql.smartcommnam_db_6sense_reached_accounts_nam` extra
             USING(_6sensecompanyname, _6sensecountry, _6sensedomain, _campaignid)
         )
+        GROUP BY 1
     ) reach
     USING(_campaignid)
 
@@ -392,6 +395,7 @@ WITH ads AS (
             USING(_6sensecompanyname, _6sensecountry, _6sensedomain)
             WHERE extra._6qa_date IS NOT NULL
         )
+        GROUP BY 1
     )
     USING(_campaignid)
 
@@ -581,7 +585,7 @@ WITH target_accounts AS (
     GROUP BY ALL
     ),
 
-    acccount_activity_summary_main AS (
+    account_activity_summary_main AS (
     SELECT 
         _activitytype,
         _activitytarget,
@@ -602,7 +606,7 @@ WITH target_accounts AS (
         'Activity Summary Account' AS _engagement_data_source,
         _activitytarget AS _description,
         _count AS _notes
-    FROM acccount_activity_summary_main
+    FROM account_activity_summary_main
     WHERE _activitytype = 'KW Research'
     ),
 
@@ -614,7 +618,7 @@ WITH target_accounts AS (
         'Activity Summary Account' AS _engagement_data_source,
         _activitytarget AS _description,
         _count AS _notes
-    FROM acccount_activity_summary_main
+    FROM account_activity_summary_main
     WHERE _activitytype = 'Website Visit'
     ),
 
@@ -626,7 +630,7 @@ WITH target_accounts AS (
             'Activity Summary Account' AS _engagement_data_source,
             _activitytarget AS _description,
             _count AS _notes
-        FROM acccount_activity_summary_main
+        FROM account_activity_summary_main
         WHERE _activitytype = 'Current Bombora Company Surge Topics'
     ),
 
@@ -643,7 +647,7 @@ WITH target_accounts AS (
             UNION DISTINCT
             SELECT * FROM sixsense_form_fills
             UNION DISTINCT
-            SELECT * FROM acccount_activity_summary_keyword_researched
+            SELECT * FROM account_activity_summary_keyword_researched
             UNION DISTINCT
             SELECT * FROM account_activity_summary_web_visited
             UNION DISTINCT
@@ -777,7 +781,6 @@ WITH target_account_engagements AS (
                 rate.lastmodifieddate,
                 opp.closedate,
                 -- opp.total_price__c,
-                ROW_NUMBER() 
             FROM `x-marketing.smartcomm_salesforce.DatedConversionRate` rate
             LEFT JOIN `x-marketing.smartcomm_salesforce.Opportunity` opp
                 ON opp.currencyisocode = rate.isocode
