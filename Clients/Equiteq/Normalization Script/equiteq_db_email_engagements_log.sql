@@ -26,7 +26,8 @@ INSERT INTO `x-marketing.equiteq.db_email_engagements_log` (
     _lifecycleStage,
     _contentTitle,
     _campaignSubject,
-    _campaignType
+    _campaignType,
+    _emailCategory
 )
 
 WITH prospect_info AS (
@@ -75,15 +76,22 @@ WITH prospect_info AS (
 ),
 airtable_info AS (
     SELECT 
-        CAST(id AS STRING) as _campaignID,
-        name AS _contentTitle,
-        subject AS _campaignSubject,
-        REPLACE(INITCAP(type), '_', ' ') AS _campaignType
-    FROM `x-marketing.equiteq_hubspot.campaigns` 
+        CAST(campaign.id AS STRING) as _campaignID,
+        campaign.name AS _contentTitle,
+        campaign.subject AS _campaignSubject,
+        REPLACE(INITCAP(campaign.type), '_', ' ') AS _campaignType,
+        IF(
+            airtable._hubspotid IS NOT NULL,
+            '2X',
+            'Equiteq'
+        )AS _emailCategory
+    FROM `x-marketing.equiteq_hubspot.campaigns` campaign
+    LEFT JOIN `x-marketing.equiteq_mysql.equiteq_db_airtable_email` airtable
+        ON CAST(campaign.id AS STRING) = airtable._hubspotid
     QUALIFY ROW_NUMBER() OVER(
-        PARTITION BY name,
-        id
-        ORDER BY id
+        PARTITION BY campaign.name,
+        campaign.id
+        ORDER BY campaign.id
     ) = 1
 ),
 shared_fields AS (
