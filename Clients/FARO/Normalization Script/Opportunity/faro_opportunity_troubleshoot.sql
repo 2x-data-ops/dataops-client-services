@@ -159,49 +159,45 @@ Opportunity AS (
   -- AND currencyisocode != 'USD'
 )
 
-SELECT
-  *
-FROM (
-  SELECT DISTINCT
-    Opportunity.* EXCEPT(amount, _campaignName),
-    -- Opportunity.opportunityID,
-    -- Opportunity.createddate,
-    -- Opportunity.isclosed,
-    -- Opportunity.currencyisocode,
-    amount AS original_amount,
-    CASE 
-      WHEN isclosed = true AND currencyisocode != 'USD'
-      THEN (
-        closedConversionRate.conversionRate
-      )
-      WHEN isclosed = false AND currencyisocode != 'USD'
-      THEN (
-        openConversionRate.conversionRate 
-      )
-    END AS conversionRate,
-    CASE 
-      WHEN isclosed = true AND currencyisocode != 'USD'
-      THEN (
+SELECT DISTINCT
+  Opportunity.* EXCEPT(amount, _campaignName),
+  -- Opportunity.opportunityID,
+  -- Opportunity.createddate,
+  -- Opportunity.isclosed,
+  -- Opportunity.currencyisocode,
+  amount AS original_amount,
+  CASE 
+    WHEN isclosed = true AND currencyisocode != 'USD'
+    THEN (
+      closedConversionRate.conversionRate
+    )
+    WHEN isclosed = false AND currencyisocode != 'USD'
+    THEN (
+      openConversionRate.conversionRate 
+    )
+  END AS conversionRate,
+  CASE 
+    WHEN isclosed = true AND currencyisocode != 'USD'
+    THEN (
 
-        closedConversionRate.total_price_USD
-      )
-      WHEN isclosed = false AND currencyisocode != 'USD'
-      THEN (
-        (amount / openConversionRate.conversionrate) 
-      )
-      ELSE amount
-    END AS total_price,
-    _campaignName,
-    -- sfdc_activity_casesafeid__c,
-    -- application_specialist__c,
-    -- Event_Status__c,
-    -- Web_Location__c
-  FROM Opportunity
-  LEFT JOIN closedConversionRate 
-    ON closedConversionRate.id = Opportunity.opportunityID
-  LEFT JOIN openConversionRate 
-    ON openConversionRate.isocode = Opportunity.currencyisocode
-);
+      closedConversionRate.total_price_USD
+    )
+    WHEN isclosed = false AND currencyisocode != 'USD'
+    THEN (
+      (amount / openConversionRate.conversionrate) 
+    )
+    ELSE amount
+  END AS total_price,
+  _campaignName,
+  -- sfdc_activity_casesafeid__c,
+  -- application_specialist__c,
+  -- Event_Status__c,
+  -- Web_Location__c
+FROM Opportunity
+LEFT JOIN closedConversionRate 
+  ON closedConversionRate.id = Opportunity.opportunityID
+LEFT JOIN openConversionRate 
+  ON openConversionRate.isocode = Opportunity.currencyisocode;
 -- WHERE EXTRACT(YEAR FROM createddate) >= 2022;
 -- AND opportunityID = '0063p000010tU94AAE'
 -- LIMIT 1000
@@ -227,8 +223,7 @@ TRUNCATE TABLE `x-marketing.faro.event_raw`;
 INSERT INTO `x-marketing.faro.event_raw` 
 -- CREATE OR REPLACE TABLE `x-marketing.faro.event_raw` AS
 WITH event_raw AS(
-  SELECT 
-    DISTINCT
+  SELECT DISTINCT
     event.id,
     event.createdbyid,
     event.sfdc_activity_casesafeid__c,
@@ -276,9 +271,16 @@ user AS (
     id AS _user_id,
     name,
     username AS _username,
-    manager__c AS _manager_c,
-    workday_position__c AS _workday_position_c
+    manager__c AS _manager_id,
+    workday_position__c AS _workday_position
   FROM `x-marketing.faro_salesforce.User` 
+),
+manager AS (
+  SELECT
+    id AS _manager_id,
+    name AS _manager_name,
+    workday_position__c AS _manager_workday_position
+  FROM `x-marketing.faro_salesforce.User`
 ),
 id_name AS (
   SELECT 
@@ -298,28 +300,53 @@ id_name AS (
     ON opp.accountid = acc.id
   LEFT JOIN `x-marketing.faro_salesforce.Lead` leads
     ON cont.sfdc_lead_id__c = leads.id
+),
+user_info AS (
+  SELECT
+    event_raw.id AS event_id,
+    MAX(CASE WHEN event_raw.createdbyid = user._user_id THEN user._user_id END) AS _created_by_id,
+    MAX(CASE WHEN event_raw.createdbyid = user._user_id THEN user.name END) AS _created_by_name,
+    MAX(CASE WHEN event_raw.createdbyid = user._user_id THEN user._workday_position END) AS _created_by_workday_position,
+    MAX(CASE WHEN event_raw._owner_id = user._user_id THEN user._user_id END) AS _owner_id,
+    MAX(CASE WHEN event_raw._owner_id = user._user_id THEN user.name END) AS _owner_name,
+    MAX(CASE WHEN event_raw._owner_id = user._user_id THEN user._workday_position END) AS _owner_workday_position,
+    MAX(CASE WHEN user._manager_id = manager._manager_id THEN manager._manager_name END) AS _manager_name,
+    MAX(CASE WHEN user._manager_id = manager._manager_id THEN manager._manager_workday_position END) AS _manager_workday_position
+  FROM event_raw
+  LEFT JOIN user ON event_raw.createdbyid = user._user_id OR event_raw._owner_id = user._user_id
+  LEFT JOIN manager USING(_manager_id)
+  -- WHERE conditions if needed
+  GROUP BY event_raw.id
 )
 SELECT 
   event_raw.* EXCEPT(opportunityID),
-  CASE 
-    WHEN event_raw.createdbyid = user._user_id
-    THEN user.name 
-  END AS createdByName,
-  CASE 
-    WHEN event_raw._owner_id = user._user_id
-    THEN user.name 
-  END AS ownerName,
-  user.* EXCEPT(name),
+  -- CASE 
+  --   WHEN event_raw.createdbyid = user._user_id
+  --   THEN user.name 
+  -- END AS createdByName,
+  -- CASE 
+  --   WHEN event_raw._owner_id = user._user_id
+  --   THEN user.name 
+  -- END AS ownerName,
+  -- user.* EXCEPT(name),
+  user_info._created_by_name,
+  user_info._created_by_workday_position,
+  user_info._owner_name,
+  user_info._owner_workday_position,
+  user_info._manager_name,
+  user_info._manager_workday_position,
   event_relation.isinvitee,
   id_name.*
 FROM event_raw
-LEFT JOIN user 
-  ON event_raw.createdbyid = user._user_id
-  OR event_raw._owner_id = user._user_id
+-- LEFT JOIN user 
+--   ON event_raw.createdbyid = user._user_id
+--   OR event_raw._owner_id = user._user_id
 LEFT JOIN event_relation 
   ON event_relation.eventid = event_raw.sfdc_activity_casesafeid__c
 LEFT JOIN id_name 
   ON event_raw.opportunityID = LEFT(id_name.opportunity_id, 15)
+LEFT JOIN user_info
+  ON event_raw.id = user_info.event_id
 WHERE 
 -- EXTRACT(YEAR FROM createddate) >= 2022
 -- AND 
