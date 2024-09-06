@@ -1,3 +1,7 @@
+CREATE OR REPLACE TABLE `x-marketing.smartcommnam.smartcommmnam_lead_marketo`
+PARTITION BY DATE(_timestamp)
+CLUSTER BY _engagement, _6sensedomain AS
+
  WITH alldata AS (
   WITH lead_marketo AS (
     WITH prospect_info AS (
@@ -6,11 +10,11 @@
         email AS _email,
         CONCAT(firstname,' ', lastname) AS _name,
         RIGHT(email, LENGTH(email) - STRPOS(email, '@')) AS _domain, 
-        -- title AS _jobtitle,
         -- job_function__c AS _function,
         phone AS _phone,
         company AS _company,
         CAST(annualrevenue AS STRING) AS _revenue,
+        title AS _jobtitle,
         industry AS _industry,
         city AS _city,
         state AS _state, 
@@ -23,8 +27,8 @@
         -- mostrecentleadsourcedetail,
         -- programs.name,
         -- programs.channel
-        FROM `smartcomm_marketo.leads`
-        QUALIFY ROW_NUMBER() OVER( PARTITION BY email ORDER BY id DESC) = 1
+      FROM `smartcomm_marketo.leads`
+      QUALIFY ROW_NUMBER() OVER( PARTITION BY email ORDER BY id DESC) = 1
       ),
     open_email AS (
       SELECT _sdc_sequence,
@@ -49,7 +53,6 @@
       'Clicked' AS _engagement,
       -- '' AS _description,
       CAST(leadid AS STRING) AS _leadid, 
-
     FROM `x-marketing.smartcomm_marketo.activities_click_email`
     QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
     ),
@@ -63,7 +66,7 @@
       prospect_info.*
     FROM engagements_combined
     RIGHT JOIN prospect_info
-    ON engagements_combined._leadid = prospect_info._id
+      ON engagements_combined._leadid = prospect_info._id
   ),
   sixsense_engagement AS (
     SELECT
@@ -71,13 +74,12 @@
       _6sensecompanyname,
       _6sensecountry,
       CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
-
     FROM `x-marketing.smartcommnam.db_6sense_engagement_log`
   )
   SELECT *
   FROM lead_marketo
   INNER JOIN sixsense_engagement
-  ON sixsense_engagement._6sensedomain = lead_marketo._domain
+    ON sixsense_engagement._6sensedomain = lead_marketo._domain
   QUALIFY ROW_NUMBER () OVER (PARTITION BY _id, _campaignID ORDER BY _timestamp DESC) = 1
  ),
 engagement_total AS (
@@ -87,29 +89,31 @@ engagement_total AS (
   FROM alldata
 )
 SELECT
-_sdc_sequence,
-_6sensedomain,
-_6sensecompanyname,
-_6sensecountry,
-_country_account,
-_campaignID,
-_campaign,
-_timestamp,
-_engagement,
-_id AS _leadid,
-_email,
-_name,
-_domain,
-_phone,
-_company,
-_revenue,
-_industry,
-_city,
-_state,
-_country,
-_persona,
-_leadscore,
-_total_opened,
-_total_clicked FROM engagement_total
+  _sdc_sequence,
+  _6sensedomain,
+  _6sensecompanyname,
+  _6sensecountry,
+  _country_account,
+  _campaignID,
+  _campaign,
+  _timestamp,
+  _engagement,
+  _id AS _leadid,
+  _email,
+  _name,
+  _domain,
+  _phone,
+  _company,
+  _revenue,
+  _jobtitle,
+  _industry,
+  _city,
+  _state,
+  _country,
+  _persona,
+  _leadscore,
+  _total_opened,
+  _total_clicked
+FROM engagement_total
 QUALIFY ROW_NUMBER() OVER (PARTITION BY _id ORDER BY _timestamp DESC) = 1 
 
