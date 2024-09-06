@@ -70,8 +70,7 @@ WITH closedConversionRate AS (
     ON rate.isoCode = opp.currencyisocode
     AND opp.closedate >= rate.startDate
     AND opp.closedate < rate.nextStartDate
-  WHERE 
-    opp.isclosed = true
+  WHERE opp.isclosed = true
   -- ORDER BY rate.startDate DESC
 ),
 openConversionRate AS (
@@ -313,8 +312,10 @@ user_info AS (
     MAX(CASE WHEN user._manager_id = manager._manager_id THEN manager._manager_name END) AS _manager_name,
     MAX(CASE WHEN user._manager_id = manager._manager_id THEN manager._manager_workday_position END) AS _manager_workday_position
   FROM event_raw
-  LEFT JOIN user ON event_raw.createdbyid = user._user_id OR event_raw._owner_id = user._user_id
-  LEFT JOIN manager USING(_manager_id)
+  LEFT JOIN user 
+    ON event_raw.createdbyid = user._user_id OR event_raw._owner_id = user._user_id
+  LEFT JOIN manager 
+    USING(_manager_id)
   -- WHERE conditions if needed
   GROUP BY event_raw.id
 )
