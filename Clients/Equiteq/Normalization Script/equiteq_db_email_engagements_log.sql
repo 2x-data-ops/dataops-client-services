@@ -377,8 +377,8 @@ removed_emails AS (
         _email,
         _domain
     FROM combine_all
-    WHERE LOWER(_email) LIKE '%equiteq.com'
-       OR LOWER(_email) LIKE '%2x.marketing'
+    WHERE LOWER(_email) LIKE '%equiteq.com%'
+       OR LOWER(_email) LIKE '%2x.marketing%'
 )
 SELECT
     combine_all.*
