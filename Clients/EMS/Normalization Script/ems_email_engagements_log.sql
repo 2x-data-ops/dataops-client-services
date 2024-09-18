@@ -630,12 +630,9 @@ email_download AS (
     QUALIFY ROW_NUMBER() OVER(PARTITION BY email, description
       ORDER BY timestamp DESC) = 1
 
-)
-SELECT
-  engagements.* EXCEPT (_contentid),
-  prospect_info.* EXCEPT (_email),
-  airtable_info.* EXCEPT(_pardotid,_code,_campaignid)
-FROM (
+),
+
+engagements AS (
   SELECT * FROM email_sent
   UNION ALL
   SELECT * FROM email_delivered
@@ -663,7 +660,13 @@ FROM (
   SELECT * FROM email_spam
   UNION ALL 
   SELECT * FROM email_print
-) AS engagements
+)
+
+SELECT
+  engagements.* EXCEPT (_contentid),
+  prospect_info.* EXCEPT (_email),
+  airtable_info.* EXCEPT(_pardotid,_code,_campaignid)
+FROM engagements
 LEFT JOIN
   prospect_info
 ON
