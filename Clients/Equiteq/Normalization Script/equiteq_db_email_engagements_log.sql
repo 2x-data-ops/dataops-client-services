@@ -360,13 +360,29 @@ engagements AS (
     UNION ALL
     SELECT *
     FROM downloaded
+),
+combine_all AS (
+    SELECT 
+        engagements.*,
+        prospect_info.* EXCEPT (_email),
+        airtable_info.* EXCEPT (_campaignID),
+    FROM engagements
+    LEFT JOIN prospect_info 
+        ON engagements._email = prospect_info._email
+    JOIN airtable_info 
+        ON engagements._campaignid = CAST(airtable_info._campaignID AS STRING)
+),
+removed_emails AS (
+    SELECT
+        _email,
+        _domain
+    FROM combine_all
+    WHERE LOWER(_email) LIKE '%equiteq.com%'
+       OR LOWER(_email) LIKE '%2x.marketing%'
 )
-SELECT 
-    engagements.*,
-    prospect_info.* EXCEPT (_email),
-    airtable_info.* EXCEPT (_campaignID),
-FROM engagements
-LEFT JOIN prospect_info 
-    ON engagements._email = prospect_info._email
-JOIN airtable_info 
-    ON engagements._campaignid = CAST(airtable_info._campaignID AS STRING);
+SELECT
+    combine_all.*
+FROM combine_all
+LEFT JOIN removed_emails
+   ON combine_all._email = removed_emails._email
+WHERE removed_emails._email IS NULL;
