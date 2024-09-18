@@ -78,10 +78,7 @@ INSERT INTO `x-marketing.ems.db_email_engagements_log` (
   _emailname
 )
 WITH prospect_info AS (
-  SELECT * EXCEPT (_rownum)
-  FROM (
   SELECT  
-     
     CAST(vid AS STRING) AS _id,
     properties.email.value AS _email,
     CONCAT(properties.firstname.value,' ',properties.lastname.value) AS _name,
@@ -122,15 +119,8 @@ WITH prospect_info AS (
     properties.salesforceaccountid.value AS _sfdcaccountid,
     properties.salesforceleadid.value AS _sfdcleadid,
     properties.salesforcecontactid.value AS _sfdccontactid,
-    ROW_NUMBER() OVER(PARTITION BY properties.email.value ORDER BY property_createdate.value DESC) AS _rownum
-  FROM
-    `x-marketing.ems_hubspot.contacts`
-  -- WHERE
-  --   properties.email.value IS NOT NULL
-  --   AND properties.email.value NOT LIKE '%2x.marketing%'
-  --   AND properties.email.value NOT LIKE '%ems.com%'
-  --   AND properties.email.value NOT LIKE '%test%'
-  ) WHERE _rownum = 1
+  FROM `x-marketing.ems_hubspot.contacts`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY properties.email.value ORDER BY property_createdate.value DESC) = 1
 ),
 airtable_info AS (
  SELECT  CAST(id AS STRING) AS _pardotid,
@@ -152,8 +142,8 @@ airtable_info AS (
 FROM `x-marketing.ems_hubspot.campaigns` campaign
  JOIN `x-marketing.ems_mysql.db_airtable_email` email ON CAST(campaign.id AS STRING) = _emailid
 ),
-email_sent AS (
-     WITH bounced AS (
+
+dropped AS (
       SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
@@ -169,8 +159,7 @@ email_sent AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
     FROM
       `x-marketing.ems_hubspot.email_events` activity
     JOIN
@@ -179,174 +168,107 @@ email_sent AS (
       activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'DROPPED'
-), Sent AS (
- SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
-      activity._sdc_sequence,
-      CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-      campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-      --activity.subject AS _subject,
-      activity.recipient AS _email,
-      activity.created AS _timestamp,
-      'Sent' AS _engagement,
-      url AS _description,
-      devicetype AS _device_type,
-      CAST(linkid AS STRING) _linkid,
-      --appname,
-      CAST(duration AS STRING) _duration,
-      response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-    FROM
-      `x-marketing.ems_hubspot.email_events` activity
-    JOIN
-      `x-marketing.ems_hubspot.campaigns` campaign
-    ON
-      activity.emailcampaignid = campaign.id
-    WHERE
-      activity.type = 'SENT'  
-      --AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%ems%'
-      --AND campaign.name IS NOT NULL
-      )
-  WHERE
-    _rownum = 1 
-) SELECT Sent .* FROM Sent
-LEFT JOIN bounced ON Sent._email = bounced._email and Sent._campaignID = bounced._campaignID
-WHERE bounced._email IS NULL
 ),
-email_delivered AS (
-   WITH dropped AS (
-        SELECT
-      activity._sdc_sequence,
-      CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-      campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-      --activity.subject AS _subject,
-      activity.recipient AS _email,
-      activity.created AS _timestamp,
-      activity.type AS _engagement,
-      url AS _description,
-      devicetype AS _device_type,
-      CAST(linkid AS STRING) _linkid,
-      --appname,
-      CAST(duration AS STRING) _duration,
-      response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-    FROM
-      `x-marketing.ems_hubspot.email_events` activity
-    JOIN
-      `x-marketing.ems_hubspot.campaigns` campaign
-    ON
-      activity.emailcampaignid = campaign.id
-    WHERE 
-    activity.type = 'DROPPED'
-), bounced AS (
-    SELECT
-      activity._sdc_sequence,
-      CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
-      campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-      --activity.subject AS _subject,
-      activity.recipient AS _email,
-      activity.created AS _timestamp,
-      'Hard Bounce' AS _engagement,
-      url AS _description,
-      devicetype AS _device_type,
-      CAST(linkid AS STRING) _linkid,
-      --appname,
-      CAST(duration AS STRING) _duration,
-      response AS _response,
-      '',
-      ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-      FROM `x-marketing.ems_hubspot.subscription_changes`, UNNEST(changes) AS status 
-      JOIN `x-marketing.ems_hubspot.email_events` activity ON status.value.causedbyevent.id = activity.id
-      JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
-      WHERE 
-      activity.type = 'BOUNCE'
-      AND 
-      status.value.change = 'BOUNCED'
-), email_bounce AS (
+
+Sent AS (
   SELECT
-      * EXCEPT(_rownum)
-    FROM (
-      SELECT
-        activity._sdc_sequence,
-        CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-        campaign.name  AS _campaign,
-        campaign.subject AS _subject,
-        activity.recipient AS _email,
-        activity.created AS _timestamp,
-        'Soft Bounced' AS _engagement,
-        url AS _description,
-        devicetype AS _device_type,
-        CAST(linkid AS STRING) _linkid,
-        --appname,
-        CAST(duration AS STRING) _duration,
-        response AS _response,
-        ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-      FROM
-        `x-marketing.ems_hubspot.email_events` activity
-      JOIN
-        `x-marketing.ems_hubspot.campaigns` campaign
-      ON
-        activity.emailcampaignid = campaign.id
-      WHERE
-        activity.type = 'BOUNCE'  
-    
-      -- AND campaign.name IS NOT NULL AND campaign.id = 279480425  
-        )
-    WHERE
-      _rownum = 1
-  ), delivered AS (
- SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
-      activity._sdc_sequence,
-      CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-      campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-      --activity.subject AS _subject,
-      activity.recipient AS _email,
-      activity.created AS _timestamp,
-      'Delivered' AS _engagement,
-      url AS _description,
-      devicetype AS _device_type,
-      CAST(linkid AS STRING) _linkid,
-      --appname,
-      CAST(duration AS STRING) _duration,
-      response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-    FROM
-      `x-marketing.ems_hubspot.email_events` activity
-    JOIN
-      `x-marketing.ems_hubspot.campaigns` campaign
-    ON
-      activity.emailcampaignid = campaign.id
-    WHERE
-      activity.type = 'DELIVERED'  
-  )
+    activity._sdc_sequence,
+    CAST(activity.emailcampaignid AS STRING) AS _campaignID,
+    campaign.name AS _contentTitle,
+    campaign.contentid AS _contentID,
+    --activity.subject AS _subject,
+    activity.recipient AS _email,
+    activity.created AS _timestamp,
+    'Sent' AS _engagement,
+    url AS _description,
+    devicetype AS _device_type,
+    CAST(linkid AS STRING) _linkid,
+    --appname,
+    CAST(duration AS STRING) _duration,
+    response AS _response,
+    ''
+  FROM
+    `x-marketing.ems_hubspot.email_events` activity
+  JOIN
+    `x-marketing.ems_hubspot.campaigns` campaign
+  ON
+    activity.emailcampaignid = campaign.id
   WHERE
-    _rownum = 1
-) SELECT delivered .* FROM delivered 
+    activity.type = 'SENT'
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+    --AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%ems%'
+    --AND campaign.name IS NOT NULL
+),
+
+email_sent AS (
+    SELECT Sent .* FROM Sent
+    LEFT JOIN dropped ON Sent._email = dropped._email and Sent._campaignID = dropped._campaignID
+    WHERE dropped._email IS NULL
+),
+
+bounced AS (
+  SELECT
+    activity._sdc_sequence,
+    CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
+    campaign.name AS _contentTitle,
+    campaign.contentid AS _contentID,
+    activity.recipient AS _email,
+    activity.created AS _timestamp,
+    'Hard Bounce' AS _engagement,
+    url AS _description,
+    devicetype AS _device_type,
+    CAST(linkid AS STRING) _linkid,
+    --appname,
+    CAST(duration AS STRING) _duration,
+    response AS _response,
+    ''
+    FROM `x-marketing.ems_hubspot.subscription_changes`, UNNEST(changes) AS status 
+    JOIN `x-marketing.ems_hubspot.email_events` activity ON status.value.causedbyevent.id = activity.id
+    JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
+    WHERE 
+    activity.type = 'BOUNCE'
+    AND 
+    status.value.change = 'BOUNCED'
+),
+
+delivered AS (
+  SELECT
+    activity._sdc_sequence,
+    CAST(activity.emailcampaignid AS STRING) AS _campaignID,
+    campaign.name AS _contentTitle,
+    campaign.contentid AS _contentID,
+    --activity.subject AS _subject,
+    activity.recipient AS _email,
+    activity.created AS _timestamp,
+    'Delivered' AS _engagement,
+    url AS _description,
+    devicetype AS _device_type,
+    CAST(linkid AS STRING) _linkid,
+    --appname,
+    CAST(duration AS STRING) _duration,
+    response AS _response,
+    '',
+    --ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+  FROM
+    `x-marketing.ems_hubspot.email_events` activity
+  JOIN
+    `x-marketing.ems_hubspot.campaigns` campaign
+  ON
+    activity.emailcampaignid = campaign.id
+  WHERE
+    activity.type = 'DELIVERED'
+    AND campaign.name IS NOT NULL 
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+),
+
+email_delivered AS (
+SELECT delivered .* FROM delivered 
 LEFT JOIN dropped ON delivered._email = dropped._email and delivered._campaignID = dropped._campaignID
 LEFT JOIN bounced ON delivered._email = bounced._email and delivered._campaignID = bounced._campaignID
---LEFT JOIN email_bounce ON delivered._email = email_bounce._email and delivered._campaignID = email_bounce._campaignID
 WHERE bounced._email IS NULL AND dropped._email IS NULL 
---AND email_bounce._email IS NULL 
-
-
 ),
 email_open AS (
   SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _contentTitle,
@@ -361,8 +283,7 @@ email_open AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
     FROM
       `x-marketing.ems_hubspot.email_events` activity
     JOIN
@@ -372,17 +293,10 @@ email_open AS (
     WHERE
        activity.type = 'OPEN'
       AND filteredevent = FALSE
-      -- AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%ems%'
-      -- AND campaign.name IS NOT NULL 
-      )
-  WHERE
-    _rownum = 1 
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ),
 email_click AS (
   SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _contentTitle,
@@ -398,7 +312,7 @@ email_click AS (
       CAST(duration AS STRING) _duration,
       response AS _response,
       '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      --ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
     FROM
       `x-marketing.ems_hubspot.email_events` activity
     JOIN
@@ -408,42 +322,11 @@ email_click AS (
     WHERE
       activity.type = 'CLICK'
       AND filteredevent = FALSE
-      -- AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%ems%'
-      -- AND campaign.name IS NOT NULL
-      )
-  WHERE
-    _rownum = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ),
-email_hardbounce AS (
-    WITH bounced AS (
-      SELECT
-      activity._sdc_sequence,
-      CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
-           campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-      activity.recipient AS _email,
-      activity.created AS _timestamp,
-      'Hard Bounce' AS _engagement,
-      url AS _description,
-      devicetype AS _device_type,
-      CAST(linkid AS STRING) _linkid,
-      --appname,
-      CAST(duration AS STRING) _duration,
-      response AS _response,
-      ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-      FROM `x-marketing.ems_hubspot..subscription_changes`, UNNEST(changes) AS status 
-      JOIN `x-marketing.ems_hubspot..email_events` activity ON status.value.causedbyevent.id = activity.id
-      JOIN `x-marketing.ems_hubspot..campaigns` campaign ON  activity.emailcampaignid = campaign.id
-      WHERE 
-      activity.type = 'BOUNCE'
-      AND 
-      status.value.change = 'BOUNCED'  
-      --AND campaign.id = 279480496
-), email_bounce AS (
- SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
+
+hardbounced AS (
+  SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
          campaign.name AS _contentTitle,
@@ -457,78 +340,28 @@ email_hardbounce AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-    FROM
-      `x-marketing.ems_hubspot..email_events` activity
-    JOIN
-      `x-marketing.ems_hubspot..campaigns` campaign
-    ON
-      activity.emailcampaignid = campaign.id
-    WHERE
-      activity.type = 'BOUNCE'  
-   
-      AND campaign.name IS NOT NULL  )
-  WHERE
-    _rownum = 1
-) SELECT email_bounce .* FROM email_bounce
-JOIN bounced ON email_bounce._email = bounced._email and email_bounce._campaignID = bounced._campaignID
-
-),email_softbounce AS (
-  WITH dropped AS (
-        SELECT
-      activity._sdc_sequence,
-      CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-      campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-      --activity.subject AS _subject,
-      activity.recipient AS _email,
-      activity.created AS _timestamp,
-      activity.type AS _engagement,
-      url AS _description,
-      devicetype AS _device_type,
-      CAST(linkid AS STRING) _linkid,
-      --appname,
-      CAST(duration AS STRING) _duration,
-      response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
     FROM
       `x-marketing.ems_hubspot.email_events` activity
     JOIN
       `x-marketing.ems_hubspot.campaigns` campaign
     ON
       activity.emailcampaignid = campaign.id
-    WHERE 
-    activity.type = 'DROPPED'
-),bounced AS (
-        SELECT
-        activity._sdc_sequence,
-         CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-      campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-        activity.recipient AS _email,
-        activity.created AS _timestamp,
-        'Hard Bounce' AS _engagement,
-        url AS _description,
-        devicetype AS _device_type,
-        CAST(linkid AS STRING) _linkid,
-        --appname,
-        CAST(duration AS STRING) _duration,
-        response AS _response,
-        ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-        FROM `x-marketing.ems_hubspot.subscription_changes`, UNNEST(changes) AS status 
-        JOIN `x-marketing.ems_hubspot.email_events` activity ON status.value.causedbyevent.id = activity.id
-        JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
-        WHERE 
-        activity.type = 'BOUNCE'
-        AND 
-        status.value.change = 'BOUNCED'  
-  ), email_bounce AS (
+    WHERE
+      activity.type = 'BOUNCE'  
+      AND campaign.name IS NOT NULL  
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+
+),
+
+email_hardbounce AS ( 
+ SELECT hardbounced .* FROM hardbounced
+JOIN bounced ON hardbounced._email = bounced._email and hardbounced._campaignID = bounced._campaignID
+
+),
+
+softbounced AS (
   SELECT
-      * EXCEPT(_rownum)
-    FROM (
-      SELECT
         activity._sdc_sequence,
          CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _contentTitle,
@@ -542,8 +375,7 @@ JOIN bounced ON email_bounce._email = bounced._email and email_bounce._campaignI
         --appname,
         CAST(duration AS STRING) _duration,
         response AS _response,
-        '',
-        ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+        ''
       FROM
         `x-marketing.ems_hubspot.email_events` activity
       JOIN
@@ -551,52 +383,19 @@ JOIN bounced ON email_bounce._email = bounced._email and email_bounce._campaignI
       ON
         activity.emailcampaignid = campaign.id
       WHERE
-        activity.type = 'BOUNCE'  
-        )
-    WHERE
-      _rownum = 1
-  ),delivered AS (
-  SELECT
-      * EXCEPT(_rownum)
-    FROM (
-      SELECT
-        activity._sdc_sequence,
-         CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-      campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-        activity.recipient AS _email,
-        activity.created AS _timestamp,
-        'Delivered' AS _engagement,
-        url AS _description,
-        devicetype AS _device_type,
-        CAST(linkid AS STRING) _linkid,
-        --appname,
-        CAST(duration AS STRING) _duration,
-        response AS _response,
-        ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-      FROM
-        `x-marketing.ems_hubspot.email_events` activity
-      JOIN
-        `x-marketing.ems_hubspot.campaigns` campaign
-      ON
-        activity.emailcampaignid = campaign.id
-      WHERE
-        activity.type = 'DELIVERED'  
-    
-        AND campaign.name IS NOT NULL  )
-    WHERE
-      _rownum = 1
-  ) SELECT email_bounce .* 
-  FROM email_bounce
-  LEFT JOIN bounced ON email_bounce._email = bounced._email and email_bounce._campaignID = bounced._campaignID
-  LEFT JOIN delivered ON email_bounce._email = delivered._email and email_bounce._campaignID = delivered._campaignID
+        activity.type = 'BOUNCE'
+      QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+  ),
+
+email_softbounce AS (
+  SELECT softbounced .* 
+  FROM softbounced
+  LEFT JOIN bounced ON softbounced._email = bounced._email and softbounced._campaignID = bounced._campaignID
+  LEFT JOIN delivered ON softbounced._email = delivered._email and softbounced._campaignID = delivered._campaignID
   WHERE  bounced._email IS NULL AND delivered._email IS NULL 
 )
 ,email_defferred AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -612,19 +411,15 @@ JOIN bounced ON email_bounce._email = bounced._email and email_bounce._campaignI
       CAST(duration AS STRING) _duration,
     response AS _response,
     '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    --ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
     FROM `x-marketing.ems_hubspot.email_events` activity
     JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
-    activity.type = 'DEFERRED' 
-  )
-WHERE _rownum = 1
+    activity.type = 'DEFERRED'
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ),
 email_dropped AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -639,20 +434,15 @@ email_dropped AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
     FROM `x-marketing.ems_hubspot.email_events` activity
     JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'DROPPED' 
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_suppressed AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -667,20 +457,15 @@ email_suppressed AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
     FROM `x-marketing.ems_hubspot.email_events` activity
     JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'SUPPRESSED'
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_processed AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -695,20 +480,15 @@ email_processed AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
     FROM `x-marketing.ems_hubspot.email_events` activity
     JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'PROCESSED'
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_forward AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -723,20 +503,15 @@ email_forward AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
     FROM `x-marketing.ems_hubspot.email_events` activity
     JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'FORWARD'
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_spam AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -751,20 +526,15 @@ email_spam AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
     FROM `x-marketing.ems_hubspot.email_events` activity
     JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'SPAMREPORT'
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_print AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -779,20 +549,15 @@ email_print AS (
     --appname,
     CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
     FROM `x-marketing.ems_hubspot.email_events` activity
     JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'PRINT'
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_unsubcribed AS (
-  SELECT * EXCEPT(_rownum) 
-    FROM
-    (
-      SELECT
+  SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
       campaign.name AS _contentTitle,
@@ -807,40 +572,18 @@ email_unsubcribed AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
       FROM `x-marketing.ems_hubspot.subscription_changes`, UNNEST(changes) AS status 
       JOIN `x-marketing.ems_hubspot.email_events` activity ON status.value.causedbyevent.id = activity.id
       JOIN `x-marketing.ems_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
       WHERE 
       activity.type = 'STATUSCHANGE'
-      AND status.value.change = 'UNSUBSCRIBED' 
-    )
-  WHERE _rownum = 1
+      AND status.value.change = 'UNSUBSCRIBED'
+      QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ),
-email_download AS (
-  SELECT
-    * EXCEPT (rownum)
-  FROM (
-    SELECT
-      activity._sdc_sequence,
-      CAST(campaign.id AS STRING) AS _campaignID,
-      COALESCE(form_title, campaign.name) AS _contentTitle,
-      campaign.contentid AS _contentID,
-      --campaign.subject,
-      activity.email AS _email,
-      activity.timestamp AS _timestamp,
-      'Downloaded' AS _engagement,
-      activity.description AS _description,
-      activity.devicetype,
-      '' AS linkid,
-      '' AS duration,
-      "" AS _response,
-      _utm_source,
-      ROW_NUMBER() OVER(PARTITION BY email, description
-      ORDER BY timestamp DESC) AS rownum
-      FROM (
-      SELECT
+
+form_filled AS (
+SELECT
         c._sdc_sequence,
         CAST(NULL AS STRING) AS devicetype,
         SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_hsmi=') + 6), '&')[ORDINAL(1)] AS _campaignID,
@@ -860,13 +603,32 @@ email_download AS (
         `x-marketing.ems_hubspot.forms` forms
       ON
         form.value.form_id = forms.guid
-        ) activity
+),
+
+email_download AS (
+  SELECT
+      activity._sdc_sequence,
+      CAST(campaign.id AS STRING) AS _campaignID,
+      COALESCE(form_title, campaign.name) AS _contentTitle,
+      campaign.contentid AS _contentID,
+      --campaign.subject,
+      activity.email AS _email,
+      activity.timestamp AS _timestamp,
+      'Downloaded' AS _engagement,
+      activity.description AS _description,
+      activity.devicetype,
+      '' AS linkid,
+      '' AS duration,
+      "" AS _response,
+      _utm_source
+      
+      FROM form_filled activity
     JOIN
       `x-marketing.ems_hubspot.campaigns` campaign
     ON
-      activity._campaignID = CAST(campaign.id AS STRING) )
-  WHERE
-    rownum = 1 
+      activity._campaignID = CAST(campaign.id AS STRING) 
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY email, description
+      ORDER BY timestamp DESC) = 1
 
 )
 SELECT
