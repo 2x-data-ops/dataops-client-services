@@ -1,5 +1,5 @@
 --------------------------------------------------------------
--------------------------- VELOCITY --------------------------
+-------------------------- Activity --------------------------
 --------------------------------------------------------------
 
 CREATE OR REPLACE TABLE `x-marketing.faro.db_activity_log` AS
@@ -49,99 +49,28 @@ WITH activity AS (
 SELECT * FROM activity
 WHERE EXTRACT(YEAR FROM _activity_date) > 2021;
 
-CREATE OR REPLACE TABLE `x-marketing.faro.db_icp_database_log` AS
-WITH prospect_data AS (
-  SELECT
-    leads.leadid AS _prospect_id,
-    LEFT(leads.leadid,15) AS _prospect_id_15,
-    ld.name AS _prospect_name,
-    -- act.name AS _prospectOwner,
-    IF(
-    leads.oldvalue IS NULL,
-    'None',
-    leads.oldvalue
-    ) AS _old_value,
-    leads.newvalue AS _new_value,
-    leads.createddate AS _created_date,
-    leads.field AS _field,
-    'Leads' AS _prospect_type,
-    ld.leadsource AS _leadsource,
-    ld.country AS _country,
-    ld.assigned_iss__c AS _iss_name,
-    ld.company AS _company,
-    ld.zprimary_solution_interest__c AS _zprimary_solution_interest,
-    ld.id AS _id,
-    ld.industry AS _industry,
-    ld.primary_hardware_interest__c AS _primary_hardware_interest,
-    ld.primary_software_interest__c AS _primary_software_interest,
-    ld.web_primary_software_interest__c AS _web_primary_software_interest,
-    '' AS _addition_product_interest,
-    ld.primary_application__c AS _primary_application,
-    ld.product_interest__c AS _product_interest,
-    ld.title AS _title,
-    '' AS _campaign_product_interest,
-    ld.no_current_interest_reason__c AS _no_current_interest_reason,
-    ld.secondary_application__c AS _secondary_application,
-    ld.vertical__c AS _vertical
-  FROM `x-marketing.faro_salesforce.LeadHistory` leads
-  LEFT JOIN `x-marketing.faro_salesforce.Lead` ld 
-    ON leads.leadid = ld.id
-  -- LEFT JOIN `x-marketing.faro_salesforce.Account` act ON ld.convertedaccountid = act.id
-  WHERE leads.isdeleted IS FALSE
-    AND EXTRACT(YEAR FROM DATE(leads.createddate)) > 2021
-    AND leads.field IN ('Waterfall_Stage__c', 'Status')
-    AND (leads.field != 'Status' OR leads.newvalue = 'No Current Interest-Recycled')
-  -- QUALIFY ROW_NUMBER() OVER(PARTITION BY leads.id ORDER BY leads.createddate) = 1
-  UNION ALL
-  SELECT
-    contacts.contactid AS _prospect_id,
-    LEFT(contacts.contactid,15) AS _prospect_id_15,
-    ct.name AS _prospect_name,
-    -- mbr.name AS _prospectOwner,
-    IF(
-    contacts.oldvalue IS NULL,
-    'None',
-    contacts.oldvalue
-    ) AS _old_value,
-    contacts.newvalue AS _new_value,
-    contacts.createddate AS _created_date,
-    contacts.field AS _field,
-    'Contacts' AS _prospect_type,
-    ct.leadsource AS _leadsource,
-    ct.mailingcountry AS _country,
-    ct.assigned_iss__c AS _iss_name,
-    ct.account_name__c AS _company,
-    '' AS _zprimary_solution_interest,
-    ct.id AS _id,
-    ct.isv_primary_industry__c AS _industry,
-    '' AS _primary_hardware_interest,
-    '' AS _primary_software_interest,
-    '' AS _web_primary_software_interest,
-    ct.additional_product_interest__c AS _addition_product_interest,
-    '' AS _primary_application,
-    ct.product_interest__c AS _product_interest,
-    ct.title AS _title,
-    ct.campaign_product_interest__c AS _campaign_product_interest,
-    ct.no_current_interest_reason__c AS _no_current_interest_reason,
-    ct.secondary_application__c AS _secondary_application,
-    ct.vertical__c AS _vertical
-  FROM `x-marketing.faro_salesforce.ContactHistory` contacts
-  LEFT JOIN `x-marketing.faro_salesforce.Contact` ct 
-    ON contacts.contactid = ct.id
-  -- LEFT JOIN `x-marketing.faro_salesforce.CampaignMember` mbr ON ct.ownerid = mbr.leadorcontactownerid
-  WHERE contacts.isdeleted IS FALSE
-    AND EXTRACT(YEAR FROM DATE(contacts.createddate)) > 2021
-    AND contacts.field IN ('Waterfall_Stage__c', 'Status')
-    AND (contacts.field != 'Status' OR contacts.newvalue = 'No Current Interest-Recycled')
-  -- QUALIFY ROW_NUMBER() OVER(PARTITION BY contacts.id ORDER BY contacts.createddate) = 1
-)
-SELECT * FROM prospect_data;
+--------------------------------------------------------------
+------------------------ Member Stat -------------------------
+--------------------------------------------------------------
 
+CREATE OR REPLACE TABLE `x-marketing.faro.db_member_log` AS
+SELECT DISTINCT
+  member.campaignid AS _campaignid,
+  member.leadorcontactid AS _leadorcontactid,
+  campaign.name AS _campaign_name,
+  campaign.type AS _campaign_type,
+  member.status AS _member_status,
+  member.lastmodifieddate AS _last_modified_date
+FROM `x-marketing.faro_salesforce.CampaignMember` member
+LEFT JOIN `x-marketing.faro_salesforce.Campaign` campaign
+  ON campaign.id = member.campaignid;
 
+--------------------------------------------------------------
+-------------------------- Velocity --------------------------
+--------------------------------------------------------------
 CREATE OR REPLACE TABLE `x-marketing.faro.db_velocity_log` AS
 WITH stages_data AS (
-  SELECT
-  DISTINCT
+  SELECT DISTINCT
     velocity_data.*,
     LEFT(velocity_data._prospect_id,15) AS _prospect_id15,
     LEAD(velocity_data._created_date) OVER (PARTITION BY velocity_data._prospect_id ORDER BY velocity_data._created_date) AS _next_change_date,
@@ -169,8 +98,7 @@ WITH stages_data AS (
   FROM `x-marketing.faro.db_icp_database_log` velocity_data
 ),
 activity_data AS (
-  SELECT 
-  DISTINCT
+  SELECT DISTINCT
     _prospect_id,
     _subject,
     _activity_date
@@ -178,8 +106,7 @@ activity_data AS (
   ORDER BY _activity_date
 ),
 activity AS (
-  SELECT
-  DISTINCT
+  SELECT DISTINCT
     stages_data._prospect_id,
     stages_data._old_new,
     stages_data._created_date,
@@ -187,7 +114,6 @@ activity AS (
     COUNT(activity_data._subject) AS _activity_count
   FROM stages_data
   LEFT JOIN activity_data
-    -- ON activity_data._prospect_id = stages_data._prospect_id15
     ON activity_data._prospect_id = stages_data._prospect_id
     AND activity_data._activity_date 
     BETWEEN stages_data._created_date AND stages_data._next_change_date
@@ -197,8 +123,7 @@ activity AS (
     stages_data._created_date,
     stages_data._next_change_date
 )
-SELECT 
-DISTINCT
+SELECT DISTINCT
   stages_data._prospect_id,
   stages_data._old_value,
   stages_data._new_value,
@@ -242,3 +167,32 @@ LEFT JOIN activity
   ON activity._prospect_id = stages_data._prospect_id
   AND activity._old_new = CONCAT(stages_data._old_value,stages_data._new_value)
   AND activity._created_date = stages_data._created_date;
+
+------------------------- RECENT LOG -------------------------
+CREATE OR REPLACE TABLE `x-marketing.faro.db_velocity_recent` AS
+SELECT 
+  velocity.*,
+  member_log.*
+FROM `x-marketing.faro.db_velocity_log` velocity
+LEFT JOIN `x-marketing.faro.db_member_log` member_log
+  ON velocity._prospect_id = member_log._leadorcontactid
+  AND member_log._last_modified_date 
+  BETWEEN velocity._created_date AND velocity._next_change_date;
+
+------------------------- MEMBER STAT -------------------------
+CREATE OR REPLACE TABLE `x-marketing.faro.db_member_stat` AS
+SELECT
+  member_log._campaignid,
+  member_log._leadorcontactid,
+  member_log._campaign_name,
+  member_log._campaign_type,
+  member_log._member_status,
+  member_log._last_modified_date,
+  velocity._created_date,
+  velocity._next_change_date,
+  velocity._old_value,
+  velocity._new_value,
+  velocity._2x_stages
+FROM `x-marketing.faro.db_velocity_log` velocity
+LEFT JOIN `x-marketing.faro.db_member_log` member_log
+  ON velocity._prospect_id = member_log._leadorcontactid
