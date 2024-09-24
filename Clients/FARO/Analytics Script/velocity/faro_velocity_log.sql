@@ -1,8 +1,19 @@
 --------------------------------------------------------------
 -------------------------- Activity --------------------------
 --------------------------------------------------------------
-
-CREATE OR REPLACE TABLE `x-marketing.faro.db_activity_log` AS
+ 
+-- CREATE OR REPLACE TABLE `x-marketing.faro.db_activity_log` AS
+TRUNCATE TABLE `x-marketing.faro.db_activity_log`;
+INSERT INTO `x-marketing.faro.db_activity_log`(
+  _activity_id,
+  _activity_date,
+  _description,
+  _prospect_id,
+  _subject,
+  _status,
+  _activity_type,
+  _activity_category
+)
 WITH activity AS (
   SELECT DISTINCT
     id AS _activity_id,
@@ -46,14 +57,32 @@ WITH activity AS (
     'Task' AS _activity_category
   FROM `x-marketing.faro_salesforce.Task`
 )
-SELECT * FROM activity
+SELECT 
+  _activity_id,
+  _activity_date,
+  _description,
+  _prospect_id,
+  _subject,
+  _status,
+  _activity_type,
+  _activity_category
+FROM activity
 WHERE EXTRACT(YEAR FROM _activity_date) > 2021;
 
 --------------------------------------------------------------
 ------------------------ Member Stat -------------------------
 --------------------------------------------------------------
 
-CREATE OR REPLACE TABLE `x-marketing.faro.db_member_log` AS
+-- CREATE OR REPLACE TABLE `x-marketing.faro.db_member_log` AS
+TRUNCATE TABLE `x-marketing.faro.db_member_log`;
+INSERT INTO `x-marketing.faro.db_member_log`(
+  _campaignid,
+  _leadorcontactid,
+  _campaign_name,
+  _campaign_type,
+  _member_status,
+  _last_modified_date
+)
 SELECT DISTINCT
   member.campaignid AS _campaignid,
   member.leadorcontactid AS _leadorcontactid,
@@ -68,7 +97,38 @@ LEFT JOIN `x-marketing.faro_salesforce.Campaign` campaign
 --------------------------------------------------------------
 -------------------------- Velocity --------------------------
 --------------------------------------------------------------
-CREATE OR REPLACE TABLE `x-marketing.faro.db_velocity_log` AS
+-- CREATE OR REPLACE TABLE `x-marketing.faro.db_velocity_log` AS
+TRUNCATE TABLE `x-marketing.faro.db_velocity_log`;
+INSERT INTO `x-marketing.faro.db_velocity_log`(
+  _prospect_id,
+  _old_value,
+  _new_value,
+  _created_date,
+  _next_change_date,
+  _field,
+  _prospect_type,
+  _2x_stages,
+  _prospect_name,
+  _leadsource,
+  _country,
+  _iss_name,
+  _company,
+  _zprimary_solution_interest,
+  _id,
+  _industry,
+  _primary_hardware_interest,
+  _primary_software_interest,
+  _web_primary_software_interest,
+  _addition_product_interest,
+  _primary_application,
+  _product_interest,
+  _title,
+  _campaign_product_interest,
+  _no_current_interest_reason,
+  _secondary_application,
+  _stage_change_duration_days,
+  _activity_count
+)
 WITH stages_data AS (
   SELECT DISTINCT
     velocity_data.*,
@@ -169,10 +229,79 @@ LEFT JOIN activity
   AND activity._created_date = stages_data._created_date;
 
 ------------------------- RECENT LOG -------------------------
-CREATE OR REPLACE TABLE `x-marketing.faro.db_velocity_recent` AS
+-- CREATE OR REPLACE TABLE `x-marketing.faro.db_velocity_recent` AS
+TRUNCATE TABLE `x-marketing.faro.db_velocity_recent`;
+INSERT INTO `x-marketing.faro.db_velocity_recent`(
+  _prospect_id,
+  _old_value,
+  _new_value,
+  _created_date,
+  _next_change_date,
+  _field,
+  _prospect_type,
+  _2x_stages,
+  _prospect_name,
+  _leadsource,
+  _country,
+  _iss_name,
+  _company,
+  _zprimary_solution_interest,
+  _id,
+  _industry,
+  _primary_hardware_interest,
+  _primary_software_interest,
+  _web_primary_software_interest,
+  _addition_product_interest,
+  _primary_application,
+  _product_interest,
+  _title,
+  _campaign_product_interest,
+  _no_current_interest_reason,
+  _secondary_application,
+  _stage_change_duration_days,
+  _activity_count,
+  _campaignid,
+  _leadorcontactid,
+  _campaign_name,
+  _campaign_type,
+  _member_status,
+  _last_modified_date
+)
 SELECT 
-  velocity.*,
-  member_log.*
+  velocity._prospect_id,
+  velocity._old_value,
+  velocity._new_value,
+  velocity._created_date,
+  velocity._next_change_date,
+  velocity._field,
+  velocity._prospect_type,
+  velocity._2x_stages,
+  velocity._prospect_name,
+  velocity._leadsource,
+  velocity._country,
+  velocity._iss_name,
+  velocity._company,
+  velocity._zprimary_solution_interest,
+  velocity._id,
+  velocity._industry,
+  velocity._primary_hardware_interest,
+  velocity._primary_software_interest,
+  velocity._web_primary_software_interest,
+  velocity._addition_product_interest,
+  velocity._primary_application,
+  velocity._product_interest,
+  velocity._title,
+  velocity._campaign_product_interest,
+  velocity._no_current_interest_reason,
+  velocity._secondary_application,
+  velocity._stage_change_duration_days,
+  velocity._activity_count,
+  member_log._campaignid,
+  member_log._leadorcontactid,
+  member_log._campaign_name,
+  member_log._campaign_type,
+  member_log._member_status,
+  member_log._last_modified_date
 FROM `x-marketing.faro.db_velocity_log` velocity
 LEFT JOIN `x-marketing.faro.db_member_log` member_log
   ON velocity._prospect_id = member_log._leadorcontactid
@@ -180,7 +309,21 @@ LEFT JOIN `x-marketing.faro.db_member_log` member_log
   BETWEEN velocity._created_date AND velocity._next_change_date;
 
 ------------------------- MEMBER STAT -------------------------
-CREATE OR REPLACE TABLE `x-marketing.faro.db_member_stat` AS
+-- CREATE OR REPLACE TABLE `x-marketing.faro.db_member_stat` AS
+TRUNCATE TABLE `x-marketing.faro.db_member_stat`;
+INSERT INTO `x-marketing.faro.db_member_stat`(
+  _campaignid,
+  _leadorcontactid,
+  _campaign_name,
+  _campaign_type,
+  _member_status,
+  _last_modified_date,
+  _created_date,
+  _next_change_date,
+  _old_value,
+  _new_value,
+  _2x_stages
+)
 SELECT
   member_log._campaignid,
   member_log._leadorcontactid,
@@ -195,4 +338,4 @@ SELECT
   velocity._2x_stages
 FROM `x-marketing.faro.db_velocity_log` velocity
 LEFT JOIN `x-marketing.faro.db_member_log` member_log
-  ON velocity._prospect_id = member_log._leadorcontactid
+  ON velocity._prospect_id = member_log._leadorcontactid;
