@@ -176,13 +176,37 @@ email_click AS (
   FROM `x-marketing.ridecell_marketo.activities_click_email`
   QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
 ),
-unique_click AS (
-  SELECT
-    DISTINCT
-    email_click.*
-  FROM email_click
-  JOIN email_open 
-    ON email_open._leadid = email_click._leadid
+open_click AS ( --merge open and click data
+    SELECT * FROM email_open
+    UNION ALL
+    SELECT * FROM email_click
+),
+new_open AS ( --to populate the data in Clicked but not appear in Opened list
+    SELECT 
+      _sdc_sequence,
+      _campaignID,
+      _campaign,
+      _subject,
+      _email,
+      _timestamp,
+      'Opened' AS _engagement,
+      _description,
+      _leadid,
+      _link 
+    FROM open_click
+    WHERE _engagement <> 'Opened' 
+      AND _engagement = 'Clicked'
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY _leadid, _campaignID ORDER BY _timestamp DESC) = 1
+), 
+new_open_consolidate AS (
+  SELECT * FROM email_open
+  UNION ALL
+  SELECT * FROM new_open
+),
+final_open AS (
+SELECT *
+FROM new_open_consolidate
+QUALIFY ROW_NUMBER() OVER(PARTITION BY _leadid, _campaignID ORDER BY _timestamp DESC) = 1
 ),
 email_hard_bounce AS (
   SELECT
@@ -214,6 +238,21 @@ email_soft_bounce AS (
   FROM `x-marketing.ridecell_marketo.activities_email_bounced_soft`  
   QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
 ),
+email_soft_hard_bounced AS (
+  SELECT * FROM email_hard_bounce
+  UNION ALL
+  SELECT * FROM email_soft_bounce
+),
+new_delivered_email AS( --remove soft and hard bounced in delivered list
+    SELECT 
+      d.*
+    FROM email_delivered d
+    LEFT JOIN email_soft_hard_bounced b 
+      ON d._campaignID = b._campaignID 
+      AND d._leadid = b._leadid
+    WHERE b._campaignID IS NULL 
+      AND b._leadid IS NULL
+),
 email_download AS (
   SELECT
     _sdc_sequence,
@@ -239,21 +278,21 @@ email_unsubscribed AS (
     '' AS _subject,
     '' AS _email,
     activitydate AS _timestamp,
-    'unsubscribed' AS _engagement,
+    'Unsubscribed' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
     '' AS _link
-  FROM `x-marketing.hyland_marketo.activities_unsubscribe_email`
+  FROM `x-marketing.ridecell_marketo.activities_unsubscribe_email`
   QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
 ),
 engagements_combined AS (
   SELECT * FROM email_sent
   UNION ALL
-  SELECT * FROM email_delivered
+  SELECT * FROM new_delivered_email
   UNION ALL
-  SELECT * FROM email_open
+  SELECT * FROM final_open
   UNION ALL
-  SELECT * FROM unique_click
+  SELECT * FROM email_click
   UNION ALL
   SELECT * FROM email_hard_bounce
   UNION ALL
@@ -261,13 +300,13 @@ engagements_combined AS (
   UNION ALL
   SELECT * FROM email_unsubscribed
 )
-  SELECT
-    engagements.* EXCEPT(_leadid, _email),
-    COALESCE(REGEXP_EXTRACT(_description, r'[?&]utm_source=([^&]+)'), "Email") AS _utm_source,
-    REGEXP_EXTRACT(_description, r'[?&]utm_medium=([^&]+)') AS _utm_medium,
-    REGEXP_EXTRACT(_description, r'[?&]utm_content=([^&]+)') AS _utm_content,
-    prospect_info.*
-  FROM 
-    engagements_combined AS engagements
-  LEFT JOIN prospect_info
-    ON engagements._leadid = prospect_info._id
+SELECT
+  engagements.* EXCEPT(_leadid, _email),
+  COALESCE(REGEXP_EXTRACT(_description, r'[?&]utm_source=([^&]+)'), "Email") AS _utm_source,
+  REGEXP_EXTRACT(_description, r'[?&]utm_medium=([^&]+)') AS _utm_medium,
+  REGEXP_EXTRACT(_description, r'[?&]utm_content=([^&]+)') AS _utm_content,
+  prospect_info.*
+FROM 
+  engagements_combined AS engagements
+LEFT JOIN prospect_info
+  ON engagements._leadid = prospect_info._id
