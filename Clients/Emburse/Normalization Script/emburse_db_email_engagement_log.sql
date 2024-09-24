@@ -175,18 +175,20 @@ open_click AS ( --merge open and click data
     SELECT * FROM email_click
 ),
 new_open AS ( --to populate the data in Clicked but not appear in Opened list
-    SELECT _sdc_sequence,
-           _campaignID,
-           _campaign,
-           _subject,
-           _email,
-           _timestamp,
-           'Opened' AS _engagement,
-           _description,
-           _leadid,
-           _link 
+    SELECT 
+      _sdc_sequence,
+      _campaignID,
+      _campaign,
+      _subject,
+      _email,
+      _timestamp,
+      'Opened' AS _engagement,
+      _description,
+      _leadid,
+      _link 
     FROM open_click
-    WHERE _engagement <> 'Opened' AND _engagement = 'Clicked'
+    WHERE _engagement <> 'Opened' 
+      AND _engagement = 'Clicked'
     QUALIFY ROW_NUMBER() OVER(PARTITION BY _leadid, _campaignID ORDER BY _timestamp DESC) = 1
 ), 
 new_open_consolidate AS (
@@ -232,12 +234,14 @@ email_soft_hard_bounced AS (
   SELECT * FROM email_soft_bounce
 ),
 new_delivered_email AS( --remove soft and hard bounced in delivered list
-    SELECT d.*
+    SELECT 
+      d.*
     FROM email_delivered d
     LEFT JOIN email_soft_hard_bounced b 
       ON d._campaignID = b._campaignID 
       AND d._leadid = b._leadid
-    WHERE b._campaignID IS NULL AND b._leadid IS NULL
+    WHERE b._campaignID IS NULL 
+      AND b._leadid IS NULL
 ),
 email_download AS (
   SELECT
@@ -286,14 +290,14 @@ engagements_combined AS (
   UNION ALL
   SELECT * FROM email_unsubscribed
 )
-  SELECT
-    engagements.* EXCEPT(_leadid, _email),
-    COALESCE(REGEXP_EXTRACT(_link, r'[?&]utm_source=([^&]+)'), "Email") AS _utm_source,
-    REGEXP_EXTRACT(_link, r'[?&]utm_medium=([^&]+)') AS _utm_medium,
-    REGEXP_EXTRACT(_link, r'[?&]utm_content=([^&]+)') AS _utm_content,
-    REGEXP_EXTRACT(_link, r'[?&]utm_campaign=([^&]+)') AS _utm_campaign,
-    prospect_info.*
-  FROM 
-    engagements_combined AS engagements
-  LEFT JOIN prospect_info
-    ON engagements._leadid = prospect_info._id
+SELECT
+  engagements.* EXCEPT(_leadid, _email),
+  COALESCE(REGEXP_EXTRACT(_link, r'[?&]utm_source=([^&]+)'), "Email") AS _utm_source,
+  REGEXP_EXTRACT(_link, r'[?&]utm_medium=([^&]+)') AS _utm_medium,
+  REGEXP_EXTRACT(_link, r'[?&]utm_content=([^&]+)') AS _utm_content,
+  REGEXP_EXTRACT(_link, r'[?&]utm_campaign=([^&]+)') AS _utm_campaign,
+  prospect_info.*
+FROM 
+  engagements_combined AS engagements
+LEFT JOIN prospect_info
+  ON engagements._leadid = prospect_info._id
