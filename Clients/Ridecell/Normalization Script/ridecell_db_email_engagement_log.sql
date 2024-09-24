@@ -204,9 +204,9 @@ new_open_consolidate AS (
   SELECT * FROM new_open
 ),
 final_open AS (
-SELECT *
-FROM new_open_consolidate
-QUALIFY ROW_NUMBER() OVER(PARTITION BY _leadid, _campaignID ORDER BY _timestamp DESC) = 1
+  SELECT *
+  FROM new_open_consolidate
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY _leadid, _campaignID ORDER BY _timestamp DESC) = 1
 ),
 email_hard_bounce AS (
   SELECT
