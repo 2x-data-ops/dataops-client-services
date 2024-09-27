@@ -3,39 +3,39 @@
 TRUNCATE TABLE `jellyvision.db_6sense_account_current_state`;
 
 INSERT INTO `jellyvision.db_6sense_account_current_state` (
-  _6sensecompanyname,
-  _6sensecountry,
-  _6sensedomain,
+  _6sense_company_name,
+  _6sense_country,
+  _6sense_domain,
   _domain,
-  _6senseindustry,
-  _6senseemployeerange,
-  _6senserevenuerange,
+  _6sense_industry,
+  _6sense_employee_range,
+  _6sense_revenue_range,
   _added_on,
   _country_account,
   _first_impressions,
   _website_engagement,
   _6qa_date,
   _is_6qa,
-  _6sensescore,
+  _6sense_score,
   _prev_stage,
   _prev_order,
   _current_stage,
   _curr_order,
   _movement,
   _movement_date,
-  _crmaccountid,
-  _crmdomain,
-  _crmaccount
+  _crm_account_id,
+  _crm_domain,
+  _crm_account
 )
 WITH segment_target_account AS (
     SELECT DISTINCT
-      _6sensecompanyname,
-      _6sensecountry,
-      _6sensedomain,
+      _6sensecompanyname AS _6sense_company_name,
+      _6sensecountry AS _6sense_country,
+      _6sensedomain AS _6sense_domain,
       SPLIT(_6sensedomain, '.') [SAFE_OFFSET(0)] AS _domain,
-      _industrylegacy AS _6senseindustry,
-      _6senseemployeerange,
-      _6senserevenuerange,
+      _industrylegacy AS _6sense_industry,
+      _6senseemployeerange AS _6sense_employee_range,
+      _6senserevenuerange AS _6sense_revenue_range,
       CASE
         WHEN _extractdate LIKE '0%' THEN PARSE_DATE('%m/%d/%y', _extractdate)
         ELSE PARSE_DATE('%m/%d/%Y', _extractdate)
@@ -109,7 +109,7 @@ WITH segment_target_account AS (
     SELECT DISTINCT
       DATE(account6qastartdate6sense__c) AS _6qa_date,
       account6qa6sense__c AS _is_6qa,
-      accountprofilescore6sense__c AS _6sensescore,
+      accountprofilescore6sense__c AS _6sense_score,
       act.name AS _account_name,
       web_domain_name__c AS _domain,
       --COALESCE(act.shippingcountry, act.billingcountry) AS _country
@@ -121,14 +121,14 @@ WITH segment_target_account AS (
     SELECT DISTINCT
       MIN(salesforce_account._6qa_date) AS _6qa_date,
       salesforce_account._is_6qa,
-      _6sensescore,
+      _6sense_score,
       main._country_account
     FROM target_accounts AS main -- This gets all possible 6QA dates for each account
     JOIN salesforce_account -- Tie with target accounts to get their 6sense account info, instead of using Salesforce's
       ON (
-      salesforce_account._domain = SPLIT(main._6sensedomain, '.') [SAFE_OFFSET(0)]
+      salesforce_account._domain = SPLIT(main._6sense_domain, '.') [SAFE_OFFSET(0)]
       AND (
-          LENGTH(main._6sensedomain) > 0
+          LENGTH(main._6sense_domain) > 0
           AND salesforce_account._domain IS NOT NULL
       ) -- AND
       --     (LENGTH(main._6sensedomain) > 0 AND side._domain IS NOT NULL)
@@ -181,10 +181,10 @@ WITH segment_target_account AS (
   ),
   account_lookup AS (
     SELECT
-      _crmaccountid,
-      _crmdomain,
-      _crmaccount,
-      _6sensedomain,
+      _crmaccountid AS _crm_account_id,
+      _crmdomain AS _crm_domain,
+      _crmaccount AS _crm_account,
+      _6sensedomain AS _6sense_domain,
       _6senseaccount
     FROM `x-marketing.jellyvision_mysql.jellyvision_db_6sense_lookup_table`
     QUALIFY ROW_NUMBER() OVER (
@@ -197,13 +197,13 @@ WITH segment_target_account AS (
   )
 SELECT
   combined_data.*,
-  account_lookup.* EXCEPT (_6sensedomain, _6senseaccount)
+  account_lookup.* EXCEPT (_6sense_domain, _6senseaccount)
 FROM combined_data
 LEFT JOIN account_lookup 
   ON CONCAT(
-    LOWER(combined_data._6sensecompanyname),
-    combined_data._6sensedomain
+    LOWER(combined_data._6sense_company_name),
+    combined_data._6sense_domain
     ) = CONCAT(
     LOWER(_6senseaccount),
-    account_lookup._6sensedomain
+    account_lookup._6sense_domain
   );

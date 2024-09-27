@@ -3,9 +3,9 @@
 TRUNCATE TABLE `jellyvision.db_6sense_buying_stages_movement`;
 
 INSERT INTO `jellyvision.db_6sense_buying_stages_movement` (
-    _6sensecountry,	
-    _6sensedomain,	
-    _6sensecompanyname,	
+    _6sense_country,	
+    _6sense_domain,	
+    _6sense_company_name,	
     _activities_on,	
     _source,	
     _country_account,	
@@ -40,9 +40,9 @@ WITH stage_order AS (
   -- Get buying stage data
   buying_stage_data AS (
     SELECT DISTINCT
-      _6sensecompanyname,
-      _6sensecountry,
-      _6sensedomain,
+      _6sensecompanyname AS _6sense_company_name,
+      _6sensecountry AS _6sense_country,
+      _6sensedomain AS _6sense_domain,
       _buyingstageend AS _buying_stage,
       CASE
         WHEN _extractdate LIKE '0%' THEN PARSE_DATE('%m/%d/%y', _extractdate)
@@ -53,8 +53,8 @@ WITH stage_order AS (
   ),
   buying_stages AS (
     SELECT DISTINCT
-      _6sensecountry,
-      _6sensecompanyname,
+      _6sense_country,
+      _6sense_company_name,
       MIN(_activities_on) AS _activities_on
     FROM buying_stage_data
     GROUP BY
@@ -65,25 +65,25 @@ WITH stage_order AS (
   first_ever_buying_stage AS (
     SELECT DISTINCT
       _activities_on,
-      _6sensecountry,
-      _6sensedomain,
-      _6sensecompanyname,
+      _6sense_country,
+      _6sense_domain,
+      _6sense_company_name,
       _buying_stage,
       'Initial' AS _source,
-      CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account
+      CONCAT(_6sense_country, _6sense_company_name) AS _country_account
     FROM buying_stage_data
     JOIN buying_stages
-      USING (_6sensecountry, _6sensecompanyname, _activities_on)
+      USING (_6sense_country, _6sense_company_name, _activities_on)
   ),
   buying_stage_datas AS (
     SELECT DISTINCT
       _activities_on,
-      _6sensecountry,
-      _6sensedomain,
-      _6sensecompanyname,
+      _6sense_country,
+      _6sense_domain,
+      _6sense_company_name,
       _buying_stage,
       'Non Initial' AS _source,
-      CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account
+      CONCAT(_6sense_country, _6sense_company_name) AS _country_account
     FROM buying_stage_data
   ),
   -- Get every other buying stage for each account
@@ -111,14 +111,14 @@ WITH stage_order AS (
   ),
   buying_stage_order AS (
     SELECT DISTINCT
-      _6sensecountry,
-      _6sensedomain,
-      _6sensecompanyname,
+      _6sense_country,
+      _6sense_domain,
+      _6sense_company_name,
       _buying_stage AS _current_stage,
       _activities_on,
       LAG(_buying_stage) OVER (
         PARTITION BY
-          _6sensedomain
+          _6sense_domain
         ORDER BY
           _activities_on ASC
       ) AS _prev_stage,
@@ -135,8 +135,8 @@ WITH stage_order AS (
         _activities_on = (
           MIN(_activities_on) OVER (
             PARTITION BY
-              _6sensedomain,
-              _6sensecountry
+              _6sense_domain,
+              _6sense_country
             ORDER BY
               _activities_on
           )
@@ -150,8 +150,8 @@ WITH stage_order AS (
         _activities_on = (
           MIN(_activities_on) OVER (
             PARTITION BY
-              _6sensedomain,
-              _6sensecountry
+              _6sense_domain,
+              _6sense_country
             ORDER BY
               _activities_on
           )
