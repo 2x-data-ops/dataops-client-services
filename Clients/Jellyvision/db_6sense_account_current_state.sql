@@ -56,8 +56,7 @@ WITH segment_target_account AS (
       CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account
     FROM `x-marketing.jellyvision_mysql.jellyvision_db_segment_target_account`
     WHERE LENGTH(_extractdate) > 0
-    GROUP BY
-      2
+    GROUP BY CONCAT(_6sensecountry, _6sensecompanyname)
   ),
   target_accounts AS (
     SELECT DISTINCT
@@ -82,8 +81,7 @@ WITH segment_target_account AS (
           ELSE PARSE_DATE('%m/%d/%Y', _latestimpression)
         END
       ) OVER (
-        PARTITION BY
-          CONCAT(_6sensecountry, _6sensecompanyname)
+        PARTITION BY CONCAT(_6sensecountry, _6sensecompanyname)
       ) AS _first_impressions,
       CASE
         WHEN _websiteengagement = '-' THEN CAST(NULL AS STRING)
@@ -94,15 +92,13 @@ WITH segment_target_account AS (
     JOIN airtable_ads_campaignid
       USING(_campaignid)
     QUALIFY ROW_NUMBER() OVER (
-      PARTITION BY
-        CONCAT(_6sensecountry, _6sensecompanyname)
-      ORDER BY
-        (
-          CASE
-            WHEN _latestimpression LIKE '0%' THEN PARSE_DATE('%m/%d/%y', _latestimpression)
-            ELSE PARSE_DATE('%m/%d/%Y', _latestimpression)
-          END
-        ) DESC
+      PARTITION BY CONCAT(_6sensecountry, _6sensecompanyname)
+      ORDER BY (
+        CASE
+          WHEN _latestimpression LIKE '0%' THEN PARSE_DATE('%m/%d/%y', _latestimpression)
+          ELSE PARSE_DATE('%m/%d/%Y', _latestimpression)
+        END
+      ) DESC
     ) = 1
   ),
   salesforce_account AS (
@@ -141,10 +137,7 @@ WITH segment_target_account AS (
       --         AND 
       --             main._6sensecompanyname = side._account_name
       --     ) 
-    GROUP BY
-      2,
-      3,
-      4
+    GROUP BY salesforce_account._is_6qa, _6sense_score, main._country_account
   ),
   -- Get the buying stage info each account
   buying_stage_related_info AS (
@@ -158,10 +151,8 @@ WITH segment_target_account AS (
       _country_account,
     FROM `jellyvision.db_6sense_buying_stages_movement`
     QUALIFY ROW_NUMBER() OVER (
-      PARTITION BY
-        _country_account
-      ORDER BY
-        _activities_on DESC
+      PARTITION BY  _country_account
+      ORDER BY _activities_on DESC
     ) = 1
   ),
   -- Attach all other data parts to target accounts
@@ -188,11 +179,8 @@ WITH segment_target_account AS (
       _6senseaccount
     FROM `x-marketing.jellyvision_mysql.jellyvision_db_6sense_lookup_table`
     QUALIFY ROW_NUMBER() OVER (
-      PARTITION BY
-        _crmaccountid,
-        _6sensedomain
-      ORDER BY
-        _crmaccountid
+      PARTITION BY _crmaccountid, _6sensedomain
+      ORDER BY crmaccountid
     ) = 1
   )
 SELECT

@@ -57,9 +57,7 @@ WITH stage_order AS (
       _6sense_company_name,
       MIN(_activities_on) AS _activities_on
     FROM buying_stage_data
-    GROUP BY
-      1,
-      2
+    GROUP BY _6sense_country, _6sense_company_name
   ),
   -- Get first ever buying stage for each account
   first_ever_buying_stage AS (
@@ -95,8 +93,7 @@ WITH stage_order AS (
       SELECT DISTINCT
         CONCAT(_country_account, MIN(_activities_on))
       FROM first_ever_buying_stage
-      GROUP BY
-        _country_account
+      GROUP BY _country_account
     )
   ),
   -- Combine both first ever data and every other data
@@ -117,10 +114,8 @@ WITH stage_order AS (
       _buying_stage AS _current_stage,
       _activities_on,
       LAG(_buying_stage) OVER (
-        PARTITION BY
-          _6sense_domain
-        ORDER BY
-          _activities_on ASC
+        PARTITION BY _6sense_domain
+        ORDER BY _activities_on ASC
       ) AS _prev_stage,
       _source,
       _country_account
@@ -134,11 +129,8 @@ WITH stage_order AS (
       IF(
         _activities_on = (
           MIN(_activities_on) OVER (
-            PARTITION BY
-              _6sense_domain,
-              _6sense_country
-            ORDER BY
-              _activities_on
+            PARTITION BY _6sense_domain, _6sense_country
+            ORDER BY _activities_on
           )
         )
         AND _prev_stage IS NULL,
@@ -149,11 +141,8 @@ WITH stage_order AS (
       IF(
         _activities_on = (
           MIN(_activities_on) OVER (
-            PARTITION BY
-              _6sense_domain,
-              _6sense_country
-            ORDER BY
-              _activities_on
+            PARTITION BY _6sense_domain, _6sense_country
+            ORDER BY _activities_on
           )
         )
         AND _prev_stage IS NULL,
@@ -177,15 +166,11 @@ WITH stage_order AS (
       ) AS _movement,
     FROM set_buying_stage_order
     QUALIFY ROW_NUMBER() OVER (
-      PARTITION BY
-        _country_account
-      ORDER BY
-        _activities_on DESC
+      PARTITION BY _country_account
+      ORDER BY _activities_on DESC
     ) = 1
   )
 SELECT
   *
 FROM set_movement
-ORDER BY
-  _activities_on DESC,
-  _country_account;
+ORDER BY _activities_on DESC, _country_account;
