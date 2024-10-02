@@ -308,7 +308,7 @@ lead_status AS (
     _lead_email,
     '' AS _opportunity_type
   FROM account_leads
-  -- WHERE account_leads._WF_become_MQL_date IS NOT NULL
+  WHERE account_leads._WF_become_MQL_date IS NOT NULL
   UNION ALL
   SELECT DISTINCT
     account_leads._account_owner,
