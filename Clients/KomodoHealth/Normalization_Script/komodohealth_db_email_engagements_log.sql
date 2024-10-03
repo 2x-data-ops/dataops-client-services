@@ -90,18 +90,49 @@ WITH
     properties.hs_latest_source_data_2.value AS _latestSourceDrillDown2,
     properties.recent_conversion_event_name.value AS _recentConversion,
     properties.hs_v2_date_entered_marketingqualifiedlead.value AS _dateEnteredMQL
-    --ROW_NUMBER() OVER(PARTITION BY property_email.value, CONCAT(property_firstname.value, ' ', property_lastname.value) ORDER BY vid DESC) AS _rownum
   FROM
     `x-marketing.komodohealth_hubspot.contacts` k
   WHERE
     property_email.value IS NOT NULL
     AND property_email.value NOT LIKE '%2x.marketing%'
     AND property_email.value NOT LIKE '%komodohealth.com%' 
+  --QUALIFY ROW_NUMBER() OVER(PARTITION BY property_email.value, CONCAT(property_firstname.value, ' ', property_lastname.value) ORDER BY vid DESC) = 1
   ),
-  
-  email_sent AS (
-  WITH
-    bounced AS (
+
+  Sent AS (
+    SELECT
+        activity._sdc_sequence,
+        CAST(activity.emailcampaignid AS STRING) AS _campaignID,
+        campaign.name AS _campaign,
+        campaign.subject AS _subject,
+        activity.recipient AS _email,
+        activity.created AS _timestamp,
+        EXTRACT(WEEK FROM activity.created) + 1 AS _week,
+        'Sent' AS _engagement,
+        url AS _description,
+        devicetype AS _devicetype,
+        CAST(linkid AS STRING) AS _linkid,
+        --appname,
+        CAST(duration AS STRING) AS _duration,
+        response,
+      FROM
+        `x-marketing.komodohealth_hubspot.email_events` activity
+      JOIN
+        `x-marketing.komodohealth_hubspot.campaigns` campaign
+      ON
+        activity.emailcampaignid = campaign.id
+      WHERE
+        activity.type = 'SENT'
+        AND activity.recipient NOT LIKE '%2x.marketing%'
+        AND activity.recipient NOT LIKE '%komodohealth.com%'
+        AND EXTRACT(YEAR FROM created) >= 2023
+        AND campaign.name IS NOT NULL 
+
+      QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+
+    ),
+
+    dropped AS (
     SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
@@ -117,81 +148,6 @@ WITH
       --appname,
       CAST(duration AS STRING) AS _duration,
       response,
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-    FROM
-      `x-marketing.komodohealth_hubspot.email_events` activity
-    JOIN
-      `x-marketing.komodohealth_hubspot.campaigns` campaign
-    ON
-      activity.emailcampaignid = campaign.id
-    WHERE
-      activity.type = 'DROPPED' 
-    ),
-    Sent AS (
-    SELECT
-      * EXCEPT(_rownum)
-    FROM (
-      SELECT
-        activity._sdc_sequence,
-        CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-        campaign.name AS _campaign,
-        campaign.subject AS _subject,
-        activity.recipient AS _email,
-        activity.created AS _timestamp,
-        EXTRACT(WEEK FROM activity.created) + 1 AS _week,
-        'Sent' AS _engagement,
-        url AS _description,
-        devicetype AS _devicetype,
-        CAST(linkid AS STRING) AS _linkid,
-        --appname,
-        CAST(duration AS STRING) AS _duration,
-        response,
-        ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-      FROM
-        `x-marketing.komodohealth_hubspot.email_events` activity
-      JOIN
-        `x-marketing.komodohealth_hubspot.campaigns` campaign
-      ON
-        activity.emailcampaignid = campaign.id
-      WHERE
-        activity.type = 'SENT'
-        AND activity.recipient NOT LIKE '%2x.marketing%'
-        AND activity.recipient NOT LIKE '%komodohealth.com%'
-        AND EXTRACT(YEAR FROM created) >= 2023
-        AND campaign.name IS NOT NULL )
-    WHERE
-      _rownum = 1 
-    )
-  SELECT
-    Sent.*
-  FROM Sent
-  LEFT JOIN bounced
-  ON Sent._email = bounced._email
-  AND Sent._campaignID = bounced._campaignID
-  WHERE
-    bounced._email IS NULL 
-  ),
-  
-  email_delivered AS (
-  WITH dropped AS (
-  SELECT
-      activity._sdc_sequence,
-      CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-      campaign.name AS _campaign,
-      campaign.subject AS _subject,
-      activity.recipient AS _email,
-      activity.created AS _timestamp,
-      EXTRACT(WEEK
-      FROM
-        activity.created) + 1 AS _week,
-      activity.type AS _engagement,
-      url AS _description,
-      devicetype AS _devicetype,
-      CAST(CAST(linkid AS STRING) AS STRING) AS _linkid,
-      --appname,
-      CAST(duration AS STRING) AS _duration,
-      response,
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
     FROM
       `x-marketing.komodohealth_hubspot.email_events` activity
     JOIN
@@ -200,8 +156,21 @@ WITH
       activity.emailcampaignid = campaign.id
     WHERE
       activity.type = 'DROPPED'
-),
-hard_bounced AS (
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+    ),
+  
+  email_sent AS (
+  SELECT
+    Sent.*
+  FROM Sent
+  LEFT JOIN dropped
+  ON Sent._email = dropped._email
+  AND Sent._campaignID = dropped._campaignID
+  WHERE
+    dropped._email IS NULL 
+  ),
+
+  hard_bounced AS (
   SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
@@ -219,7 +188,6 @@ hard_bounced AS (
       --appname,
       CAST(duration AS STRING) AS _duration,
       response,
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
     FROM 
       `x-marketing.komodohealth_hubspot.subscription_changes`, UNNEST(changes) AS status 
     JOIN 
@@ -230,12 +198,11 @@ hard_bounced AS (
       activity.type = 'BOUNCE'
     AND 
       status.value.change = 'BOUNCED'
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ),
+
 delivered AS (
   SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _campaign,
@@ -252,7 +219,6 @@ delivered AS (
       --appname,
       CAST(duration AS STRING) AS _duration,
       response,
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
     FROM
       `x-marketing.komodohealth_hubspot.email_events` activity
     JOIN
@@ -266,20 +232,18 @@ delivered AS (
       AND EXTRACT(YEAR
       FROM
         created) >= 2023
-      AND campaign.name IS NOT NULL )
-  WHERE
-    _rownum = 1   
-  )
-SELECT delivered .* FROM delivered 
-LEFT JOIN dropped ON delivered._email = dropped._email and delivered._campaignID = dropped._campaignID
-LEFT JOIN hard_bounced ON delivered._email = hard_bounced._email and delivered._campaignID = hard_bounced._campaignID 
-WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
+      AND campaign.name IS NOT NULL  
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+  ),
+  
+  email_delivered AS (
+  SELECT delivered .* FROM delivered 
+  LEFT JOIN dropped ON delivered._email = dropped._email and delivered._campaignID = dropped._campaignID
+  LEFT JOIN hard_bounced ON delivered._email = hard_bounced._email and delivered._campaignID = hard_bounced._campaignID 
+  WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
 ),
 
   email_open AS (
-  SELECT
-    * EXCEPT(_rownum)
-  FROM (
     SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
@@ -297,7 +261,6 @@ WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
       --appname,
       CAST(duration AS STRING) AS _duration,
       response,
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
     FROM
       `x-marketing.komodohealth_hubspot.email_events` activity
     JOIN
@@ -312,16 +275,13 @@ WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
       AND EXTRACT(YEAR
       FROM
         created) >= 2023
-      AND campaign.name IS NOT NULL )
-  WHERE
-    _rownum = 1 
-  ),
+      AND campaign.name IS NOT NULL
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+  )
+  ,
 
   email_click AS (
   SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _campaign,
@@ -338,7 +298,6 @@ WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
       --appname,
       CAST(duration AS STRING) AS _duration,
       response,
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
     FROM
       `x-marketing.komodohealth_hubspot.email_events` activity
     JOIN
@@ -353,16 +312,12 @@ WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
       AND EXTRACT(YEAR
       FROM
         created) >= 2023
-      AND campaign.name IS NOT NULL )
-  WHERE
-    _rownum = 1 
+      AND campaign.name IS NOT NULL
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
   ),
 
   email_bounce AS (
   SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _campaign,
@@ -379,7 +334,6 @@ WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
       --appname,
       CAST(duration AS STRING) AS _duration,
       response,
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
     FROM
       `x-marketing.komodohealth_hubspot.email_events` activity
     JOIN
@@ -393,16 +347,12 @@ WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
       AND EXTRACT(YEAR
       FROM
         created) >= 2023
-      AND campaign.name IS NOT NULL )
-  WHERE
-    _rownum = 1 
+      AND campaign.name IS NOT NULL
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
   ),
   
   email_unsubcribed AS (
   SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _campaign,
@@ -419,7 +369,6 @@ WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
       --appname,
       CAST(duration AS STRING) AS _duration,
       response,
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
     FROM
       `x-marketing.komodohealth_hubspot.subscription_changes`,
       UNNEST(changes) AS status
@@ -438,30 +387,12 @@ WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
       AND EXTRACT(YEAR
       FROM
         created) >= 2023
-      AND status.value.change = 'UNSUBSCRIBED' )
-  WHERE
-    _rownum = 1 ),
-  email_download AS (
-  SELECT
-    * EXCEPT (rownum)
-  FROM (
+      AND status.value.change = 'UNSUBSCRIBED'
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+    ),
+
+  form_filled AS (
     SELECT
-      activity._sdc_sequence,
-      CAST(campaign.id AS STRING) AS _campaignID,
-      COALESCE(form_title, campaign.name) AS _campaign,
-      campaign.subject,
-      activity.email AS _email,
-      activity.timestamp AS _timestamp,
-      activity.week + 1 AS _week,
-      'Downloaded' AS _engagement,
-      activity.description AS _description,
-      activity.devicetype,
-      '' AS _linkid,
-      '' AS _duration,
-      "" AS response,
-      ROW_NUMBER() OVER(PARTITION BY email, campaign.name ORDER BY timestamp DESC) AS rownum
-    FROM (
-      SELECT
         c._sdc_sequence,
         CAST(NULL AS STRING) AS devicetype,
         REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_source=([^&]+)') AS _utmsource,
@@ -483,7 +414,25 @@ WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
       JOIN
         `x-marketing.komodohealth_hubspot.forms` forms
       ON
-        form.value.form_id = forms.guid ) activity
+        form.value.form_id = forms.guid
+  ),
+  
+  email_download AS (
+  SELECT
+      activity._sdc_sequence,
+      CAST(campaign.id AS STRING) AS _campaignID,
+      COALESCE(form_title, campaign.name) AS _campaign,
+      campaign.subject,
+      activity.email AS _email,
+      activity.timestamp AS _timestamp,
+      activity.week + 1 AS _week,
+      'Downloaded' AS _engagement,
+      activity.description AS _description,
+      activity.devicetype,
+      '' AS _linkid,
+      '' AS _duration,
+      "" AS response,
+    FROM form_filled activity
     JOIN
       `x-marketing.komodohealth_hubspot.campaigns` campaign
     ON
@@ -493,9 +442,9 @@ WHERE hard_bounced._email IS NULL AND dropped._email IS NULL
       AND activity.email NOT LIKE '%komodohealth.com%'
       AND EXTRACT(YEAR
       FROM
-        activity.timestamp) >= 2023 )
-  WHERE
-    rownum = 1 ),
+        activity.timestamp) >= 2023 
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY email, campaign.name ORDER BY timestamp DESC) = 1
+    ),
   engagements_combined AS (
   SELECT
     *
