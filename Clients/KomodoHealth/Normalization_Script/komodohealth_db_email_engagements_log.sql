@@ -98,7 +98,7 @@ WITH prospect_info AS (
       properties.hs_latest_source_data_2.value AS _latestSourceDrillDown2,
       properties.recent_conversion_event_name.value AS _recentConversion,
       properties.hs_v2_date_entered_marketingqualifiedlead.value AS _dateEnteredMQL
-    FROM `x-marketing.komodohealth_hubspot.contacts` k
+    FROM `x-marketing.komodohealth_hubspot.contacts` contact
     WHERE property_email.value IS NOT NULL
       AND property_email.value NOT LIKE '%2x.marketing%'
       AND property_email.value NOT LIKE '%komodohealth.com%'
@@ -393,7 +393,7 @@ WITH prospect_info AS (
   ),
   form_filled AS (
     SELECT
-      c._sdc_sequence,
+      contact._sdc_sequence,
       CAST(NULL AS STRING) AS devicetype,
       REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_source=([^&]+)') AS _utmsource,
       REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_campaign=([^&]+)') AS _utmcampaign,
@@ -410,7 +410,7 @@ WITH prospect_info AS (
       'Downloaded' AS engagement,
       form.value.page_url AS description,
       campaignguid,
-    FROM `x-marketing.komodohealth_hubspot.contacts` c,
+    FROM `x-marketing.komodohealth_hubspot.contacts` contact,
       UNNEST (form_submissions) AS form
     JOIN `x-marketing.komodohealth_hubspot.forms` forms
       ON form.value.form_id = forms.guid
