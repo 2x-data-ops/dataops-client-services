@@ -35,9 +35,6 @@ WITH
   ),
   airtable_info AS (
     SELECT 
-      * EXCEPT(_rownum)
-    FROM (
-      SELECT 
           _pardotid,
           CASE 
               WHEN LENGTH(TRIM(_livedate)) = 0 THEN NULL
@@ -51,23 +48,18 @@ WITH
           _emailfilters,
           _costofevent,
           _preposteventemail,
-          _eventlevel,
-          ROW_NUMBER() OVER(
-              PARTITION BY _pardotid 
-              ORDER BY _id DESC
-          ) _rownum
+          _eventlevel
+          
       FROM 
           `x-marketing.blend360_mysql.db_airtable_email` 
-
-    ) 
-    WHERE _rownum = 1
+      QUALIFY ROW_NUMBER() OVER(
+              PARTITION BY _pardotid 
+              ORDER BY _id DESC
+          ) = 1
   ),
-  total_sent AS (
-    WITH sent_v2 AS (
+
+  sent_v2 AS (
       SELECT
-        * EXCEPT(_rownum)
-      FROM (
-        SELECT
           -- activity._sdc_sequence,
           CAST(activity.emailcampaignid AS STRING) AS _campaignID,
           campaign.name AS _campaign,
@@ -80,8 +72,8 @@ WITH
           CAST(linkid AS STRING) AS linkid,
           --appname,
           CAST(duration AS STRING) AS duration,
-          response,
-          ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+          response
+          
         FROM
           `x-marketing.blend360_hubspot_v2.email_events` activity
         JOIN
@@ -92,15 +84,11 @@ WITH
           activity.type = 'SENT' /*AND activity.recipient NOT LIKE '%2x.marketing%'
         AND activity.recipient NOT LIKE '%blend360.com%'*/
           AND campaign.name IS NOT NULL 
-      )
-      WHERE 
-        _rownum = 1 
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
     ),
+
     sent_v1 AS (
       SELECT
-        * EXCEPT(_rownum)
-      FROM (
-        SELECT
           -- activity._sdc_sequence,
           CAST(activity.emailcampaignid AS STRING) AS _campaignID,
           CAST(NULL AS STRING) AS _campaign,
@@ -113,17 +101,16 @@ WITH
           CAST(linkid AS STRING) AS linkid,
           --appname,
           CAST(duration AS STRING) AS duration,
-          response,
-          ROW_NUMBER() OVER(PARTITION BY activity.recipient, activity.emailcampaignid ORDER BY activity.created DESC) AS _rownum
+          response
         FROM
           `x-marketing.blend360_hubspot.email_events` activity
         WHERE
           activity.type = 'SENT' /*AND activity.recipient NOT LIKE '%2x.marketing%'
         AND activity.recipient NOT LIKE '%blend360.com%'*/
-      )
-      WHERE 
-        _rownum = 1 
-    )
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, activity.emailcampaignid ORDER BY activity.created DESC) = 1
+    ),
+
+  total_sent AS (
     SELECT 
       *
     FROM sent_v2
@@ -133,23 +120,16 @@ WITH
     FROM sent_v1
     
   ),
-  email_dropped AS (
-    WITH dropped_v2 AS (
-      SELECT 
-          * EXCEPT(_rownum) 
-      FROM (
 
-          SELECT
+dropped_v2 AS (
+      SELECT
               main.recipient AS _email,
               CAST(main.emailcampaignid AS STRING) AS _campaignID,
               side.name AS _contentTitle,
               main.url AS _description,
               main.created AS _timestamp,
-              'Dropped' AS _engagement,
-              ROW_NUMBER() OVER(
-                  PARTITION BY main.recipient, main.emailcampaignid
-                  ORDER BY main.created DESC
-              ) AS _rownum
+              'Dropped' AS _engagement
+              
           FROM 
               `x-marketing.blend360_hubspot_v2.email_events` main
           JOIN
@@ -160,36 +140,35 @@ WITH
               main.type = 'DROPPED' 
           AND 
               main.recipient NOT LIKE '%2x.marketing%'
-
-      )
-      WHERE _rownum = 1
+          QUALIFY ROW_NUMBER() OVER(
+                  PARTITION BY main.recipient, main.emailcampaignid
+                  ORDER BY main.created DESC
+              ) = 1
     ),
-    dropped_v1 AS (
-      SELECT 
-          * EXCEPT(_rownum) 
-      FROM (
 
-          SELECT
+    dropped_v1 AS (
+      SELECT
               recipient AS _email,
               CAST(emailcampaignid AS STRING) AS _campaignID,
               CAST(NULL AS STRING) AS _campaign,
               url AS _description,
               created AS _timestamp,
-              'Dropped' AS _engagement,
-              ROW_NUMBER() OVER(
-                  PARTITION BY recipient, emailcampaignid
-                  ORDER BY created DESC
-              ) AS _rownum
+              'Dropped' AS _engagement
+              
           FROM 
               `x-marketing.blend360_hubspot.email_events` 
           WHERE 
               type = 'DROPPED' 
           AND 
               recipient NOT LIKE '%2x.marketing%'
+          QUALIFY ROW_NUMBER() OVER(
+                  PARTITION BY recipient, emailcampaignid
+                  ORDER BY created DESC
+              ) = 1
+    ),
 
-      )
-      WHERE _rownum = 1
-    )
+
+  email_dropped AS (
     SELECT
       *
     FROM dropped_v2
@@ -209,12 +188,9 @@ WITH
         FROM email_dropped
       ) 
   ),
-  total_delivered AS (
-    WITH delivered_v2 AS (
+
+delivered_v2 AS (
       SELECT
-        * EXCEPT(_rownum)
-      FROM (
-        SELECT
           -- activity._sdc_sequence,
           CAST(activity.emailcampaignid AS STRING) AS _campaignID,
           campaign.name AS _campaign,
@@ -227,8 +203,8 @@ WITH
           CAST(linkid AS STRING) AS linkid,
           --appname,
           CAST(duration AS STRING) AS duration,
-          response,
-          ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+          response
+          
         FROM
           `x-marketing.blend360_hubspot_v2.email_events` activity
         JOIN
@@ -238,15 +214,12 @@ WITH
         WHERE
           activity.type = 'DELIVERED' /*AND activity.recipient NOT LIKE '%2x.marketing%'
         AND activity.recipient NOT LIKE '%blend360.com%'*/
-          AND campaign.name IS NOT NULL )
-      WHERE
-        _rownum = 1 
+          AND campaign.name IS NOT NULL 
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
     ),
+
     delivered_v1 AS (
-      SELECT 
-        * EXCEPT(_rownum) 
-      FROM (
-          SELECT
+      SELECT
             CAST(emailcampaignid AS STRING) AS _campaignID,
             CAST(NULL AS STRING) AS _campaign,
             subject AS _subject,
@@ -258,20 +231,21 @@ WITH
             CAST(linkid AS STRING) AS linkid,
             --appname,
             CAST(duration AS STRING) AS duration,
-            response,
-            ROW_NUMBER() OVER(
-                PARTITION BY recipient, emailcampaignid
-                ORDER BY created DESC
-            ) AS _rownum
+            response
+            
           FROM 
             `x-marketing.blend360_hubspot.email_events` 
           WHERE 
             type = 'DELIVERED' 
           AND 
             recipient NOT LIKE '%2x.marketing%'
-      )
-      WHERE _rownum = 1
-    )
+          QUALIFY ROW_NUMBER() OVER(
+                PARTITION BY recipient, emailcampaignid
+                ORDER BY created DESC
+            ) = 1
+    ),
+
+  total_delivered AS (
     SELECT
       *
     FROM delivered_v2
@@ -280,12 +254,9 @@ WITH
       *
     FROM delivered_v1
   ),
-  email_bounce AS (
-    WITH bounce_v2 AS (
+
+  bounce_v2 AS (
       SELECT
-        * EXCEPT(_rownum)
-      FROM (
-        SELECT
           -- activity._sdc_sequence,
           CAST(activity.emailcampaignid AS STRING) AS _campaignID,
           campaign.name AS _campaign,
@@ -298,8 +269,8 @@ WITH
           CAST(linkid AS STRING) AS linkid,
           --appname,
           CAST(duration AS STRING) AS duration,
-          response,
-          ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+          response
+          
         FROM
           `x-marketing.blend360_hubspot_v2.email_events` activity
         JOIN
@@ -310,16 +281,13 @@ WITH
           activity.type = 'BOUNCE'
           AND activity.recipient NOT LIKE '%2x.marketing%'
           AND activity.recipient NOT LIKE '%blend360.com%'
-          AND campaign.name IS NOT NULL )
-      WHERE
-        _rownum = 1
+          AND campaign.name IS NOT NULL
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
     ),
-    bounce_v1 AS (
-      SELECT 
-        * EXCEPT(_rownum) 
-      FROM (
 
-          SELECT
+
+    bounce_v1 AS (
+      SELECT
               CAST(emailcampaignid AS STRING) AS _campaignID,
               CAST(NULL AS STRING) AS _campaign,
               subject AS _subject,
@@ -331,21 +299,22 @@ WITH
               CAST(linkid AS STRING) AS linkid,
               --appname,
               CAST(duration AS STRING) AS duration,
-              response,
-              ROW_NUMBER() OVER(
-                  PARTITION BY recipient, emailcampaignid
-                  ORDER BY created DESC
-              ) AS _rownum
+              response
+              
           FROM 
               `x-marketing.blend360_hubspot.email_events` 
           WHERE 
               type = 'BOUNCE' 
           AND 
-              recipient NOT LIKE '%2x.marketing%'
+              recipient NOT LIKE '%2x.marketing%' 
+          QUALIFY ROW_NUMBER() OVER(
+                  PARTITION BY recipient, emailcampaignid
+                  ORDER BY created DESC
+              ) = 1
+    ),
 
-      )
-      WHERE _rownum = 1 
-    )
+
+  email_bounce AS (
     SELECT
       *
     FROM bounce_v2
@@ -366,12 +335,10 @@ WITH
       FROM email_bounce
     ) 
   ),
-  email_open AS (
-    WITH open_v2 AS (
+
+
+  open_v2 AS (
       SELECT
-        * EXCEPT(_rownum)
-      FROM (
-        SELECT
           -- activity._sdc_sequence,
           CAST(activity.emailcampaignid AS STRING) AS _campaignID,
           campaign.name AS _campaign,
@@ -384,8 +351,8 @@ WITH
           CAST(linkid AS STRING) AS linkid,
           --appname,
           CAST(duration AS STRING) AS duration,
-          response,
-          ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+          response
+          
         FROM
           `x-marketing.blend360_hubspot_v2.email_events` activity
         JOIN
@@ -397,16 +364,13 @@ WITH
           AND filteredevent = FALSE
           AND activity.recipient NOT LIKE '%2x.marketing%'
           AND activity.recipient NOT LIKE '%blend360.com%'
-          AND campaign.name IS NOT NULL )
-      WHERE
-        _rownum = 1 
+          AND campaign.name IS NOT NULL 
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
     ),
-    open_v1 AS (
-      SELECT 
-        * EXCEPT(_rownum) 
-      FROM (
 
-          SELECT
+
+    open_v1 AS (
+      SELECT
             CAST(emailcampaignid AS STRING) AS _campaignID,
             CAST(NULL AS STRING) AS _campaign,
             subject AS _subject,
@@ -418,11 +382,8 @@ WITH
             CAST(linkid AS STRING) AS linkid,
             --appname,
             CAST(duration AS STRING) AS duration,
-            response,
-            ROW_NUMBER() OVER(
-                PARTITION BY recipient, emailcampaignid
-                ORDER BY created DESC
-            ) AS _rownum
+            response
+            
           FROM 
               `x-marketing.blend360_hubspot.email_events` 
           WHERE 
@@ -431,10 +392,15 @@ WITH
               recipient NOT LIKE '%2x.marketing%'
           AND 
               filteredevent = false
+          QUALIFY ROW_NUMBER() OVER(
+                PARTITION BY recipient, emailcampaignid
+                ORDER BY created DESC
+            ) = 1
+    ),
 
-      )
-      WHERE _rownum = 1
-    )
+
+  email_open AS (
+    
     
     SELECT
       *
@@ -444,12 +410,9 @@ WITH
       *
     FROM open_v1
   ),
-  total_clicked AS (
-    WITH click_v2 AS (
+
+  click_v2 AS (
       SELECT
-        * EXCEPT(_rownum)
-      FROM (
-        SELECT
           -- activity._sdc_sequence,
           CAST(activity.emailcampaignid AS STRING) AS _campaignID,
           campaign.name AS _campaign,
@@ -462,8 +425,8 @@ WITH
           CAST(linkid AS STRING) AS linkid,
           --appname,
           CAST(duration AS STRING) AS duration,
-          response,
-          ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+          response
+          
         FROM
           `x-marketing.blend360_hubspot_v2.email_events` activity
         JOIN
@@ -475,15 +438,13 @@ WITH
           AND filteredevent = FALSE
           AND activity.recipient NOT LIKE '%2x.marketing%'
           AND activity.recipient NOT LIKE '%blend360.com%'
-          AND campaign.name IS NOT NULL )
-      WHERE
-        _rownum = 1
+          AND campaign.name IS NOT NULL 
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
     ),
+
+
     click_v1 AS (
-      SELECT 
-        * EXCEPT(_rownum) 
-      FROM (
-        SELECT
+      SELECT
             CAST(emailcampaignid AS STRING) AS _campaignID,
             CAST(NULL AS STRING) AS _campaign,
             subject AS _subject,
@@ -495,11 +456,8 @@ WITH
             CAST(linkid AS STRING) AS linkid,
             --appname,
             CAST(duration AS STRING) AS duration,
-            response,
-            ROW_NUMBER() OVER(
-                PARTITION BY recipient, emailcampaignid
-                ORDER BY created DESC
-            ) AS _rownum
+            response
+            
         FROM 
             `x-marketing.blend360_hubspot.email_events` 
         WHERE 
@@ -508,10 +466,13 @@ WITH
             recipient NOT LIKE '%2x.marketing%'
         AND 
             filteredevent = false
-      )
-      WHERE _rownum = 1
-    )
-    
+        QUALIFY ROW_NUMBER() OVER(
+                PARTITION BY recipient, emailcampaignid
+                ORDER BY created DESC
+            ) = 1
+    ),
+
+  total_clicked AS (
     SELECT
       *
     FROM click_v2
@@ -531,12 +492,32 @@ WITH
         FROM email_open
       ) 
   ),
-  total_downloaded AS (
-    WITH download_v2 AS (
+
+  form_filled AS (
+    SELECT
+            c._sdc_sequence,
+            CAST(NULL AS STRING) AS devicetype,
+            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_source=([^&]+)') AS _utmsource,
+            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_campaign=([^&]+)') AS _utmcampaign,
+            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_medium=([^&]+)') AS _utmmedium,
+            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_content=([^&]+)') AS _utmcontent,
+            form.value.title AS form_title,
+            properties.email.value AS email,
+            form.value.timestamp AS timestamp,
+            'Downloaded' AS engagement,
+            form.value.page_url AS description,
+            campaignguid
+          FROM
+            `x-marketing.blend360_hubspot_v2.contacts` c,
+            UNNEST(form_submissions) AS form
+          JOIN
+            `x-marketing.blend360_hubspot_v2.forms` forms
+          ON
+            form.value.form_id = forms.guid
+  ),
+
+  download_v2 AS (
       SELECT
-        * EXCEPT (rownum)
-      FROM (
-        SELECT
           -- activity._sdc_sequence,
           CAST(campaign.id AS STRING) AS _campaignID,
           COALESCE(form_title, campaign.name) AS _campaign,
@@ -549,37 +530,15 @@ WITH
           '' AS linkid,
           '' AS duration,
           "" AS response,
-          ROW_NUMBER() OVER(PARTITION BY email, campaign.name ORDER BY timestamp DESC) AS rownum
-        FROM (
-          SELECT
-            c._sdc_sequence,
-            CAST(NULL AS STRING) AS devicetype,
-            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_source=([^&]+)') AS _utmsource,
-            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_campaign=([^&]+)') AS _utmcampaign,
-            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_medium=([^&]+)') AS _utmmedium,
-            REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_content=([^&]+)') AS _utmcontent,
-            form.value.title AS form_title,
-            properties.email.value AS email,
-            form.value.timestamp AS timestamp,
-            'Downloaded' AS engagement,
-            form.value.page_url AS description,
-            campaignguid,
-          FROM
-            `x-marketing.blend360_hubspot_v2.contacts` c,
-            UNNEST(form_submissions) AS form
-          JOIN
-            `x-marketing.blend360_hubspot_v2.forms` forms
-          ON
-            form.value.form_id = forms.guid
-            ) activity
+          
+        FROM form_filled activity
         LEFT JOIN
           `x-marketing.blend360_hubspot_v2.campaigns` campaign
         ON
           activity._utmcontent = CAST(campaign.id AS STRING) 
-      )
-      WHERE
-        rownum = 1
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY email, campaign.name ORDER BY timestamp DESC) = 1
     ),
+
     download_v1 AS (
       SELECT
           CAST(NULL AS STRING) AS _campaignID,
@@ -604,7 +563,10 @@ WITH
           contact.properties.email.value NOT LIKE '%2x.marketing%'
       AND 
           form.value.page_url LIKE '%utm_campaign%'
-    )
+    ),
+
+  total_downloaded AS (
+    
     
     SELECT
       *
@@ -615,10 +577,7 @@ WITH
     FROM download_v1
   ),
   email_download AS (
-    SELECT 
-        * EXCEPT(_rownum) 
-    FROM (
-        SELECT
+    SELECT
             side._pardotid AS _campaignID,
             side._code AS _campaign,
             main.subject,
@@ -629,27 +588,22 @@ WITH
             main.devicetype,
             main.linkid,
             main.duration,
-            main.response,
-            ROW_NUMBER() OVER(
-                PARTITION BY main._email, main._campaign
-                ORDER BY main._timestamp DESC
-            ) AS _rownum
+            main.response
+            
         FROM 
             total_downloaded AS main
         JOIN 
             `x-marketing.blend360_mysql.db_airtable_email` AS side
         ON 
             main._campaign = side._utm_campaign
-    )
-    WHERE _rownum = 1
+        QUALIFY ROW_NUMBER() OVER(
+                PARTITION BY main._email, main._campaign
+                ORDER BY main._timestamp DESC
+            ) = 1
   ),
-  email_unsubscribed AS (
-    WITH unsub_v2 AS (
-      SELECT 
-          * EXCEPT(_rownum) 
-      FROM (
 
-          SELECT
+  unsub_v2 AS (
+      SELECT
             CAST(main.emailcampaignid AS STRING) AS _campaignID,
             side.name AS _campaign,
             main.subject AS _subject,
@@ -661,11 +615,8 @@ WITH
             CAST(linkid AS STRING) AS linkid,
             --appname,
             CAST(duration AS STRING) AS duration,
-            response,
-            ROW_NUMBER() OVER(
-                PARTITION BY main.recipient, side.name
-                ORDER BY main.created DESC
-            ) AS _rownum
+            response
+            
           FROM 
               `x-marketing.blend360_hubspot_v2.email_events` main
           JOIN
@@ -676,15 +627,14 @@ WITH
               main.type = 'STATUSCHANGE' 
           AND 
               main.recipient NOT LIKE '%2x.marketing%'
-
-      )
-      WHERE _rownum = 1
+          QUALIFY ROW_NUMBER() OVER(
+                PARTITION BY main.recipient, side.name
+                ORDER BY main.created DESC
+            ) = 1
     ),
+
     unsub_v1 AS (
-      SELECT 
-        * EXCEPT(_rownum) 
-      FROM (
-        SELECT
+      SELECT
           CAST(emailcampaignid AS STRING) AS _campaignID,
           CAST(NULL AS STRING) AS _campaign,
           subject AS _subject,
@@ -696,20 +646,23 @@ WITH
           CAST(linkid AS STRING) AS linkid,
           --appname,
           CAST(duration AS STRING) AS duration,
-          response,
-          ROW_NUMBER() OVER(
-              PARTITION BY recipient, emailcampaignid
-              ORDER BY created DESC
-          ) AS _rownum
+          response
+          
         FROM 
           `x-marketing.blend360_hubspot.email_events` 
         WHERE 
           type = 'STATUSCHANGE' 
         AND 
           recipient NOT LIKE '%2x.marketing%'
-      )
-      WHERE _rownum = 1 
-    )
+        QUALIFY ROW_NUMBER() OVER(
+              PARTITION BY recipient, emailcampaignid
+              ORDER BY created DESC
+          ) = 1
+    ),
+
+  email_unsubscribed AS (
+
+    
 
     SELECT
       *
