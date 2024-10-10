@@ -37,7 +37,7 @@ INSERT INTO `jellyvision.opportunity_influenced_accelerated`(
     _is_stagnant_opp
 )
 -- Get account engagements of target account 
-WITH acount_name AS (
+WITH account_name AS (
     SELECT
         _crmaccountid AS _crm_account_id , 
         _crmdomain AS _crm_domain, 
@@ -85,7 +85,7 @@ opps_created AS (
         ON opp.accountid = act.id 
     LEFT JOIN `jellyvision_salesforce.User` own
         ON opp.ownerid = own.id 
-    WHERE opp.isdeleted = false
+    WHERE opp.isdeleted = FALSE
         AND EXTRACT(YEAR FROM opp.createddate) >= 2023 
 ),
 -- Get all historical stages of opp
@@ -99,7 +99,7 @@ opp_field_history AS (
         newvalue__st AS _next_stage
     FROM `jellyvision_salesforce.OpportunityFieldHistory` 
     WHERE field = 'StageName'
-        AND isdeleted = false
+        AND isdeleted = FALSE
 ),
 opp_history AS (
     SELECT DISTINCT 
@@ -111,7 +111,7 @@ opp_history AS (
         LAG(stagename) OVER( PARTITION BY  opportunityid ORDER BY createddate) AS _previous_stage,
         stagename
     FROM `x-marketing.jellyvision_salesforce.OpportunityHistory`
-    WHERE isdeleted = false 
+    WHERE isdeleted = FALSE 
 ),
 opps_historical_stage AS (
     SELECT
@@ -216,7 +216,7 @@ combined_data AS (
         act.* EXCEPT(_account_id),
         CASE
             WHEN act._engagement IS NOT NULL
-            THEN true 
+            THEN TRUE 
         END AS _is_matched_opp
     FROM opps_history AS opp
     LEFT JOIN account_engagements AS act
@@ -230,7 +230,7 @@ set_influencing_activity AS (
             WHEN DATE(_eng_timestamp) 
                 BETWEEN DATE_SUB(_created_date, INTERVAL 90 DAY) 
                 AND DATE(_created_date)                     
-            THEN true 
+            THEN TRUE 
         END AS _is_influencing_activity
     FROM combined_data
 ),
@@ -253,7 +253,7 @@ set_accelerating_activity AS (
             AND _eng_timestamp > _created_date 
             AND _eng_timestamp <= _historical_stage_change_date
             AND _stage_movement = 'Upward'
-            THEN true
+            THEN TRUE
         END AS _is_accelerating_activity
     FROM label_influenced_opportunity
 ),
@@ -276,7 +276,7 @@ set_accelerating_activity_for_influenced_opportunity AS (
             AND _eng_timestamp > _created_date 
             AND _eng_timestamp <= _historical_stage_change_date
             AND _stage_movement = 'Upward'
-            THEN true
+            THEN TRUE
         END AS _is_later_accelerating_activity
     FROM label_accelerated_opportunity
 ),
@@ -295,11 +295,11 @@ label_stagnant_opportunity AS (
     SELECT
         *,
         CASE
-            WHEN _is_matched_opp = true 
+            WHEN _is_matched_opp = TRUE 
             AND _is_influenced_opp IS NULL 
             AND _is_accelerated_opp IS NULL 
             AND _is_later_accelerated_opp IS NULL
-            THEN true 
+            THEN TRUE 
         END AS _is_stagnant_opp
     FROM label_influenced_opportunity_that_continue_to_accelerate
 ),
@@ -319,10 +319,9 @@ latest_stage_opportunity_only AS (
     -- This is unlike the opportunity boolean that is uniform among the all historical stage of opp 
     QUALIFY ROW_NUMBER() OVER(
         PARTITION BY _opp_id, _eng_id
-        ORDER BY 
-            _is_influencing_activity DESC,
-            _is_accelerating_activity DESC,
-            _is_later_accelerating_activity DESC
+        ORDER BY _is_influencing_activity DESC,
+                 _is_accelerating_activity DESC,
+                 _is_later_accelerating_activity DESC
     ) = 1
 )
 
