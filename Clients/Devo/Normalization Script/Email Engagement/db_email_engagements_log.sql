@@ -31,7 +31,8 @@ _contentTitle,
 _contentID,
 _landingPage,
 _screenshot,
-_subject
+_subject,
+_2X_campaign
 )
 WITH prospect_info AS(
   SELECT * EXCEPT (_rownum)
@@ -69,11 +70,12 @@ airtable_info AS(
     airtable._landingpage AS _landingPage,
     airtable._screenshot AS _screenshot,
     campaign.subject AS _subject,
-    CAST(campaign.id AS STRING) as _campaignID,
+    CAST(campaign.id AS STRING) as _campaignID, ---get the id from hubspot id to join with the engagement data. not airtableid,
+    CASE WHEN _emailid IS NULL THEN 'Not 2X Campaign' ELSE '2X Campaign' END AS _2X_campaign,
     ROW_NUMBER() OVER (PARTITION BY campaign.name, campaign.id ORDER BY campaign.id) AS _rownum
     FROM `x-marketing.devo_hubspot.campaigns` campaign
-    JOIN `x-marketing.devo_mysql.db_airtable_email` airtable
-    ON LOWER(campaign.name) = LOWER(airtable._campaignname)
+    LEFT JOIN `x-marketing.devo_mysql.db_airtable_email` airtable
+    ON CAST(campaign.contentid AS STRING) = _emailid
   )WHERE _rownum = 1
 ),
 
@@ -99,6 +101,8 @@ email_sent AS(
       ON activity.emailcampaignid = campaign.id
       WHERE activity.type = 'SENT'
       AND campaign.name IS NOT NULL
+      --AND activity.recipient NOT LIKE '%2x.marketing%'
+      --AND activity.recipient NOT LIKE '%devo.%'
     )WHERE _rownum = 1
   ),
   Dropped AS(
@@ -122,6 +126,7 @@ email_sent AS(
       ON activity.emailcampaignid = campaign.id
       WHERE activity.type = 'DROPPED'
       AND campaign.name IS NOT NULL
+      --AND activity.recipient NOT LIKE '%devo.%'
     )WHERE _rownum = 1
   )
   SELECT Sent.* FROM Sent
@@ -375,8 +380,9 @@ email_hard_bounced AS (
   )
    SELECT HardBounced.* 
    FROM HardBounced
-   JOIN SoftBounced ON HardBounced._email = Softbounced._email AND HardBounced._campaignID = SoftBounced._campaignID
-   WHERE HardBounced._response NOT LIKE "%mailbox full%"
+  JOIN SoftBounced ON HardBounced._email = Softbounced._email AND HardBounced._campaignID = SoftBounced._campaignID
+   --LEFT JOIN Delivered ON HardBounced._email = Delivered._email AND HardBounced._campaignID = Delivered._campaignID
+   WHERE HardBounced._response NOT LIKE "%mailbox full%"  ---- we remove the mailbox full and dont join with delivered
 ),
 
 email_opened AS(
@@ -450,6 +456,7 @@ email_dropped AS (
       ON activity.emailcampaignid = campaign.id
       WHERE activity.type = 'DROPPED'
       AND campaign.name IS NOT NULL
+      --AND activity.recipient NOT LIKE '%devo.%'
     )WHERE _rownum = 1
 ),
 
@@ -552,4 +559,32 @@ FROM (
 ) AS engagements
 
 LEFT JOIN prospect_info ON engagements._email = prospect_info._email
-JOIN airtable_info ON engagements._campaignid = CAST(airtable_info._campaignID AS STRING)
+LEFT JOIN airtable_info ON engagements._campaignid = CAST(airtable_info._campaignID AS STRING);
+ --WHERE engagements._campaignID = '295019700';
+
+/*
+ALTER TABLE `x-marketing.devo.db_email_engagements_log`
+ADD COLUMN _isBot STRING;
+
+--- Label Bots ---
+UPDATE `x-marketing.devo.db_email_engagements_log`origin  
+SET origin._isBot = 'true'
+FROM (
+    SELECT DISTINCT
+
+        _email,
+        _contentTitle
+
+    FROM 
+        `x-marketing.devo.db_email_engagements_log`
+    WHERE 
+        _description LIKE '%https://3x.wise-portal.com/iclick/iclick.php%'
+) bot
+WHERE 
+    origin._email = bot._email
+AND origin._contentTitle = bot._contentTitle
+AND origin._engagement IN ('Clicked');
+
+*/
+
+
