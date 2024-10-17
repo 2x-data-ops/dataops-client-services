@@ -90,6 +90,7 @@ airtable_data AS (
   SELECT
     *
   FROM `x-marketing.rackspace_mysql_2.optimization_airtable_ads_linkedin`
+  WHERE _adid != ''
 ),
 total_ads AS (
     SELECT 
@@ -106,7 +107,7 @@ daily_budget_per_ad_per_campaign AS (
 )
 SELECT 
   daily_budget_per_ad_per_campaign.*,
-  airtable_data.* EXCEPT (_platform)
+  airtable_data.* EXCEPT (_platform, _campaignid, _adid, _campaignname, _sdc_batched_at, _id, _sdc_sequence, _sdc_received_at, _sdc_table_version)
 FROM daily_budget_per_ad_per_campaign
 LEFT JOIN airtable_data
   ON CAST(daily_budget_per_ad_per_campaign._ad_id AS STRING) = airtable_data._adid
