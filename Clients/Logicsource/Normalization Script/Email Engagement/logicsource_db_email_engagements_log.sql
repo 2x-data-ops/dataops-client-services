@@ -64,6 +64,9 @@ INSERT INTO `x-marketing.logicsource.db_email_engagements_log` (
   _salesforceaccountid,
   _salesforceleadid, 
   _salesforcecontactid,
+  _sales_follow_up_progress,
+  _leadsource,
+  _createdate,
   _subject,
   _assettitle,
   _screenshot,
@@ -119,9 +122,11 @@ WITH prospect_info AS (
     _annual_revenue_range_c,
     _sfdcaccountid,
     _sfdcleadid,
-    _sfdccontactid
+    _sfdccontactid,
+    _sales_follow_up_progress,
+    _leadsource,
+    _createddate
   FROM
-    -- `logicsource.db_tam_database`
     `logicsource.db_icp_database_log`
   WHERE
     _email IS NOT NULL
@@ -146,42 +151,10 @@ airtable_info AS (
     email._cihomeurl,
     email._code AS _campaignCode
     
-   -- id, name, subject, type, email.* 
 FROM `x-marketing.logicsource_hubspot.campaigns` campaign
- JOIN `x-marketing.logicsource_mysql.db_airtable_email` email ON CAST(campaign.id AS STRING) =   _pardotid --END
+ JOIN `x-marketing.logicsource_mysql.db_airtable_email` email ON CAST(campaign.id AS STRING) =   _campaignid --END
 ),
 email_sent AS (
-  /*SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
-      activity._sdc_sequence,
-      CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-      campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-      --activity.subject AS _subject,
-      activity.recipient AS _email,
-      activity.created AS _timestamp,
-      'Sent' AS _engagement,
-      url AS _description, 
-      devicetype AS _device_type,
-      CAST(linkid AS STRING) _linkid,
-      --appname,
-      CAST(duration AS STRING) _duration,
-      response AS _response,
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-    FROM
-      `x-marketing.logicsource_hubspot.email_events` activity
-    JOIN
-      `x-marketing.logicsource_hubspot.campaigns` campaign
-    ON
-      activity.emailcampaignid = campaign.id
-    WHERE
-      activity.type = 'SENT'
-      AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
-      AND campaign.name IS NOT NULL  )
-  WHERE
-    _rownum = 1*/
      WITH bounced AS (
       SELECT
       activity._sdc_sequence,
@@ -247,37 +220,6 @@ LEFT JOIN bounced ON Sent._email = bounced._email and Sent._campaignID = bounced
 WHERE bounced._email IS NULL 
 ),
 email_delivered AS (
-  /*SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
-      activity._sdc_sequence,
-      CAST(activity.emailcampaignid AS STRING) AS _campaignID,
-      campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-      --activity.subject AS _subject,
-      activity.recipient AS _email,
-      activity.created AS _timestamp,
-      'Delivered' AS _engagement,
-      url AS _description,
-      devicetype AS _device_type,
-      CAST(linkid AS STRING) _linkid,
-      --appname,
-      CAST(duration AS STRING) _duration,
-      response AS _response,
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-    FROM
-      `x-marketing.logicsource_hubspot.email_events` activity
-    JOIN
-      `x-marketing.logicsource_hubspot.campaigns` campaign
-    ON
-      activity.emailcampaignid = campaign.id
-    WHERE
-      activity.type = 'DELIVERED'  
-      AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
-      AND campaign.name IS NOT NULL  )
-  WHERE
-    _rownum = 1 */
     WITH bounced AS (
       SELECT
       activity._sdc_sequence,
@@ -746,39 +688,34 @@ email_download AS (
  SELECT
         c._sdc_sequence,
         _campaignID,
-        #utm_content
          _contentTitle,
          NULL AS _contentID,
-         --" " AS subject,
          list.email,
         _created_date,
         'MQL' AS engagement,
         description,
         devicetype,
-           '' AS linkid,
+        CAST(list.vid AS STRING) AS linkid,
       '' AS duration,
       "" AS _response,
       _utm_source,
  FROM (
  SELECT
         vid,
-        properties.email.value AS email,property_recent_conversion_event_name.value,property_createdate.value AS _created_date
-      FROM `x-marketing.logicsource_hubspot.contacts`c
---Unnest (list_memberships) list_memberships
---LEFT JOIN `x-marketing.logicsource_hubspot.contact_lists` list ON list_memberships.value.static_list_id = list.listid
-WHERE properties.hs_lifecyclestage_marketingqualifiedlead_date.value >= '2023-04-01' AND properties.email.value NOT LIKE '%2x.marketing%' 
- AND vid <> 943501 
-     AND properties.email.value NOT LIKE '%logicsource%'
-     AND properties.email.value NOT LIKE '%@test.com%'
-     AND properties.email.value NOT LIKE '%x@gmail.com%'
+        properties.email.value AS email,
+        property_recent_conversion_event_name.value,
+        property_createdate.value AS _created_date
+      FROM `x-marketing.logicsource_hubspot.contacts` c,
+      UNNEST (list_memberships) list_memberships
+      LEFT JOIN `x-marketing.logicsource_hubspot.contact_lists` list ON list_memberships.value.static_list_id = list.listid
+WHERE list_memberships.value.static_list_id = 547 
+
  ) list 
  LEFT JOIN ( SELECT
         c._sdc_sequence,vid,
         CAST(NULL AS STRING) AS devicetype,
         SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url,  '_hsmi=') + 9), '&')[ORDINAL(1)] AS _campaignID,
-        #utm_content
         properties.utm_campaign.value AS _contentTitle,
-        --REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%20', ' '), '%3A',':') AS _contentTitle,
         SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_source=') + 8), '&')[ORDINAL(1)] AS _utm_source,
         form.value.title AS form_title,
         properties.email.value AS email,
@@ -793,6 +730,8 @@ WHERE properties.hs_lifecyclestage_marketingqualifiedlead_date.value >= '2023-04
         `x-marketing.logicsource_hubspot.forms` forms
       ON
         form.value.form_id = forms.guid) c ON list.vid = c.vid
+QUALIFY ROW_NUMBER() OVER (PARTITION BY list.vid ORDER BY list.vid DESC) = 1
+
 )
 SELECT
   engagements.* EXCEPT (_contentid),
@@ -840,8 +779,6 @@ SELECT
   airtable_info.* EXCEPT(_pardotid,_code,_campaignid)
 FROM (
   SELECT * FROM email_download 
-  UNION ALL 
-  SELECT * FROM mql
   ) AS engagements
 LEFT JOIN
   prospect_info
@@ -850,7 +787,22 @@ ON
 LEFT JOIN
   airtable_info
 ON
-  engagements._campaignID  = airtable_info._pardotid; 
+  engagements._campaignID  = airtable_info._pardotid
+UNION ALL
+SELECT
+  engagements.* EXCEPT(_contentid),
+  prospect_info.* EXCEPT (_email),
+  airtable_info.* EXCEPT(_pardotid,_code,_campaignid)
+FROM mql engagements
+LEFT JOIN airtable_info
+ON
+  engagements._campaignID  = airtable_info._pardotid
+LEFT JOIN
+  prospect_info
+ON
+  CAST(engagements.linkid AS STRING) = prospect_info._id
+WHERE linkid NOT IN ('22925883771', '26823143566')
+QUALIFY ROW_NUMBER() OVER (PARTITION BY linkid ORDER BY linkid DESC) = 1; 
 
 
 
@@ -1046,76 +998,18 @@ WHERE CONCAT(_email, _campaignid, _engagement, _timestamp) = scenario._key;
 
 
 CREATE OR REPLACE TABLE `x-marketing.logicsource.report_icp_database` AS 
---SELECT
-    --* EXCEPT( _rownum)
-  --FROM (
     SELECT
       CAST(vid AS STRING) AS _prospectid,
       property_email.value AS _email,
       COALESCE(CONCAT(property_firstname.value, ' ', property_lastname.value),property_firstname.value) AS _name,
-      /*COALESCE(associated_company.properties.domain.value, property_hs_email_domain.value)*/associated_company.properties.domain.value AS _domain,
+      associated_company.properties.domain.value AS _domain,
       properties.jobtitle.value,
       properties.job_function.value AS _function,
       CASE WHEN property_job_role__organic_.value IS NOT NULL THEN property_job_role__organic_.value ELSE property_job_role.value END AS _jobrole,
       properties.hs_lifecyclestage_marketingqualifiedlead_date.value AS _mqldate,
       properties.hs_analytics_source.value AS _source,
       properties.hs_latest_source.value AS _latest_source,
-      /*CASE
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Assistant to%") THEN "Non-Manager"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Senior Counsel%") THEN "VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%General Counsel%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Founder%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%C-Level%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%CDO%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%CIO%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%CMO%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%CFO%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%CEO%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Chief%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%coordinator%") THEN "Non-Manager"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%COO%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Sr. V.P.%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Sr.VP%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Senior-Vice Pres%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%srvp%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Senior VP%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%SR VP%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Sr Vice Pres%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Sr. VP%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Sr. Vice Pres%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%S.V.P%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Senior Vice Pres%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Exec Vice Pres%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Exec Vp%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Executive VP%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Exec VP%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Executive Vice President%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%EVP%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%E.V.P%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%SVP%") THEN "Senior VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%V.P%") THEN "VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%VP%") THEN "VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Vice Pres%") THEN "VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%V P%") THEN "VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%President%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Director%") THEN "Director"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%CTO%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Dir%") THEN "Director"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Dir.%") THEN "Director"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%MDR%") THEN "Non-Manager"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%MD%") THEN "Director"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%GM%") THEN "Director"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Head%") THEN "VP"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Manager%") THEN "Manager"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%escrow%") THEN "Non-Manager"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%cross%") THEN "Non-Manager"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%crosse%") THEN "Non-Manager"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Partner%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%CRO%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Chairman%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Owner%") THEN "C-Level"
-        WHEN LOWER(properties.jobtitle.value) LIKE LOWER("%Team Lead%") THEN "Manager"
-      END*/  CASE WHEN property_management_level__organic_.value IS NOT NULL THEN property_management_level__organic_.value ELSE property_management_level.value END AS _seniority,
+      CASE WHEN property_management_level__organic_.value IS NOT NULL THEN property_management_level__organic_.value ELSE property_management_level.value END AS _seniority,
       property_phone.value AS _phone,
       associated_company.properties.name.value AS _company,
       CAST(associated_company.properties.annualrevenue.value AS STRING) AS _revenue,
@@ -1146,24 +1040,13 @@ CREATE OR REPLACE TABLE `x-marketing.logicsource.report_icp_database` AS
   _salesforceaccountid,  
  properties.salesforceleadid.value AS _salesforceleadid, 
  properties.salesforcecontactid.value AS  _salesforcecontactid
-     --ROW_NUMBER() OVER(
-         -- PARTITION BY property_email.value, CONCAT(property_firstname.value, ' ', property_lastname.value)
-         -- ORDER BY vid DESC
-     -- ) AS _rownum
     FROM
       `x-marketing.logicsource_hubspot.contacts` k
       LEFT JOIN `x-marketing.logicsource_salesforce.Lead` l ON LOWER(l.email) = LOWER(property_email.value)
         WHERE
      property_email.value IS NOT NULL
       AND property_email.value NOT LIKE '%2x.marketing%'
-      AND property_email.value NOT LIKE '%logicsource%'
-     /* AND associated_company.properties.name.value NOT IN ('ICR', 'FINN Partners', 'Ocean State Job Lot', 'Medifast','CKE Restaurants')
-      AND property_email.value NOT LIKE '%ircinc.com%'
-      AND property_email.value NOT LIKE '%finnpartners.com%'
-      AND property_email.value NOT LIKE '%oceanstatejoblot.com%'
-      AND property_email.value NOT LIKE '%osjl.com%'
-      AND property_email.value NOT LIKE '%medifastinc.com%'
-      AND property_email.value NOT LIKE '%ckr.com%'*/ ;
+      AND property_email.value NOT LIKE '%logicsource%' ;
 
 
 
@@ -1172,11 +1055,11 @@ CREATE OR REPLACE TABLE `x-marketing.logicsource.report_icp_database` AS
 -------------- Content Analytics ---------------
 ------------------------------------------------
 
--- CREATE OR REPLACE TABLE `x-marketing.logicsource.content_analytics` AS
-TRUNCATE TABLE `x-marketing.logicsource.content_analytics`;
-INSERT INTO `x-marketing.logicsource.content_analytics` 
+-- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_email_content_analytics` AS
+TRUNCATE TABLE `x-marketing.logicsource.db_email_content_analytics`;
+INSERT INTO `x-marketing.logicsource.db_email_content_analytics` 
 SELECT  
-  email.* EXCEPT(_cihomeurl, _persona),
+  email.* EXCEPT(_cihomeurl, _persona, _sales_follow_up_progress, _leadsource, _createdate),
   content._contentitem,
   content._contenttype,
   content._gatingstrategy,
