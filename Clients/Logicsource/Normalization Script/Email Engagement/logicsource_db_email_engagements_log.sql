@@ -154,8 +154,8 @@ airtable_info AS (
 FROM `x-marketing.logicsource_hubspot.campaigns` campaign
  JOIN `x-marketing.logicsource_mysql.db_airtable_email` email ON CAST(campaign.id AS STRING) =   _campaignid --END
 ),
-email_sent AS (
-     WITH bounced AS (
+
+bounced AS (
       SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
@@ -171,8 +171,7 @@ email_sent AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
       FROM `x-marketing.logicsource_hubspot.subscription_changes`, UNNEST(changes) AS status 
       JOIN `x-marketing.logicsource_hubspot.email_events` activity ON status.value.causedbyevent.id = activity.id
       JOIN `x-marketing.logicsource_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
@@ -180,11 +179,11 @@ email_sent AS (
       activity.type = 'BOUNCE' 
       ---AND emailcampaignid = 269760036
       AND 
-      status.value.change = 'BOUNCED'  
-), Sent AS (
- SELECT
-    * EXCEPT(_rownum)
-  FROM (
+      status.value.change = 'BOUNCED'
+      QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+),
+
+Sent AS (
     SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
@@ -200,8 +199,8 @@ email_sent AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
+      
     FROM
       `x-marketing.logicsource_hubspot.email_events` activity
     JOIN
@@ -212,44 +211,19 @@ email_sent AS (
       activity.type = 'SENT'  
       ---AND emailcampaignid = 269760036
       AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
-      AND campaign.name IS NOT NULL  )
-  WHERE
-    _rownum = 1 
-) SELECT Sent .* FROM Sent
+      AND campaign.name IS NOT NULL
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+),
+
+email_sent AS (
+     SELECT Sent .* FROM Sent
 LEFT JOIN bounced ON Sent._email = bounced._email and Sent._campaignID = bounced._campaignID
 WHERE bounced._email IS NULL 
 ),
-email_delivered AS (
-    WITH bounced AS (
-      SELECT
-      activity._sdc_sequence,
-      CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
-      campaign.name AS _contentTitle,
-      campaign.contentid AS _contentID,
-      --activity.subject AS _subject,
-      activity.recipient AS _email,
-      activity.created AS _timestamp,
-      'Hard Bounce' AS _engagement,
-      url AS _description,
-      devicetype AS _device_type,
-      CAST(linkid AS STRING) _linkid,
-      --appname,
-      CAST(duration AS STRING) _duration,
-      response AS _response,
-      '',
-      ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
-      FROM `x-marketing.logicsource_hubspot.subscription_changes`, UNNEST(changes) AS status 
-      JOIN `x-marketing.logicsource_hubspot.email_events` activity ON status.value.causedbyevent.id = activity.id
-      JOIN `x-marketing.logicsource_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
-      WHERE 
-      activity.type = 'BOUNCE'
-      AND 
-      status.value.change = 'BOUNCED'  
-), delivered AS (
+
+
+delivered AS (
  SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _contentTitle,
@@ -264,8 +238,8 @@ email_delivered AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
+      
     FROM
       `x-marketing.logicsource_hubspot.email_events` activity
     JOIN
@@ -275,10 +249,13 @@ email_delivered AS (
     WHERE
       activity.type = 'DELIVERED'  
       AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
-      AND campaign.name IS NOT NULL  )
-  WHERE
-    _rownum = 1
-) SELECT delivered .* FROM delivered 
+      AND campaign.name IS NOT NULL  
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+),
+
+
+email_delivered AS ( 
+ SELECT delivered .* FROM delivered 
 LEFT JOIN bounced ON delivered._email = bounced._email and delivered._campaignID = bounced._campaignID
 WHERE bounced._email IS NULL
 
@@ -286,9 +263,6 @@ WHERE bounced._email IS NULL
 ),
 email_open AS (
   SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _contentTitle,
@@ -303,8 +277,8 @@ email_open AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
+      
     FROM
       `x-marketing.logicsource_hubspot.email_events` activity
     JOIN
@@ -315,15 +289,11 @@ email_open AS (
        activity.type = 'OPEN'
       AND filteredevent = FALSE
       AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
-      AND campaign.name IS NOT NULL )
-  WHERE
-    _rownum = 1 
+      AND campaign.name IS NOT NULL  
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ),
 email_click AS (
   SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _contentTitle,
@@ -338,8 +308,8 @@ email_click AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
+      
     FROM
       `x-marketing.logicsource_hubspot.email_events` activity
     JOIN
@@ -350,15 +320,11 @@ email_click AS (
       activity.type = 'CLICK'
       AND filteredevent = FALSE
       AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
-      AND campaign.name IS NOT NULL  )
-  WHERE
-    _rownum = 1
+      AND campaign.name IS NOT NULL  
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ),
 email_bounce AS (
   SELECT
-    * EXCEPT(_rownum)
-  FROM (
-    SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID,
       campaign.name AS _contentTitle,
@@ -373,8 +339,8 @@ email_bounce AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
+      
     FROM
       `x-marketing.logicsource_hubspot.email_events` activity
     JOIN
@@ -385,15 +351,11 @@ email_bounce AS (
       activity.type = 'BOUNCE' 
       ---AND emailcampaignid = 269760036
     AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
-      AND campaign.name IS NOT NULL  )
-  WHERE
-    _rownum = 1
+      AND campaign.name IS NOT NULL  
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ),
 email_defferred AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -408,22 +370,17 @@ email_defferred AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
     FROM `x-marketing.logicsource_hubspot.email_events` activity
     JOIN `x-marketing.logicsource_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'DEFERRED' 
      AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
       AND campaign.name IS NOT NULL 
-  )
-WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ),
 email_dropped AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -438,22 +395,18 @@ email_dropped AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
+    
     FROM `x-marketing.logicsource_hubspot.email_events` activity
     JOIN `x-marketing.logicsource_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'DROPPED' 
      AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
       AND campaign.name IS NOT NULL 
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_suppressed AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -468,22 +421,18 @@ email_suppressed AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
+    
     FROM `x-marketing.logicsource_hubspot.email_events` activity
     JOIN `x-marketing.logicsource_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'SUPPRESSED'
      AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
       AND campaign.name IS NOT NULL 
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_processed AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -498,22 +447,18 @@ email_processed AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
+    
     FROM `x-marketing.logicsource_hubspot.email_events` activity
     JOIN `x-marketing.logicsource_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'PROCESSED'
      AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
       AND campaign.name IS NOT NULL 
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_forward AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -528,22 +473,18 @@ email_forward AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
     FROM `x-marketing.logicsource_hubspot.email_events` activity
     JOIN `x-marketing.logicsource_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'FORWARD'
     AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
       AND campaign.name IS NOT NULL 
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+
 ), 
 email_spam AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -558,22 +499,18 @@ email_spam AS (
       --appname,
       CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
+    
     FROM `x-marketing.logicsource_hubspot.email_events` activity
     JOIN `x-marketing.logicsource_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'SPAMREPORT'
     AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
       AND campaign.name IS NOT NULL 
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_print AS (
-  SELECT * EXCEPT(_rownum) 
-  FROM
-  (
-    SELECT
+  SELECT
     activity._sdc_sequence,
     CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
     campaign.name AS _contentTitle,
@@ -588,22 +525,18 @@ email_print AS (
     --appname,
     CAST(duration AS STRING) _duration,
     response AS _response,
-    '',
-    ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+    ''
+    
     FROM `x-marketing.logicsource_hubspot.email_events` activity
     JOIN `x-marketing.logicsource_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
     WHERE 
     activity.type = 'PRINT'
      AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
       AND campaign.name IS NOT NULL 
-  )
-  WHERE _rownum = 1
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
 ), 
 email_unsubcribed AS (
-  SELECT * EXCEPT(_rownum) 
-    FROM
-    (
-      SELECT
+  SELECT
       activity._sdc_sequence,
       CAST(activity.emailcampaignid AS STRING) AS _campaignID, 
       campaign.name AS _contentTitle,
@@ -618,8 +551,7 @@ email_unsubcribed AS (
       --appname,
       CAST(duration AS STRING) _duration,
       response AS _response,
-      '',
-      ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) AS _rownum
+      ''
       FROM `x-marketing.logicsource_hubspot.subscription_changes`, UNNEST(changes) AS status 
       JOIN `x-marketing.logicsource_hubspot.email_events` activity ON status.value.causedbyevent.id = activity.id
       JOIN `x-marketing.logicsource_hubspot.campaigns` campaign ON  activity.emailcampaignid = campaign.id
@@ -628,32 +560,12 @@ email_unsubcribed AS (
       AND status.value.change = 'UNSUBSCRIBED' 
        AND activity.recipient NOT IN ('colingilmore2@gmail.com','x@gmail.com') AND activity.recipient NOT LIKE '%2x.marketing' AND activity.recipient NOT LIKE '%logicsource%' AND activity.recipient NOT LIKE '%medifastinc.com' AND activity.recipient NOT LIKE '%@ckr.com%' AND activity.recipient NOT LIKE '%@ircinc.com%' AND activity.recipient NOT LIKE '%finnpartners.com%' AND activity.recipient NOT LIKE '%oceanstatejoblot.com%' AND activity.recipient NOT LIKE '%@osjl.com%'
       AND campaign.name IS NOT NULL 
-    )
-  WHERE _rownum = 1
+  QUALIFY ROW_NUMBER() OVER( PARTITION BY activity.recipient, campaign.name ORDER BY activity.created DESC) = 1
+
 ),
-email_download AS (
+
+form_filled AS (
   SELECT
-    * EXCEPT (rownum)
-  FROM (
-    SELECT
-      activity._sdc_sequence,
-      CAST(campaign.id AS STRING) AS _campaignID,
-      COALESCE(form_title, campaign.name) AS _contentTitle,
-      campaign.contentid AS _contentID,
-      --campaign.subject,
-      activity.email AS _email,
-      activity.timestamp AS _timestamp,
-      'Downloaded' AS _engagement,
-      activity.description AS _description,
-      activity.devicetype,
-      '' AS linkid,
-      '' AS duration,
-      "" AS _response,
-      _utm_source,
-      ROW_NUMBER() OVER(PARTITION BY email, description
- ORDER BY timestamp DESC) AS rownum
-    FROM (
-      SELECT
         c._sdc_sequence,
         CAST(NULL AS STRING) AS devicetype,
         SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_hsmi=') + 6), '&')[ORDINAL(1)] AS _campaignID,
@@ -674,33 +586,35 @@ email_download AS (
         `x-marketing.logicsource_hubspot.forms` forms
       ON
         form.value.form_id = forms.guid
-        ) activity
-    JOIN
-      `x-marketing.logicsource_hubspot.campaigns` campaign
-    ON
-      activity._campaignID = CAST(campaign.id AS STRING) )
-  WHERE
-    rownum = 1 
-    --AND _email NOT LIKE '%2x.marketing%'
-     -- AND _email NOT LIKE '%logicsource%'
-), mql AS (
-   
- SELECT
-        c._sdc_sequence,
-        _campaignID,
-         _contentTitle,
-         NULL AS _contentID,
-         list.email,
-        _created_date,
-        'MQL' AS engagement,
-        description,
-        devicetype,
-        CAST(list.vid AS STRING) AS linkid,
+),
+
+email_download AS (
+  SELECT
+      activity._sdc_sequence,
+      CAST(campaign.id AS STRING) AS _campaignID,
+      COALESCE(form_title, campaign.name) AS _contentTitle,
+      campaign.contentid AS _contentID,
+      --campaign.subject,
+      activity.email AS _email,
+      activity.timestamp AS _timestamp,
+      'Downloaded' AS _engagement,
+      activity.description AS _description,
+      activity.devicetype,
+      '' AS linkid,
       '' AS duration,
       "" AS _response,
       _utm_source,
- FROM (
- SELECT
+      
+    FROM form_filled AS activity
+    JOIN
+      `x-marketing.logicsource_hubspot.campaigns` campaign
+    ON
+      activity._campaignID = CAST(campaign.id AS STRING)
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY email, description ORDER BY timestamp DESC) = 1
+),
+
+contact_list AS (
+  SELECT
         vid,
         properties.email.value AS email,
         property_recent_conversion_event_name.value,
@@ -709,9 +623,10 @@ email_download AS (
       UNNEST (list_memberships) list_memberships
       LEFT JOIN `x-marketing.logicsource_hubspot.contact_lists` list ON list_memberships.value.static_list_id = list.listid
 WHERE list_memberships.value.static_list_id = 547 
+),
 
- ) list 
- LEFT JOIN ( SELECT
+contacts AS (
+  SELECT
         c._sdc_sequence,vid,
         CAST(NULL AS STRING) AS devicetype,
         SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url,  '_hsmi=') + 9), '&')[ORDINAL(1)] AS _campaignID,
@@ -729,15 +644,32 @@ WHERE list_memberships.value.static_list_id = 547
       JOIN
         `x-marketing.logicsource_hubspot.forms` forms
       ON
-        form.value.form_id = forms.guid) c ON list.vid = c.vid
+        form.value.form_id = forms.guid
+),
+
+mql AS (
+   
+ SELECT
+        c._sdc_sequence,
+        _campaignID,
+         _contentTitle,
+         NULL AS _contentID,
+         list.email,
+        _created_date,
+        'MQL' AS engagement,
+        description,
+        devicetype,
+        CAST(list.vid AS STRING) AS linkid,
+      '' AS duration,
+      "" AS _response,
+      _utm_source,
+ FROM contact_list AS list 
+ LEFT JOIN contacts AS c ON list.vid = c.vid
 QUALIFY ROW_NUMBER() OVER (PARTITION BY list.vid ORDER BY list.vid DESC) = 1
 
-)
-SELECT
-  engagements.* EXCEPT (_contentid),
-  prospect_info.* EXCEPT (_email),
-  airtable_info.* EXCEPT(_pardotid,_code,_campaignid)
-FROM (
+),
+
+engagements AS (
   SELECT * FROM email_sent
   UNION ALL
   SELECT * FROM email_delivered
@@ -763,7 +695,13 @@ FROM (
   SELECT * FROM email_spam
   UNION ALL 
   SELECT * FROM email_print
-) AS engagements
+)
+
+SELECT
+  engagements.* EXCEPT (_contentid),
+  prospect_info.* EXCEPT (_email),
+  airtable_info.* EXCEPT(_pardotid,_code,_campaignid)
+FROM engagements
 LEFT JOIN
   prospect_info
 ON
@@ -777,9 +715,7 @@ SELECT
   engagements.* EXCEPT(_contentid),
   prospect_info.* EXCEPT (_email),
   airtable_info.* EXCEPT(_pardotid,_code,_campaignid)
-FROM (
-  SELECT * FROM email_download 
-  ) AS engagements
+FROM email_download AS engagements
 LEFT JOIN
   prospect_info
 ON
@@ -793,7 +729,7 @@ SELECT
   engagements.* EXCEPT(_contentid),
   prospect_info.* EXCEPT (_email),
   airtable_info.* EXCEPT(_pardotid,_code,_campaignid)
-FROM mql engagements
+FROM mql AS engagements
 LEFT JOIN airtable_info
 ON
   engagements._campaignID  = airtable_info._pardotid
@@ -851,12 +787,9 @@ FROM (
         ORDER BY 1, 3, 4 DESC 
     ),
     final_engagement AS (
-        SELECT * EXCEPT(_priority, _rownum)
-        FROM (
-            SELECT *, ROW_NUMBER() OVER(PARTITION BY _email, _contentTitle ORDER BY _priority DESC) AS _rownum
-            FROM focused_engagement
-        )
-        WHERE _rownum = 1
+        SELECT focused_engagement.* EXCEPT(_priority), 
+        FROM focused_engagement
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY _email, _contentTitle ORDER BY _priority DESC) = 1
     )    
     SELECT * FROM final_engagement 
 ) AS final
@@ -867,11 +800,8 @@ AND origin._contentTitle = final._contentTitle;
 UPDATE `x-marketing.logicsource.db_email_engagements_log` origin
 SET origin._dropped = 'True'
 FROM (
-    SELECT 
-        _contentTitle, 
-        _email
-    FROM (
-        SELECT 
+    WITH has_engagements AS (
+      SELECT 
             _contentTitle, 
             _email,
             SUM(CASE WHEN _engagement = 'Sent' THEN 1 END) AS _hasSent,
@@ -884,6 +814,10 @@ FROM (
         GROUP BY
             1, 2
     )
+    SELECT 
+        _contentTitle, 
+        _email
+    FROM has_engagements
     WHERE 
         _hasSent IS NOT NULL
     AND _hasDelivered IS NOT NULL
@@ -897,11 +831,8 @@ AND origin._engagement IN('Delivered', 'Bounced');
 UPDATE `x-marketing.logicsource.db_email_engagements_log` origin
 SET origin._notSent = 'True'
 FROM (
+  WITH has_engagements AS (
     SELECT 
-        _contentTitle,
-        _email
-    FROM (
-        SELECT 
             _contentTitle, 
             _email,
             _emailid,
@@ -915,7 +846,11 @@ FROM (
             _engagement IN ('Sent', 'Deffered','Delivered', 'Bounced')
         GROUP BY
             1, 2, 3
-    )
+  )
+    SELECT 
+        _contentTitle,
+        _email
+    FROM has_engagements
     WHERE 
         _hasSent IS NOT NULL
     AND _hasdelivered IS NULL
@@ -932,13 +867,8 @@ AND origin._engagement = 'Sent';
 UPDATE `x-marketing.logicsource.db_email_engagements_log` origin
 SET origin._falseDelivered = 'True'
 FROM (
-
-      SELECT 
-        _contentTitle, 
-        _email,
-        _hasDelivered,_hasBounced
-    FROM (
-        SELECT 
+  WITH has_engagements AS (
+    SELECT 
             _contentTitle, 
             _email,
             _emailid,
@@ -950,7 +880,13 @@ FROM (
             _engagement IN ('Delivered', 'Bounced')
         GROUP BY
             1, 2, 3
-    )
+  )
+
+      SELECT 
+        _contentTitle, 
+        _email,
+        _hasDelivered,_hasBounced
+    FROM has_engagements
     WHERE 
         _hasDelivered IS NOT NULL
     AND _hasBounced IS NOT NULL
@@ -969,14 +905,8 @@ SET
     origin._totalPageViews = scenario.pageviews,
     origin._averagePageViews = scenario.pageviews / scenario.visitors
 FROM (
-    SELECT  
-        CONCAT(_email, _campaignid, _engagement, email._timestamp) AS _key,
-        COUNT(DISTINCT web._visitorid) AS visitors,
-        SUM(web._totalsessionviews) AS pageviews
-    FROM 
-        `x-marketing.logicsource.db_email_engagements_log` email 
-    JOIN (
-        SELECT DISTINCT
+  WITH web_engagements AS (
+    SELECT DISTINCT
             _timestamp,
             _visitorid,
             _utmcampaign,
@@ -985,7 +915,14 @@ FROM (
             _utmsource,
         FROM 
           `x-marketing.logicsource.db_web_engagements_log`
-    ) web
+  )
+    SELECT  
+        CONCAT(_email, _campaignid, _engagement, email._timestamp) AS _key,
+        COUNT(DISTINCT web._visitorid) AS visitors,
+        SUM(web._totalsessionviews) AS pageviews
+    FROM 
+        `x-marketing.logicsource.db_email_engagements_log` email 
+    JOIN web_engagements AS web
     ON DATE(email._timestamp) = DATE(web._timestamp)
     AND email._contentTitle = web._utmcampaign
     WHERE 
@@ -997,7 +934,7 @@ FROM (
 WHERE CONCAT(_email, _campaignid, _engagement, _timestamp) = scenario._key;
 
 
-CREATE OR REPLACE TABLE `x-marketing.logicsource.report_icp_database` AS 
+--CREATE OR REPLACE TABLE `x-marketing.logicsource.report_icp_database` AS 
     SELECT
       CAST(vid AS STRING) AS _prospectid,
       property_email.value AS _email,
@@ -1056,7 +993,7 @@ CREATE OR REPLACE TABLE `x-marketing.logicsource.report_icp_database` AS
 ------------------------------------------------
 
 -- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_email_content_analytics` AS
-TRUNCATE TABLE `x-marketing.logicsource.db_email_content_analytics`;
+--TRUNCATE TABLE `x-marketing.logicsource.db_email_content_analytics`;
 INSERT INTO `x-marketing.logicsource.db_email_content_analytics` 
 SELECT  
   email.* EXCEPT(_cihomeurl, _persona, _sales_follow_up_progress, _leadsource, _createdate),
