@@ -887,21 +887,9 @@ FROM
       SELECT
         _contentTitle,
         _email,
-        SUM(
-          CASE
-            WHEN _engagement = 'Sent' THEN 1
-          END
-        ) AS _hasSent,
-        SUM(
-          CASE
-            WHEN _engagement = 'Delivered' THEN 1
-          END
-        ) AS _hasDelivered,
-        SUM(
-          CASE
-            WHEN _engagement = 'Bounced' THEN 1
-          END
-        ) AS _hasBounced
+        SUM(IF(_engagement = 'Sent', 1, NULL)) AS _hasSent,
+        SUM(IF(_engagement = 'Delivered', 1, NULL)) AS _hasDelivered,
+        SUM(IF(_engagement = 'Bounced', 1, NULL)) AS _hasBounced,
       FROM `x-marketing.logicsource.db_email_engagements_log`
       WHERE _engagement IN ('Sent', 'Delivered', 'Bounced')
       GROUP BY 1, 2
@@ -927,26 +915,10 @@ FROM
         _contentTitle,
         _email,
         _emailid,
-        SUM(
-          CASE
-            WHEN _engagement = 'Sent' THEN 1
-          END
-        ) AS _hasSent,
-        SUM(
-          CASE
-            WHEN _engagement = 'Delivered' THEN 1
-          END
-        ) AS _hasdelivered,
-        SUM(
-          CASE
-            WHEN _engagement = 'Deffered' THEN 1
-          END
-        ) AS _hasdef,
-        SUM(
-          CASE
-            WHEN _engagement = 'Bounced' THEN 1
-          END
-        ) AS _hasBounced
+        SUM(IF(_engagement = 'Sent', 1, NULL)) AS _hasSent,
+        SUM(IF(_engagement = 'Delivered', 1, NULL)) AS _hasdelivered,
+        SUM(IF(_engagement = 'Deffered', 1, NULL)) AS _hasdef,
+        SUM(IF(_engagement = 'Bounced', 1, NULL)) AS _hasBounced
       FROM `x-marketing.logicsource.db_email_engagements_log`
       WHERE _engagement IN ('Sent', 'Deffered', 'Delivered', 'Bounced')
       GROUP BY 1, 2, 3
@@ -974,16 +946,8 @@ FROM
         _contentTitle,
         _email,
         _emailid,
-        SUM(
-          CASE
-            WHEN _engagement = 'Delivered' THEN 1
-          END
-        ) AS _hasDelivered,
-        SUM(
-          CASE
-            WHEN _engagement = 'Bounced' THEN 1
-          END
-        ) AS _hasBounced
+        SUM(IF(_engagement = 'Delivered', 1, NULL)) AS _hasDelivered,
+        SUM(IF(_engagement = 'Bounced', 1, NULL)) AS _hasBounced
       FROM `x-marketing.logicsource.db_email_engagements_log`
       WHERE _engagement IN ('Delivered', 'Bounced')
       GROUP BY 1, 2, 3
@@ -1032,7 +996,51 @@ FROM
   ) scenario
 WHERE CONCAT(_email, _campaignid, _engagement, _timestamp) = scenario._key;
 
-CREATE OR REPLACE TABLE `x-marketing.logicsource.report_icp_database` AS 
+--CREATE OR REPLACE TABLE `x-marketing.logicsource.report_icp_database` AS 
+TRUNCATE TABLE `x-marketing.logicsource.report_icp_database`;
+
+INSERT INTO `x-marketing.logicsource.report_icp_database` (
+  _prospectid,
+  _email,
+  _name,
+  _domain,
+  value,
+  _function,
+  _jobrole,
+  _mqldate,
+  _source,
+  _latest_source,
+  _seniority,
+  _phone,
+  _company,
+  _revenue,
+  _industry,
+  _city,
+  _state,
+  _country,
+  _persona,
+  _lifecycleStage,
+  leadscore,
+  _leadstatus,
+  _ipqc_check,
+  property_hubspotscore,
+  company_id,
+  _company_segment,
+  _lead_segment,
+  _segment,
+  _property_leadstatus,
+  _companylinkedinbio,
+  _company_linkedin,
+  _employee_range,
+  _employee_range_c,
+  _numberofemployees,
+  _annualrevenue,
+  _annual_revenue_range,
+  _annual_revenue_range_c,
+  _salesforceaccountid,
+  _salesforceleadid,
+  _salesforcecontactid
+)
 SELECT
   CAST(vid AS STRING) AS _prospectid,
   property_email.value AS _email,
@@ -1113,4 +1121,4 @@ SELECT
   content._persona
 FROM `x-marketing.logicsource.db_email_engagements_log` email
 JOIN `x-marketing.logicsource_mysql.db_airtable_content_inventory` content
-  ON email._cihomeurl = content._homeurl
+  ON email._cihomeurl = content._homeurl;
