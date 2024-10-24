@@ -58,10 +58,9 @@ SELECT
   airtable_fields._platform,
   airtable_fields._segment,
   DATE_TRUNC(_date, MONTH) AS _month_year
-FROM 
-    ads_li ads
+FROM ads_li ads
 JOIN airtable_fields_li airtable_fields
-    ON ads._adid = airtable_fields._ad_id
+  ON ads._adid = airtable_fields._ad_id
 ),
 
 ads_6sense AS (
@@ -79,7 +78,14 @@ SELECT DISTINCT
   FROM `x-marketing.blend360_mysql.db_6s_daily_campaign_performance`
   WHERE _datatype = 'Ad'
     AND _sdc_deleted_at IS NULL
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY _campaignid, _6senseid, _date ORDER BY CASE WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate) WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate) END) = 1
+  QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY _campaignid, _6senseid, _date 
+  ORDER BY 
+    CASE 
+      WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate) 
+      WHEN _extractdate LIKE '%-%' THEN PARSE_DATE('%F', _extractdate) 
+    END
+  ) = 1
 ),
 
 airtable_fields_6sense AS (
@@ -245,20 +251,23 @@ SELECT
   ad_name,
   master.icp_tier,
   master.customer_segment,
-  CASE WHEN _liextractdate = '6/4/2024' THEN PARSE_DATE('%m/%d/%Y', '5/31/2024')
-  WHEN _liextractdate = '4/1/2024' THEN PARSE_DATE('%m/%d/%Y', '3/31/2024')
-  ELSE
-  PARSE_DATE('%m/%d/%Y', _liextractdate) END AS _date,
+  CASE 
+    WHEN _liextractdate = '6/4/2024' THEN PARSE_DATE('%m/%d/%Y', '5/31/2024')
+    WHEN _liextractdate = '4/1/2024' THEN PARSE_DATE('%m/%d/%Y', '3/31/2024')
+    ELSE PARSE_DATE('%m/%d/%Y', _liextractdate) 
+  END AS _date,
   SUM(CAST(REPLACE(_impressions, ',', '') AS INT64)) AS _impressions,
   SUM(CAST(_clicks AS INT64)) AS _clicks,
-  CASE WHEN _liextractdate = '6/4/2024' THEN EXTRACT(YEAR FROM PARSE_DATE('%m/%d/%Y', '5/31/2024'))
-  WHEN _liextractdate = '4/1/2024' THEN EXTRACT(YEAR FROM PARSE_DATE('%m/%d/%Y', '3/31/2024'))
-  ELSE
-  EXTRACT(YEAR FROM PARSE_DATE('%m/%d/%Y', _liextractdate)) END AS year,
-  CASE WHEN _liextractdate = '6/4/2024' THEN EXTRACT(MONTH FROM PARSE_DATE('%m/%d/%Y', '5/31/2024'))
-  WHEN _liextractdate = '4/1/2024' THEN EXTRACT(MONTH FROM PARSE_DATE('%m/%d/%Y', '3/31/2024'))
-  ELSE
-  EXTRACT(MONTH FROM PARSE_DATE('%m/%d/%Y', _liextractdate)) END AS month,
+  CASE 
+    WHEN _liextractdate = '6/4/2024' THEN EXTRACT(YEAR FROM PARSE_DATE('%m/%d/%Y', '5/31/2024'))
+    WHEN _liextractdate = '4/1/2024' THEN EXTRACT(YEAR FROM PARSE_DATE('%m/%d/%Y', '3/31/2024'))
+    ELSE EXTRACT(YEAR FROM PARSE_DATE('%m/%d/%Y', _liextractdate)) 
+  END AS year,
+  CASE 
+    WHEN _liextractdate = '6/4/2024' THEN EXTRACT(MONTH FROM PARSE_DATE('%m/%d/%Y', '5/31/2024'))
+    WHEN _liextractdate = '4/1/2024' THEN EXTRACT(MONTH FROM PARSE_DATE('%m/%d/%Y', '3/31/2024'))
+    ELSE EXTRACT(MONTH FROM PARSE_DATE('%m/%d/%Y', _liextractdate)) 
+  END AS month,
   acc._campaignID,
   airtable._campaignname,
   SUM(CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64)) AS _spent
@@ -308,8 +317,7 @@ SELECT
   IFNULL(_impressions - prev_impressions, _impressions) AS change_impressions,
   IFNULL(_spent - prev_spent, _spent) AS change_spent,
   IFNULL(_clicks - prev_clicks, _clicks) AS change_clicks
-FROM
-lagged_li_6sense
+FROM lagged_li_6sense
 ),
 
 final_base_li_6sense AS (
