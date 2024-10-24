@@ -1,5 +1,5 @@
 CREATE OR REPLACE TABLE `x-marketing.carenet_health.all_ads_performance` AS 
---// google_sem \\ -- 
+--+/ _google_sem \+--
 WITH carenet_health_ads_google AS (
   SELECT 
     activity.day AS _timestamp, 
@@ -15,10 +15,8 @@ WITH carenet_health_ads_google AS (
     'Carenet Health' AS _client,
     'Ads' AS _type,
     CASE 
-      WHEN activity.campaign_name LIKE '%Website Traffic%' 
-      THEN 'Website_Traffic'
-      WHEN activity.campaign_name LIKE 'Search || NB || Pentesting' 
-      THEN 'Lead_Generation' 
+      WHEN activity.campaign_name LIKE '%Website Traffic%' THEN 'Website_Traffic'
+      WHEN activity.campaign_name LIKE 'Search || NB || Pentesting' THEN 'Lead_Generation' 
       ELSE 'Lead_Generation' 
     END AS _campaign_objective,
     '' AS _landing_page,
@@ -51,10 +49,8 @@ carenet_health_campaign_google AS (
     'PlexTrac' AS _client,
     'Campaign' AS _type,
     CASE 
-      WHEN activity.campaign_name LIKE '%Website Traffic%' 
-      THEN 'Website_Traffic'
-      WHEN activity.campaign_name LIKE 'Search || NB || Pentesting' 
-      THEN 'Lead_Generation' 
+      WHEN activity.campaign_name LIKE '%Website Traffic%' THEN 'Website_Traffic'
+      WHEN activity.campaign_name LIKE 'Search || NB || Pentesting' THEN 'Lead_Generation' 
       ELSE 'Lead_Generation' 
     END AS _campaign_objective,
     '' AS _landing_page,
@@ -69,7 +65,7 @@ carenet_health_campaign_google AS (
   FROM `x-marketing.carenet_health.google_search_campaign_performance` activity
   JOIN `x-marketing.carenet_google_ads.campaigns` campaign 
     ON campaign.id = activity.campaign_id
-), 
+),
 _google_sem AS (
   SELECT DISTINCT *
   FROM (
@@ -78,8 +74,7 @@ _google_sem AS (
     SELECT * FROM carenet_health_campaign_google
   )
 ),
---// google_sem \\ -- 
---// 6sense \\ -- 
+--+/ _6sense \+--
 carenet_ads_6sense AS (
   SELECT 
     CAST(PARSE_DATE('%m/%e/%Y', _6sense._date) AS TIMESTAMP) AS _timestamp, 
@@ -122,6 +117,7 @@ carenet_ads_6sense AS (
     NULL AS _landingpageclick,
     CAST(NULL AS STRING) AS _status
   FROM `x-marketing.carenet_health_mysql.carenet_db_daily_campaign_performance__refurbished` _6sense
+  -- JOIN `carenet_health_mysql.db_airtable_6sense_campaign` c ON CAST(c._advariationid AS STRING)  = CAST(a._6senseid AS STRING)
   WHERE _datatype = 'Ad'
 ),
 carenet_campaign_6sense AS (
@@ -166,12 +162,13 @@ carenet_campaign_6sense AS (
     NULL AS _landingpageclick,
     CAST(NULL AS STRING) AS _status
   FROM `x-marketing.carenet_health_mysql.carenet_db_daily_campaign_performance__refurbished` _6sense
+  -- JOIN `carenet_health_mysql.db_airtable_6sense_campaign` c ON CAST(c._campaignid AS STRING)  = CAST(a._6senseid AS STRING)
   WHERE _datatype = 'Campaign'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY _6sense._6senseid, _6sense._date 
     ORDER BY CAST(PARSE_DATE('%m/%e/%Y', _6sense._date) AS TIMESTAMP) DESC
   ) = 1
-)
+),
 _6sense AS (
   SELECT *
   FROM (
@@ -180,9 +177,9 @@ _6sense AS (
     SELECT * FROM carenet_campaign_6sense
   )
 ),
---// 6sense \\ -- 
---// LinkedIn \\ -- 
-LI_ads (
+--+/ _6sense \+--
+--+/ _linkedin \+--
+LI_ads AS (
   SELECT 
     start_at AS _timestamp,
     creative_id,
@@ -217,7 +214,7 @@ campaign_group AS (
     status AS _status
   FROM `carenet_health_linkedin.campaign_groups`
 ),
-carenet_health_ads_linkedin (
+carenet_health_ads_linkedin AS (
   SELECT 
     LI_ads._timestamp,
     campaigns._campaignID,
@@ -264,23 +261,6 @@ LI_campaign AS (
     landing_page_clicks AS _landingpageclicks
   FROM `x-marketing.carenet_health_linkedin.ad_analytics_by_campaign`
 ),
-campaigns AS (
-  SELECT 
-    id AS _campaignID,
-    name AS _campaignname,
-    campaign_group_id,
-    run_schedule.start AS _start_date,
-    run_schedule.end AS _end_date,
-    INITCAP(objective_type,'_') AS _campaign_objective
-  FROM `x-marketing.carenet_health_linkedin.campaigns`
-),
-campaign_group AS (
-  SELECT
-    id AS groupID,
-    name AS _groupName,
-    status AS _status
-  FROM `carenet_health_linkedin.campaign_groups`
-)
 carenet_health_campaign_linkedin AS (
   SELECT 
     LI_campaign._timestamp,
@@ -315,20 +295,21 @@ carenet_health_campaign_linkedin AS (
     PARTITION BY LI_campaign._timestamp, campaigns._campaignID 
     ORDER BY LI_campaign._timestamp DESC
   ) = 1
-)
+),
 _linkedin AS (
   SELECT * 
   FROM (
-    SELECT * FROM carenet_health_campaign_linkedin
+    SELECT * FROM carenet_health_ads_linkedin
     -- UNION ALL
-    -- SELECT * FROM carenet_health_campaign
+    -- SELECT * FROM carenet_health_campaign_linkedin
   )
 ),
---// LinkedIn \\ --
+--+/ _linkedin \+--
 airtable_info AS (
-  SELECT 
-    *
-  FROM `x-marketing.carenet_health_mysql.carenet_db_campaign_ad_id`
+    SELECT 
+      *
+    -- FROM `x-marketing.carenet_health_mysql.carenet_optimization_airtable_ads_linkedin`
+    FROM `x-marketing.carenet_health_mysql.carenet_db_campaign_ad_id`
 )
 SELECT 
   _all.*, 
