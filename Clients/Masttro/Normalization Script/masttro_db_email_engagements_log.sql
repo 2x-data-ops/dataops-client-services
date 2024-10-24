@@ -226,6 +226,21 @@ INSERT INTO `x-marketing.masttro.db_email_engagements_log` (
         ORDER BY _timestamp DESC
       ) = 1
   ),
+  form_filled AS (
+    SELECT contacts._sdc_sequence,
+          contacts.properties.email.value AS email,
+          form.value.title AS form_title,
+          form.value.timestamp AS timestamp,
+          form.value.page_url AS description,
+          CAST(NULL AS STRING) AS devicetype,
+          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_source=([^&]+)') AS _utmsource,
+          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_campaign=([^&]+)') AS _utmcampaign,
+          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_medium=([^&]+)') AS _utmmedium,
+          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_content=([^&]+)') AS _utmcontent,
+          FROM `x-marketing.masttro_hubspot.contacts` contacts,
+          UNNEST(form_submissions) AS form
+          JOIN `x-marketing.masttro_hubspot.forms` forms ON form.value.form_id = forms.guid
+  ),
   Downloaded AS (
     SELECT activity._sdc_sequence,
       activity.email AS _email,
@@ -240,21 +255,7 @@ INSERT INTO `x-marketing.masttro.db_email_engagements_log` (
       '' AS duration,
       '' AS response,
       'Downloaded' AS _engagement,
-      FROM (
-        SELECT contacts._sdc_sequence,
-          contacts.properties.email.value AS email,
-          form.value.title AS form_title,
-          form.value.timestamp AS timestamp,
-          form.value.page_url AS description,
-          CAST(NULL AS STRING) AS devicetype,
-          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_source=([^&]+)') AS _utmsource,
-          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_campaign=([^&]+)') AS _utmcampaign,
-          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_medium=([^&]+)') AS _utmmedium,
-          REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_content=([^&]+)') AS _utmcontent,
-          FROM `x-marketing.masttro_hubspot.contacts` contacts,
-          UNNEST(form_submissions) AS form
-          JOIN `x-marketing.masttro_hubspot.forms` forms ON form.value.form_id = forms.guid
-      ) activity
+      FROM form_filled AS activity
       LEFT JOIN `x-marketing.masttro_hubspot.campaigns` campaign ON activity._utmcontent = CAST(campaign.id AS STRING) QUALIFY ROW_NUMBER() OVER (
         PARTITION BY _email,
         _campaignName
@@ -272,10 +273,8 @@ INSERT INTO `x-marketing.masttro.db_email_engagements_log` (
         ORDER BY _timestamp DESC
       ) = 1
   ),
-  HardBounced AS (
-    SELECT hb.*
-    FROM(
-        SELECT email_fields.*
+  hardbounced_source AS (
+    SELECT email_fields.*
         EXCEPT(_type, id),
           'Hard Bounced' AS _engagement
         FROM `x-marketing.masttro_hubspot.subscription_changes`,
@@ -286,14 +285,15 @@ INSERT INTO `x-marketing.masttro.db_email_engagements_log` (
             _campaignName
             ORDER BY _timestamp DESC
           ) = 1
-      ) hb
-      JOIN SoftBounced ON hb._email = SoftBounced._email
-      AND hb._campaignID = SoftBounced._campaignID
   ),
-  Sent AS (
-    SELECT sent.*
-    FROM(
-        SELECT *
+  HardBounced AS (
+    SELECT hardbounced_source.*
+    FROM hardbounced_source
+      JOIN SoftBounced ON hardbounced_source._email = SoftBounced._email
+      AND hardbounced_source._campaignID = SoftBounced._campaignID
+  ),
+  sent_source AS (
+    SELECT *
         EXCEPT(_type, id),
           'Sent' AS _engagement,
           FROM email_fields
@@ -302,18 +302,19 @@ INSERT INTO `x-marketing.masttro.db_email_engagements_log` (
             _campaignName
             ORDER BY _timestamp DESC
           ) = 1
-      ) sent
-      LEFT JOIN HardBounced ON sent._email = HardBounced._email
-      AND sent._campaignID = HardBounced._campaignID
-      LEFT JOIN Dropped ON sent._email = Dropped._email
-      AND sent._campaignID = Dropped._campaignID
+  ),
+  Sent AS (
+    SELECT sent_source.*
+    FROM sent_source
+      LEFT JOIN HardBounced ON sent_source._email = HardBounced._email
+      AND sent_source._campaignID = HardBounced._campaignID
+      LEFT JOIN Dropped ON sent_source._email = Dropped._email
+      AND sent_source._campaignID = Dropped._campaignID
     WHERE HardBounced._email IS NULL
       AND Dropped._email IS NULL
   ),
-  Delivered AS (
-    SELECT delivered.*
-    FROM (
-        SELECT *
+  delivered_source AS (
+    SELECT *
         EXCEPT(_type, id),
           'Delivered' AS _engagement,
           FROM email_fields
@@ -322,11 +323,14 @@ INSERT INTO `x-marketing.masttro.db_email_engagements_log` (
             _campaignName
             ORDER BY _timestamp DESC
           ) = 1
-      ) delivered
-      LEFT JOIN HardBounced ON delivered._email = HardBounced._email
-      AND delivered._campaignID = HardBounced._campaignID
-      LEFT JOIN Dropped ON delivered._email = Dropped._email
-      AND delivered._campaignID = Dropped._campaignID
+  ),
+  Delivered AS (
+    SELECT delivered_source.*
+    FROM delivered_source
+      LEFT JOIN HardBounced ON delivered_source._email = HardBounced._email
+      AND delivered_source._campaignID = HardBounced._campaignID
+      LEFT JOIN Dropped ON delivered_source._email = Dropped._email
+      AND delivered_source._campaignID = Dropped._campaignID
     WHERE HardBounced._email IS NULL
       AND Dropped._email IS NULL
   ),
