@@ -1,4 +1,49 @@
-CREATE OR REPLACE TABLE `x-marketing.carenet_health.linkedin_ads_performance` AS
+-- CREATE OR REPLACE TABLE `x-marketing.carenet_health.linkedin_ads_performance` AS
+TRUNCATE TABLE `x-marketing.carenet_health.linkedin_ads_performance`;
+INSERT INTO  `x-marketing.carenet_health.linkedin_ads_performance` (
+  start_year,
+  start_month,
+  start_day,
+  end_month,
+  end_year,
+  end_day,
+  last_start_day,
+  start_week,
+  start_quater,
+  start_month_num,
+  weekday,
+  start_month_name,
+  start_week_num,
+  _date,
+  _estdate,
+  _quater_startdate,
+  creative_id,
+  _startDate,
+  _endDate,
+  _leads,
+  _reach,
+  _spent,
+  _impressions,
+  _clicks,
+  _conversions,
+  _landing_pages_clicks,
+  _video_views,
+  _lead_form_opens,
+  _video_play,
+  _video_views_25percent,
+  _video_views_50percent,
+  _video_views_75percent,
+  _video_completions,
+  account_id,
+  campaignID,
+  _campaignNames,
+  groupID,
+  _groupName,
+  dailyBudget,
+  cost_type,
+  status,
+  dailyBudget_per_ad
+) 
 WITH LI_ads AS (
  SELECT
     date_range.start.year AS start_year, 
@@ -69,27 +114,27 @@ campaign_group AS (
     FROM `x-marketing.carenet_health_linkedinzation_airtable_ads_linkedin` 
 ), */
 _all AS (
-SELECT
---airtable_ads.*EXCEPT(_adid), 
-  LI_ads.*,
-  campaigns.account_id,
-  campaigns.campaignID,
-  campaigns._campaignNames,
-  campaign_group.groupID,
-  campaign_group._groupName,
-  campaigns.dailyBudget,
-  campaigns.cost_type,
-  campaign_group.status
-FROM LI_ads
-RIGHT JOIN ads_title
-  ON CAST(LI_ads.creative_id AS STRING) = ads_title.cID
-LEFT JOIN campaigns
-  ON ads_title.campaign_id = campaigns.campaignID
-LEFT JOIN campaign_group
-  ON campaigns.campaign_group_id = campaign_group.groupID
-/* LEFT JOIN airtable_ads 
-ON 
-CAST(LI_ads.creative_id AS STRING) = CAST(airtable_ads._adid AS STRING) */
+  SELECT
+  --airtable_ads.*EXCEPT(_adid), 
+    LI_ads.*,
+    campaigns.account_id,
+    campaigns.campaignID,
+    campaigns._campaignNames,
+    campaign_group.groupID,
+    campaign_group._groupName,
+    campaigns.dailyBudget,
+    campaigns.cost_type,
+    campaign_group.status
+  FROM LI_ads
+  RIGHT JOIN ads_title
+    ON CAST(LI_ads.creative_id AS STRING) = ads_title.cID
+  LEFT JOIN campaigns
+    ON ads_title.campaign_id = campaigns.campaignID
+  LEFT JOIN campaign_group
+    ON campaigns.campaign_group_id = campaign_group.groupID
+  /* LEFT JOIN airtable_ads 
+  ON 
+  CAST(LI_ads.creative_id AS STRING) = CAST(airtable_ads._adid AS STRING) */
 ),
 daily_budget_per_ad_per_campaign AS (
   SELECT 

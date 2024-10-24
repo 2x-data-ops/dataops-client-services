@@ -1,4 +1,7 @@
-CREATE OR REPLACE TABLE `x-marketing.carenet_health.all_ads_performance` AS 
+-- CREATE OR REPLACE TABLE `x-marketing.carenet_health.all_ads_performance` AS 
+TRUNCATE TABLE `x-marketing.carenet_health.all_ads_performance`;
+INSERT INTO  `x-marketing.carenet_health.all_ads_performance` (
+)
 --+/ _google_sem \+--
 WITH carenet_health_ads_google AS (
   SELECT 
