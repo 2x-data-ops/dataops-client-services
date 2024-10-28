@@ -69,12 +69,9 @@ carenet_health_campaign_google AS (
     ON campaign.id = activity.campaign_id
 ),
 _google_sem AS (
-  SELECT DISTINCT *
-  FROM (
-    SELECT * FROM carenet_health_ads_google
-    UNION ALL
-    SELECT * FROM carenet_health_campaign_google
-  )
+  SELECT * FROM carenet_health_ads_google
+  UNION ALL
+  SELECT * FROM carenet_health_campaign_google
 ),
 --+/ _6sense \+--
 carenet_ads_6sense AS (
@@ -90,17 +87,13 @@ carenet_ads_6sense AS (
     -- _advariation AS _ad_name,
     '' AS _ad_name,
     CASE 
-      WHEN _6sense._startdate = '-' 
-      THEN NULL 
-      WHEN _6sense._startdate = 'No End Date' 
-      THEN NULL 
+      WHEN _6sense._startdate = '-' THEN NULL 
+      WHEN _6sense._startdate = 'No End Date' THEN NULL 
       ELSE CAST(PARSE_DATE('%m/%e/%Y', _6sense._startdate) AS TIMESTAMP) 
     END,
     CASE 
-      WHEN _6sense._enddate = '-' 
-      THEN NULL 
-      WHEN _6sense._enddate = 'No End Date' 
-      THEN NULL 
+      WHEN _6sense._enddate = '-' THEN NULL 
+      WHEN _6sense._enddate = 'No End Date' THEN NULL 
       ELSE CAST(PARSE_DATE('%m/%e/%Y', _6sense._enddate) AS TIMESTAMP) 
     END,
     '6Sense' AS _platform, 
@@ -135,17 +128,13 @@ carenet_campaign_6sense AS (
     _campaignname AS _campaign_name, 
     '' AS _ad_name,
     CASE 
-      WHEN _6sense._startdate = '-' 
-      THEN NULL 
-      WHEN _6sense._startdate = 'No End Date' 
-      THEN NULL 
+      WHEN _6sense._startdate = '-' THEN NULL 
+      WHEN _6sense._startdate = 'No End Date' THEN NULL 
       ELSE CAST(PARSE_DATE('%d-%b-%y', _6sense._startdate) AS TIMESTAMP) 
     END,
     CASE 
-      WHEN _6sense._enddate = '-' 
-      THEN NULL 
-      WHEN _6sense._enddate = 'No End Date' 
-      THEN NULL 
+      WHEN _6sense._enddate = '-' THEN NULL 
+      WHEN _6sense._enddate = 'No End Date' THEN NULL 
       ELSE CAST(PARSE_DATE('%d-%b-%y', _6sense._enddate) AS TIMESTAMP) 
     END,
     '6Sense' AS _platform, 
@@ -172,12 +161,9 @@ carenet_campaign_6sense AS (
   ) = 1
 ),
 _6sense AS (
-  SELECT *
-  FROM (
-    SELECT * FROM carenet_ads_6sense
-    UNION ALL
-    SELECT * FROM carenet_campaign_6sense
-  )
+  SELECT * FROM carenet_ads_6sense
+  UNION ALL
+  SELECT * FROM carenet_campaign_6sense
 ),
 --+/ _6sense \+--
 --+/ _linkedin \+--
@@ -299,12 +285,9 @@ carenet_health_campaign_linkedin AS (
   ) = 1
 ),
 _linkedin AS (
-  SELECT * 
-  FROM (
-    SELECT * FROM carenet_health_ads_linkedin
-    -- UNION ALL
-    -- SELECT * FROM carenet_health_campaign_linkedin
-  )
+  SELECT * FROM carenet_health_ads_linkedin
+  -- UNION ALL
+  -- SELECT * FROM carenet_health_campaign_linkedin
 ),
 --+/ _linkedin \+--
 airtable_info AS (
@@ -312,6 +295,13 @@ airtable_info AS (
       *
     -- FROM `x-marketing.carenet_health_mysql.carenet_optimization_airtable_ads_linkedin`
     FROM `x-marketing.carenet_health_mysql.carenet_db_campaign_ad_id`
+), 
+_all AS (
+  SELECT * FROM _linkedin
+  -- UNION ALL 
+  -- SELECT * FROM _google_sem 
+  UNION ALL 
+  SELECT * FROM _6sense
 )
 SELECT 
   _all.*, 
@@ -323,11 +313,6 @@ SELECT
     ELSE CONCAT(CAST(_start_date AS DATE),' ','-',' ','No End Date') 
   END AS _campaign_date_range,
   airtable_info.* EXCEPT(_campaignid,_campaignname)
-FROM (
-  SELECT * FROM _linkedin
-  -- SELECT * FROM _google_sem 
-  UNION ALL 
-  SELECT * FROM _6sense
-) _all
+FROM _all
 LEFT JOIN airtable_info 
   ON CAST(_all.creative_id AS STRING) = CAST(airtable_info._adid AS STRING)
