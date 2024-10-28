@@ -5,8 +5,7 @@ WITH activity AS (
   SELECT
     CAST(NULL AS STRING) AS devicetype,
     CASE
-      WHEN form.value.page_url LIKE '%utm_content%' 
-      THEN REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_content=([^&]+)')
+      WHEN form.value.page_url LIKE '%utm_content%' THEN REGEXP_EXTRACT(form.value.page_url, r'[?&]utm_content=([^&]+)')
       ELSE CAST(NULL AS STRING)
     END AS _campaignID,
     form.value.title AS form_title,
