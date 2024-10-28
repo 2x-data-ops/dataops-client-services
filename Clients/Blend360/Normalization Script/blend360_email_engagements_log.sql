@@ -609,3 +609,50 @@ LEFT JOIN prospect_info
   ON engagements._email = prospect_info._email
 JOIN airtable_info
   ON engagements._campaignID = CAST(airtable_info._pardotid AS STRING);
+
+--CREATE OR REPLACE TABLE `x-marketing.blend360.db_event_members` AS
+TRUNCATE TABLE `x-marketing.blend360.db_event_members`;
+
+INSERT INTO `x-marketing.blend360.db_event_members` (
+  name,
+  email,
+  phone,
+  contact_owner,
+  primary_company,
+  lead_status,
+  marketing_contact_status,
+  form_submitted,
+  created_date,
+  last_activity_date
+)
+SELECT DISTINCT
+  CONCAT(
+    contact.property_firstname.value, ' ',
+    contact.property_lastname.value
+  )
+  AS name,
+  contact.property_email.value AS email,
+  contact.property_phone.value AS phone,
+  CONCAT(
+    owner.firstname, ' ',
+    owner.lastname
+  )
+  AS contact_owner,
+  contact.associated_company.properties.name.value AS primary_company,
+  INITCAP(contact.property_hs_lead_status.value) AS lead_status,
+  IF(
+    contact.property_hs_marketable_status.value = 'true', 
+    'Marketing contact',
+    'Non-marketing contact'
+  )  
+  AS marketing_contact_status,
+  form.value.title AS form_submitted,
+  contact.property_createdate.value AS created_date,
+  contact.property_notes_last_updated.value AS last_activity_date
+FROM `blend360_hubspot_v2.contacts` contact, 
+  UNNEST(form_submissions) AS form
+LEFT JOIN `blend360_hubspot_v2.owners` owner
+  ON contact.property_hubspot_owner_id.value = CAST(owner.ownerid AS STRING)
+WHERE form.value.title LIKE '%HubSpot Webinar 2023 LP form January 31, 2023 5:00:44 PM CET%'
+  AND property_email.value NOT LIKE '%test%'
+ORDER BY email;
