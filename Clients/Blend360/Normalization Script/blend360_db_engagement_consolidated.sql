@@ -1,8 +1,25 @@
 -- Create a table for joined engagement data
-CREATE OR REPLACE TABLE `x-marketing.blend360.multiple_engagement_data` AS
-WITH 
-  email_clicks AS (
-    -- Select email engagement data within the last 90 days
+-- CREATE OR REPLACE TABLE `x-marketing.blend360.multiple_engagement_data` AS
+TRUNCATE TABLE `x-marketing.blend360.multiple_engagement_data`;
+
+INSERT INTO `x-marketing.blend360.multiple_engagement_data` (
+  _standardizedcompanyname,	
+  industry,	
+  ad_name,	
+  icp_tier,	
+  customer_segment,	
+  q1_2024__6s_,	
+  _ads_engagements,	
+  _visitoridleadfeeder,	
+  _impressions,	
+  _engagement,	
+  fd_click_delivered,	
+  db_clicks,	
+  _reacheds	
+)
+
+WITH email_clicks AS (
+  -- Select email engagement data within the last 90 days
     SELECT     	
       std_name AS _standardizedcompanyname,
       new_industry AS industry,
@@ -17,7 +34,8 @@ WITH
       NULL AS fd_click_delivered,
       NULL AS db_clicks
     FROM `x-marketing.blend360_master_list.F1000_Acc_Name_Matching`
-    LEFT JOIN `x-marketing.blend360.db_campaign_analysis` ON hs_name = _company
+    LEFT JOIN `x-marketing.blend360.db_campaign_analysis`
+      ON hs_name = _company
     WHERE _engagement = 'Clicked' AND _emailfilters = 'Campaign'
       AND CAST(_timestamp AS DATE) >= DATE_ADD(DATE_TRUNC(CURRENT_DATE(), WEEK(MONDAY)), INTERVAL -90 DAY)
       AND CAST(_timestamp AS DATE) < DATE_ADD(DATE_TRUNC(CURRENT_DATE(), WEEK(MONDAY)), INTERVAL 1 DAY)
@@ -39,7 +57,8 @@ WITH
       NULL AS fd_click_delivered,
       NULL AS db_clicks
     FROM `x-marketing.blend360_master_list.F1000_Acc_Name_Matching`
-    LEFT JOIN `x-marketing.blend360_campaign_data.LI_Account_Engagement` ON li_name = li_company_name
+    LEFT JOIN `x-marketing.blend360_campaign_data.LI_Account_Engagement`
+      ON li_name = li_company_name
   ),
   
   unique_web AS (
@@ -133,7 +152,19 @@ LEFT JOIN reached ON all_data._standardizedcompanyname = reached._standardizedco
 
 
 -- Create a table for aggregated dealfront web visits
-CREATE OR REPLACE TABLE `x-marketing.blend360.aggregated_dealfront_web_visit` AS 
+-- CREATE OR REPLACE TABLE `x-marketing.blend360.aggregated_dealfront_web_visit` AS 
+TRUNCATE TABLE `x-marketing.blend360.aggregated_dealfront_web_visit` ;
+
+INSERT INTO `x-marketing.blend360.aggregated_dealfront_web_visit`  (
+  _standardizedcompanyname,
+  industry,
+  ad_name,
+  icp_tier,
+  customer_segment,
+  _data,
+  unique_visit,
+  last_visit_date	
+)
 WITH 
   _90days AS (
     -- Count unique visits within the last 90 days
@@ -179,7 +210,20 @@ FROM (
 
 
 -- Create a table for detailed dealfront web visit activities
-CREATE OR REPLACE TABLE `x-marketing.blend360.dealfront_web_visit` AS
+-- CREATE OR REPLACE TABLE `x-marketing.blend360.dealfront_web_visit` AS
+TRUNCATE TABLE `x-marketing.blend360.dealfront_web_visit`;
+
+INSERT INTO `x-marketing.blend360.dealfront_web_visit` (
+  _standardizedcompanyname,	
+  industry,	
+  ad_name,	
+  icp_tier,	
+  customer_segment,	
+  page_visit,	
+  visit_date,	
+  _timeonpageseconds,	
+  _data
+)
 WITH 
   _90days AS (
     -- Select detailed web visit data within the last 90 days
@@ -234,7 +278,23 @@ FROM (
 
 
 -- Create a table for aggregated engagement data
-CREATE OR REPLACE TABLE `x-marketing.blend360.aggregated_engagement_data` AS
+-- CREATE OR REPLACE TABLE `x-marketing.blend360.aggregated_engagement_data` AS
+TRUNCATE TABLE `x-marketing.blend360.aggregated_engagement_data`;
+
+INSERT INTO `x-marketing.blend360.aggregated_engagement_data` (
+  _standardizedcompanyname,
+  industry,
+  ad_name,
+  icp_tier,
+  customer_segment,
+  _reacheds,
+  unique_visitor,
+  email_clicks,
+  li_ad_engagements,
+  fd_click,	
+  db_click,	
+  total_engagement	
+)
 SELECT  
   _standardizedcompanyname, 
   industry, 
