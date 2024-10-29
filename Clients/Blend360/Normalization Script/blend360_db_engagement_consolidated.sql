@@ -157,10 +157,8 @@ INSERT INTO `x-marketing.blend360.multiple_engagement_data` (
     SELECT
       _standardizedcompanyname,
       industry,
-      CASE
-        WHEN SUM(_impressions) >= 1 THEN 'Y'
-        ELSE 'N'
-      END AS _reacheds
+      IF(SUM(_impressions) >= 1, 'Y', 'N')
+      AS _reacheds
     FROM all_data
     GROUP BY 1, 2
   ) -- Finalize the table by joining with 'reached' data
@@ -308,7 +306,7 @@ FROM _all;
 
 -- Create a table for aggregated engagement data
 -- CREATE OR REPLACE TABLE `x-marketing.blend360.aggregated_engagement_data` AS
-TRUNCATE TABLE  `x-marketing.blend360.aggregated_engagement_data`;
+TRUNCATE TABLE `x-marketing.blend360.aggregated_engagement_data`;
 
 INSERT INTO `x-marketing.blend360.aggregated_engagement_data` (
     _standardizedcompanyname,
@@ -332,40 +330,40 @@ SELECT
   customer_segment,
   _reacheds,
   COUNT(DISTINCT _visitoridleadfeeder) AS unique_visitor,
-  SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) AS email_clicks,
+  SUM(IF(_engagement = 'Clicked', 1, 0)) AS email_clicks,
   CAST(AVG(_ads_engagements) AS INT64) AS li_ad_engagements,
   SUM(fd_click_delivered) AS fd_click,
   SUM(db_clicks) AS db_click,
-  CASE 
+  CASE
     WHEN SUM(_ads_engagements) > 0 AND SUM(db_clicks) >= 0 AND SUM(fd_click_delivered) >= 0 THEN (
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) + AVG(_ads_engagements) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(fd_click_delivered) + SUM(db_clicks)
+      SUM(IF(_engagement = 'Clicked', 1, 0)) + AVG(_ads_engagements) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(fd_click_delivered) + SUM(db_clicks)
     )
     WHEN SUM(_ads_engagements) > 0 AND SUM(db_clicks) >= 0 THEN (
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) + AVG(_ads_engagements) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(db_clicks)
+      SUM(IF(_engagement = 'Clicked', 1, 0)) + AVG(_ads_engagements) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(db_clicks)
     )
     WHEN SUM(_ads_engagements) > 0 AND SUM(fd_click_delivered) >= 0 THEN (
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) + AVG(_ads_engagements) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(fd_click_delivered)
+      SUM(IF(_engagement = 'Clicked', 1, 0)) + AVG(_ads_engagements) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(fd_click_delivered)
     )
     WHEN SUM(fd_click_delivered) >= 0 AND SUM(db_clicks) >= 0 THEN (
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(fd_click_delivered) + SUM(db_clicks)
+      SUM(IF(_engagement = 'Clicked', 1, 0)) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(fd_click_delivered) + SUM(db_clicks)
     )
     WHEN SUM(fd_click_delivered) >= 0 THEN (
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(fd_click_delivered)
+      SUM(IF(_engagement = 'Clicked', 1, 0)) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(fd_click_delivered)
     )
     WHEN SUM(db_clicks) >= 0 THEN (
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(db_clicks)
+      SUM(IF(_engagement = 'Clicked', 1, 0)) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(db_clicks)
     )
     WHEN SUM(_ads_engagements) IS NULL AND SUM(fd_click_delivered) IS NULL AND SUM(db_clicks) IS NULL THEN (
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) + COUNT(DISTINCT _visitoridleadfeeder)
+      SUM(IF(_engagement = 'Clicked', 1, 0)) + COUNT(DISTINCT _visitoridleadfeeder)
     )
     WHEN SUM(_ads_engagements) IS NULL THEN (
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(fd_click_delivered) + SUM(db_clicks)
+      SUM(IF(_engagement = 'Clicked', 1, 0)) + COUNT(DISTINCT _visitoridleadfeeder) + SUM(fd_click_delivered) + SUM(db_clicks)
     )
     WHEN SUM(fd_click_delivered) IS NULL THEN (
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) + COUNT(DISTINCT _visitoridleadfeeder) + AVG(_ads_engagements)
+      SUM(IF(_engagement = 'Clicked', 1, 0)) + COUNT(DISTINCT _visitoridleadfeeder) + AVG(_ads_engagements)
     )
     WHEN SUM(db_clicks) IS NULL THEN (
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 ELSE 0 END) + COUNT(DISTINCT _visitoridleadfeeder) + AVG(_ads_engagements)
+      SUM(IF(_engagement = 'Clicked', 1, 0)) + COUNT(DISTINCT _visitoridleadfeeder) + AVG(_ads_engagements)
     )
   END AS total_engagement
 FROM `x-marketing.blend360.multiple_engagement_data`
