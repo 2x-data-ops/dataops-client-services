@@ -1,11 +1,25 @@
 -- Keyword Related
-CREATE OR REPLACE TABLE `x-marketing.blend360.db_email_alert_keywords` AS
+TRUNCATE TABLE `x-marketing.blend360.db_email_alert_keywords`;
+INSERT INTO `x-marketing.blend360.db_email_alert_keywords` (
+    extract_date,	
+    timeframe,	
+    segment_name,	
+    account_name,	
+    has_6QA,	
+    country,	
+    domain,	
+    account_reach,	
+    buying_stage,	
+    profile_fit,	
+    _bomboracompanysurgetopics,
+    keyword_count,
+    keyword	  
+)
 WITH split_strings_to_arrays AS (
 SELECT  
     CASE
         WHEN _extractdate = "" THEN NULL
-        WHEN _extractdate LIKE '%/%'
-        THEN PARSE_DATE('%m/%e/%Y', _extractdate) 
+        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate) 
         ELSE PARSE_DATE('%F', _extractdate) 
     END AS extract_date,
     _timeframe AS timeframe,
@@ -47,7 +61,7 @@ FROM nest_bombora
 
 keyword_unnest_array AS (
 SELECT
-    * EXCEPT(_keywords ),
+    * EXCEPT(_keywords),
 FROM keyword_array,
 UNNEST(_keywords) AS keywords
 ),
@@ -64,13 +78,26 @@ SELECT
     REPLACE(keyword, '"', '') AS keyword
 FROM split_keyword_and_score;
 
-CREATE OR REPLACE TABLE `x-marketing.blend360.db_email_alert_bombora` AS
+TRUNCATE TABLE `x-marketing.blend360.db_email_alert_bombora`;
+INSERT INTO `x-marketing.blend360.db_email_alert_bombora` (
+    extract_date,	
+    timeframe,
+    segment_name,
+    account_name,
+    has_6QA,
+    country,
+    domain,
+    account_reach,
+    buying_stage,
+    profile_fit,
+    _keywords,
+    _bomboracompanysurgetopics  
+)
 WITH split_strings_to_arrays AS (
 SELECT  
     CASE
         WHEN _extractdate = "" THEN NULL
-        WHEN _extractdate LIKE '%/%'
-        THEN PARSE_DATE('%m/%e/%Y', _extractdate) 
+        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate) 
         ELSE PARSE_DATE('%F', _extractdate) 
     END AS extract_date,
     _timeframe AS timeframe,
@@ -83,8 +110,8 @@ SELECT
     _buyingstage AS buying_stage,
     _profilefit AS profile_fit,
     _bomboracompanysurgetopics,
-    SPLIT(TRIM(_bomboracompanysurgetopics), ',') AS bomboracompanysurgetopics ,
-    _keywords AS _keywords,
+    SPLIT(TRIM(_bomboracompanysurgetopics), ',') AS bomboracompanysurgetopics,
+    _keywords AS _keywords
 FROM `x-marketing.blend360_mysql.db_6sense_impact` 
 )
 SELECT 
@@ -94,12 +121,30 @@ FROM split_strings_to_arrays,
 UNNEST(bomboracompanysurgetopics ) AS _bomboracompanysurgetopics;
 
 -- Website URLs Related
-CREATE OR REPLACE TABLE `x-marketing.blend360.db_email_alert_landingpages` AS
+TRUNCATE TABLE `x-marketing.blend360.db_email_alert_landingpages`;
+INSERT INTO `x-marketing.blend360.db_email_alert_landingpages` (
+    extract_date,	
+    timeframe,	
+    segment_name,	
+    account_name,	
+    has_6QA,	
+    country,	
+    domain,	
+    account_reach,	
+    buying_stage,	
+    profile_fit,	
+    _web_urls_count,	
+    web_visit_count,	
+    known_contact_count,	
+    anonymous_count,	
+    _weburls,	
+    _web,
+    page_url   
+)
 WITH split_strings_to_arrays AS (
 SELECT  
     CASE
-        WHEN _extractdate LIKE '%/%'
-        THEN PARSE_DATE('%m/%e/%Y', _extractdate) 
+        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate) 
         ELSE PARSE_DATE('%F', _extractdate) 
     END AS extract_date,
     _timeframe AS timeframe,
@@ -139,7 +184,6 @@ SELECT
     END AS _url_source
 FROM `x-marketing.blend360_mysql.db_6sense_impact`
 WHERE _weburls != ''
-
 ),
 
 unnest_arrays AS (
