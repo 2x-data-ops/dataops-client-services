@@ -35,7 +35,7 @@
 - [Google Ads and GA4 Integration Choice](Documentation/Ads%20Documentation/Google%20Ads%20and%20GA4%20Integration%20Choice)
 - [Web Optimization](Documentation/Web%20Optimization)
 
-### Internal Sharing Sessions
+### ⏮ - Internal Sharing Sessions
 - [06/02/2024 - Google Ads Budget & Cost (API vs Platform), Book: Atomic Habits & 30 Days Intent Scoring Window.](https://2xmarketing-my.sharepoint.com/:v:/g/personal/raden_ameer_2x_marketing/EQRgxiWCmNdKo7rsKi3ZXukBlylXmFfqgz7oJD6jtj7nig?referrer=Teams.TEAMS-ELECTRON&referrerScenario=MeetingChicletGetLink.view.view)
 - [20/02/2024 - UNPIVOT Function, Content Analytics & Facebooks Ads VS everybody](https://2xmarketing-my.sharepoint.com/:v:/g/personal/hafiz_asyraf_2x_marketing/EarbOVH5vZRLpP2jspzwU3QBkgQzujqIeq_tAnAk5chyYg?referrer=Teams.TEAMS-ELECTRON&referrerScenario=MeetingChicletGetLink.view.view)
 - [05/03/2024 - Google Analytic, EPAM - Bot Click, End to End Project: Property Analysi](https://2xmarketing-my.sharepoint.com/:v:/g/personal/raden_ameer_2x_marketing/ESNsG-MnDF1OqkNlLa0UXxgBqtIH1XKGT8ZFuUFuN5fKzQ?e=cqJ1f7&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D)
@@ -46,3 +46,23 @@
 - [14/05/2024 - Imran presentation, Nested/Repeated Field](https://2xmarketing-my.sharepoint.com/:v:/g/personal/nazzatul_nazziri_2x_marketing/ETSc5Ras1yNHqiegUQ4iNXMBaeOsW77KK2dsS8XWkPTTyQ?e=pJeA0v&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D)
 - [28/05/2024 - python: upload data to CSV2SQL (Stitch replication), Handling Nested Array by Delimiter, Bigquery Recursive Function](https://2xmarketing-my.sharepoint.com/:v:/g/personal/nazzatul_nazziri_2x_marketing/EYe_j1q_LtpDt14H1jlWRlcBO2r8-AMmS3jfrpnhrpZodg?e=Opyhw9&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D)
 - [11/06/2024 - Marketo API integration, Optimize script cross join data, Data discrepency stitch (Marketo) - EPAM, Izzat presentation](https://2xmarketing-my.sharepoint.com/:v:/g/personal/salman_marizki_2x_marketing/EbN7X8M1ba5FhISUQ_vC1acB5TXmJw2aTyWC5DSR2hJR6Q?e=lCNqeQ&nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJTdHJlYW1XZWJBcHAiLCJyZWZlcnJhbFZpZXciOiJTaGFyZURpYWxvZy1MaW5rIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXcifX0%3D)
+
+
+### 📗 -  6Sense Impact Dashboard
+
+  `This section is to provide as a reference for 6Sense Impact Dashboard. Refer to the following resources`
+  
+  - Link to impact dashboard ER Diagram:  [6Sense Impact Dashboard Structure (Lark)](https://p423itcaltn.sg.larksuite.com/base/MJyebpBYDaX3IKsuY0Ulhwv3gZb?table=ldxleVzJFPF6xi9h)
+
+  - Gold Standard Scripts
+    <details>
+    <summary><p style="display:inline-block">Normalization (Silver)</p></summary>
+    &nbsp;&nbsp; 1. <span><a href="https://github.com/2x-data-ops/dataops-client-services/blob/main/Standardized%20Scripts/Gold_Standard_Script/Normalization_Script/Ads/6Sense/db_6sense_buying_stages_movement.sql" target="_blank">db_6sense_buying_stages_movement</a></span><br>
+    &nbsp;&nbsp; 2. <span><a href="https://github.com/2x-data-ops/dataops-client-services/blob/main/Standardized%20Scripts/Gold_Standard_Script/Normalization_Script/Ads/6Sense/db_6sense_account_current_state.sql" target="_blank">db_6sense_account_current_state</a></span><br>
+    &nbsp;&nbsp; 3. <span><a href="https://github.com/2x-data-ops/dataops-client-services/blob/main/Standardized%20Scripts/Gold_Standard_Script/Normalization_Script/Ads/6Sense/db_6sense_engagement_log.sql" target="_blank">db_6sense_engagement_log</a></span><br>
+    </details>
+    <details>
+    <summary><p style="display:inline-block;margin-top:8px;">Analytics (Gold)</p></summary>
+     &nbsp;&nbsp; 4. <span><a href="https://github.com/2x-data-ops/dataops-client-services/blob/main/Standardized%20Scripts/Gold_Standard_Script/Analytics_Script/Impact/6Sense/opportunity_influenced_accelerated.sql" target="_blank">opportunity_influenced_accelerated</a></span><br>
+     &nbsp;&nbsp; 5. <span><a href="https://github.com/2x-data-ops/dataops-client-services/blob/main/Standardized%20Scripts/Gold_Standard_Script/Analytics_Script/Impact/6Sense/opportunity_summarized.sql" target="_blank">opportunity_summarized</a></span><br>
+    </details>
