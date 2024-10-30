@@ -840,9 +840,9 @@ CREATE OR REPLACE TABLE `ridecell.db_6sense_account_performance` AS
 -- Get all target accounts and their campaigns
 WITH target_accounts AS (
     SELECT DISTINCT 
-        main.sfdc_account_name AS _6sensecompanyname,
-        main.sfdc_billing_country AS _6sensecountry,
-        main.sfdc_website AS _6sensedomain,           
+        main.sfdc_account_name,
+        main.sfdc_billing_country,
+        main.sfdc_website,           
         side.segment_name,
         CAST(side._campaignid AS STRING) AS _campaignid,
         side.campaign_name AS _campaignname
@@ -866,9 +866,18 @@ WITH target_accounts AS (
             END AS _has_impressions
         FROM target_accounts AS main
         LEFT JOIN `TEMP_ridecell_db_6s_reached_account` side
-        USING(_6sensecompanyname, _6sensecountry, _6sensedomain, _campaignid)
+        USING(sfdc_account_name, sfdc_billing_country, sfdc_website, _campaignid)
     )
-SELECT * FROM reached_accounts;
+SELECT
+    sfdc_account_name AS _6sensecompanyname,
+    sfdc_billing_country AS _6sensecountry,
+    sfdc_website AS _6sensedomain,
+    segment_name,
+    _campaignname,
+    _is_reached,
+    _has_clicks,
+    _has_impressions
+FROM reached_accounts;
 
 
 
