@@ -56,13 +56,14 @@
 
   - Gold Standard Scripts
     <details>
-    <summary><p style="display:inline-block">Normalization (Silver)</p></summary>
+    <summary>Normalization (Silver)</summary>
     &nbsp;&nbsp; 1. <span><a href="https://github.com/2x-data-ops/dataops-client-services/blob/main/Standardized%20Scripts/Gold_Standard_Script/Normalization_Script/Ads/6Sense/db_6sense_buying_stages_movement.sql" target="_blank">db_6sense_buying_stages_movement</a></span><br>
     &nbsp;&nbsp; 2. <span><a href="https://github.com/2x-data-ops/dataops-client-services/blob/main/Standardized%20Scripts/Gold_Standard_Script/Normalization_Script/Ads/6Sense/db_6sense_account_current_state.sql" target="_blank">db_6sense_account_current_state</a></span><br>
     &nbsp;&nbsp; 3. <span><a href="https://github.com/2x-data-ops/dataops-client-services/blob/main/Standardized%20Scripts/Gold_Standard_Script/Normalization_Script/Ads/6Sense/db_6sense_engagement_log.sql" target="_blank">db_6sense_engagement_log</a></span><br>
     </details>
+    <br>
     <details>
-    <summary><p style="display:inline-block;margin-top:8px;">Analytics (Gold)</p></summary>
+    <summary>Analytics (Gold)</summary>
      &nbsp;&nbsp; 4. <span><a href="https://github.com/2x-data-ops/dataops-client-services/blob/main/Standardized%20Scripts/Gold_Standard_Script/Analytics_Script/Impact/6Sense/opportunity_influenced_accelerated.sql" target="_blank">opportunity_influenced_accelerated</a></span><br>
      &nbsp;&nbsp; 5. <span><a href="https://github.com/2x-data-ops/dataops-client-services/blob/main/Standardized%20Scripts/Gold_Standard_Script/Analytics_Script/Impact/6Sense/opportunity_summarized.sql" target="_blank">opportunity_summarized</a></span><br>
     </details>
