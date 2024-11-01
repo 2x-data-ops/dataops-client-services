@@ -81,11 +81,17 @@ SELECT
   -- ROW_NUMBER() OVER(PARTITION BY _userid, DATE(_timestamp) ORDER BY _timestamp) _page_order
 FROM mouseflow_recording
 ),
+mouseflow_recording_keys AS (
+SELECT DISTINCT
+  CONCAT(_visitorid, _timestamp) AS _key
+FROM mouseflow_recording
+WHERE _order = 1
+),
 mouseflow_pageviews AS (
 SELECT
   *
 FROM info_mouseflow_pageviews
-JOIN (SELECT DISTINCT CONCAT(_visitorid, _timestamp) AS _key FROM mouseflow_recording WHERE _order = 1) 
+JOIN mouseflow_recording_keys 
   USING(_key)
 )
 SELECT
@@ -108,13 +114,14 @@ UPDATE
 SET
   blend360_mflow._domain    = kickfire._website,
   blend360_mflow._name      = kickfire._name,
-  blend360_mflow._location  = CASE
-                                WHEN kickfire._city IS NULL 
-                                  AND kickfire._region IS NULL THEN ''
-                                WHEN kickfire._city = '' 
-                                  AND kickfire._region = '' THEN ''
-                                ELSE CONCAT(kickfire._city, ', ', kickfire._region)
-                              END,
+  blend360_mflow._location  = 
+    CASE
+      WHEN kickfire._city IS NULL 
+        AND kickfire._region IS NULL THEN ''
+      WHEN kickfire._city = '' 
+        AND kickfire._region = '' THEN ''
+      ELSE CONCAT(kickfire._city, ', ', kickfire._region)
+    END,
   blend360_mflow._industry  = kickfire._category,
   blend360_mflow._revenue   = kickfire._revenue,
   blend360_mflow._employees = kickfire._employees,
