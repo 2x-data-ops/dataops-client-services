@@ -1,6 +1,34 @@
 TRUNCATE TABLE `x-marketing.blend360.db_web_engagements_log`;
 
-INSERT INTO `x-marketing.blend360.db_web_engagements_log`
+INSERT INTO `x-marketing.blend360.db_web_engagements_log` (
+  _recordingurl,
+  _recordingid,
+  _visitorid,
+  _userstatus,
+  _page,
+  _pagegroup,
+  _fullurl,
+  _cleanpage,
+  _nextpage,
+  _totalsessionviews,
+  _engagementtime,
+  _timespent,
+  _timestamp,
+  _stage,
+  _goalcompletion,
+  _utmsource,
+  _utmcampaign,
+  _utmmedium,
+  _utmcontent,
+  _utmterm,
+  _ipaddr,
+  _domain,
+  _name,
+  _city,
+  _region,
+  _country,
+  _isisp
+)
 WITH mouseflow AS (
     SELECT DISTINCT
       CASE
@@ -13,11 +41,8 @@ WITH mouseflow AS (
       CAST(NULL AS STRING) AS _userstatus,
       _page,
       CAST(NULL AS STRING) AS _pagegroup,
-      CASE
-        -- Relabel the root page
-        WHEN _page = '/' THEN 'https://www.blend360.com/'
-        ELSE _fullurl
-      END AS _fullurl,
+      -- Relabel the root page
+      IF(_page = '/', 'https://www.blend360.com/',_fullurl) AS _fullurl,
       _cleanpage,
       _nextpage,
       CAST(NULL AS INT) AS _uniquesessionviews,
@@ -100,10 +125,7 @@ SELECT DISTINCT
   ) AS _utmcontent,
   _utmterm,
   _ipaddr,
-  CASE
-    WHEN _domain = ' ' THEN ''
-    ELSE _domain
-  END AS _domain,
+  IF(_domain = ' ', '', _domain) AS _domain,
   _name,
   _city,
   _region,
