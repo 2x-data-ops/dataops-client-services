@@ -1,9 +1,10 @@
-CREATE OR REPLACE TABLE x-marketing.blend360.wise_tickets_hours AS 
+-- CREATE OR REPLACE TABLE `x-marketing.blend360.wise_tickets_hours` AS
+
+TRUNCATE TABLE `x-marketing.blend360.wise_tickets_hours`;
+INSERT INTO `x-marketing.blend360.wise_tickets_hours`
 WITH
   tickets AS (
 
-    SELECT * FROM 
-    (
     SELECT
       DISTINCT _date AS date, 
       _user_logged_hours AS name, 
@@ -20,13 +21,8 @@ WITH
       `x-marketing.wise.wise_request_project`
     WHERE
       _client = 'blend360'
-    )
   ),
-  ticket_details AS (
-  SELECT 
-    * 
-  FROM 
-    (
+  project_details AS (
     SELECT
         DISTINCT 
         details._projectID AS wise_id,
@@ -50,7 +46,11 @@ WITH
           'themes-keywords',
           'marketing-outputs',
           'type')
-    )
+  ),
+  ticket_details AS (
+  SELECT 
+    * 
+  FROM project_details
     PIVOT (
     MAX(_val) FOR _field IN (
             'groups',
