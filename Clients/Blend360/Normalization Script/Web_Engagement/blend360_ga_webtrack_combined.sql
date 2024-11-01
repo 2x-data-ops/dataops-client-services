@@ -1,6 +1,27 @@
+-- CREATE OR REPLACE TABLE `x-marketing.blend360.ga_webtrack_combined_data` AS
+TRUNCATE TABLE `x-marketing.blend360.ga_webtrack_combined_data`;
 
-CREATE OR REPLACE TABLE `x-marketing.blend360.ga_webtrack_combined_data` AS
-
+INSERT INTO `x-marketing.blend360.ga_webtrack_combined_data` (
+	_date,
+	_company_name,
+	_company_website,
+	_industry,
+	_country,
+	_page_url,
+	_default_channel_grouping,
+	_avg_session_duration,
+	_sessions,
+	_users,
+	_new_users,
+	_bounces,
+	_bounce_rate,
+	_page_views,
+	_unique_page_views,
+	_goal_conversion_rate,
+	_data_source,
+	_bu,
+	_target_type
+)
 WITH web_visits_data AS (
 
     SELECT  
@@ -94,22 +115,16 @@ WITH web_visits_data AS (
 
 remove_duplicate_web_visits AS (
 
-    SELECT * EXCEPT(_rownum)
-    FROM (
-        SELECT 
-            *,
-            ROW_NUMBER() OVER(
-                PARTITION BY _date, _company_website, _page_url
-                ORDER BY _order
-            ) 
-            AS _rownum
+    SELECT 
+        *
         FROM 
             web_visits_data
         WHERE 
             _company_website IS NOT NULL
-    )
-    WHERE _rownum = 1
-
+    QUALIFY ROW_NUMBER() OVER(
+                PARTITION BY _date, _company_website, _page_url
+                ORDER BY _order
+            ) = 1
     UNION ALL 
 
     SELECT 
