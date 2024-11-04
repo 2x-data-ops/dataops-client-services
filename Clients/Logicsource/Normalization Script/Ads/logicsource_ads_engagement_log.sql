@@ -1,14 +1,12 @@
---CREATE OR REPLACE TABLE `x-marketing.logicsource.ad_metrics` AS
-TRUNCATE TABLE `x-marketing.logicsource.ad_metrics`;
+TRUNCATE TABLE `x-marketing.logicsource.report_consolidated_ads_metrics`;
 
-INSERT INTO `x-marketing.logicsource.ad_metrics` (
-    ad_id,
-    ad_group_id,
-    day,
-    spent,
-    impressions,
-    clicks,
-    _status,
+INSERT INTO `x-marketing.logicsource.report_consolidated_ads_metrics` (
+    _adid,
+    _adgroup_id,
+    _day,
+    _spent,
+    _impressions,
+    _clicks,
     _advariation,
     _content,
     _screenshot,
@@ -21,14 +19,9 @@ INSERT INTO `x-marketing.logicsource.ad_metrics` (
     _landingpageurl,
     _campaignname,
     _stage,
-    adnum,
-    reduced_spent,
-    reduced_impressions,
-    reduced_clicks,
-    pageviews,
-    reduced_pageviews,
-    visitors,
-    reduced_visitors
+    _adnum,
+    _pageviews,
+    _visitors
   )
   WITH airtable AS (
     SELECT
@@ -55,7 +48,7 @@ INSERT INTO `x-marketing.logicsource.ad_metrics` (
       name AS _advariation,
       content_reference AS _content
     FROM `x-marketing.logicsource_linkedin_ads.creatives` c
-    LEFT JOIN x-marketing.logicsource_linkedin_ads.video_ads v
+    LEFT JOIN `x-marketing.logicsource_linkedin_ads.video_ads` v
       ON c.content.reference = v.content_reference
   ),
   campaigns AS (
@@ -87,7 +80,7 @@ INSERT INTO `x-marketing.logicsource.ad_metrics` (
       ads_title._content AS _content,
       _screenshot AS _screenshot,
       _groupName AS _reportinggroup,
-      CAST(campaignID AS STRING) AS _campaign,
+      campaignID AS _campaign,
       'Linkedin' AS _source,
       _medium AS _medium,
       "" AS _id,
@@ -122,7 +115,7 @@ INSERT INTO `x-marketing.logicsource.ad_metrics` (
       main.impressions AS impressions,
       main.clicks
     FROM `x-marketing.logicsource_linkedin_ads.ad_analytics_by_creative` main
-    JOIN `x-marketing.logicsource_linkedin_ads.creatives` creative 
+    JOIN `x-marketing.logicsource_linkedin_ads.creatives` creative
       ON CAST(main.creative_id AS STRING) = SPLIT(
         SUBSTR(
           creative.id,
@@ -131,15 +124,10 @@ INSERT INTO `x-marketing.logicsource.ad_metrics` (
       ) [ORDINAL(1)]
     JOIN `x-marketing.logicsource_linkedin_ads.campaigns` campaign
       ON creative.campaign_id = campaign.id
-    JOIN `x-marketing.logicsource_linkedin_ads.campaign_groups` campaign_group 
+    JOIN `x-marketing.logicsource_linkedin_ads.campaign_groups` campaign_group
       ON campaign.campaign_group_id = campaign_group.id
     ORDER BY main.start_at DESC
   ),
-  /*  
-  Google ads are tied with their statistics using the ad group id instead of the ad id.
-  This means that the statistics for each ad is the statistic of the ad group and not the individual ad itself.
-  This duplication of numbers can be handled by dividing the statistics by the number of ads in the ad group.
-   */
   combined_data AS (
     SELECT
       ads.*,
@@ -151,28 +139,28 @@ INSERT INTO `x-marketing.logicsource.ad_metrics` (
   count_ads AS (
     SELECT
       *,
-      COUNT(ad_id) OVER (PARTITION BY day, ad_group_id ) adnum
+      COUNT(ad_id) OVER (PARTITION BY day, ad_group_id) AS adnum
     FROM combined_data
   ),
   reduced_numbers_google_ads AS (
     SELECT
       *,
       -- For Google ads, divide by number of ads in ad group to reduce duplicated numbers
-      CASE
-        WHEN _platform LIKE '%Google%' THEN spent / adnum
-        WHEN _platform LIKE '%LinkedIn%' THEN spent
-      END AS reduced_spent,
-      CASE
-        WHEN _platform LIKE '%Google%' THEN impressions / adnum
-        WHEN _platform LIKE '%LinkedIn%' THEN impressions
-      END AS reduced_impressions,
-      CASE
-        WHEN _platform LIKE '%Google%' THEN clicks / adnum
-        WHEN _platform LIKE '%LinkedIn%' THEN clicks
-      END AS reduced_clicks
+      -- CASE 
+      --     WHEN _platform LIKE '%Google%' THEN spent / adnum
+      --     WHEN _platform LIKE '%LinkedIn%' THEN spent
+      -- END AS reduced_spent,
+      -- CASE 
+      --     WHEN _platform LIKE '%Google%' THEN impressions / adnum
+      --     WHEN _platform LIKE '%LinkedIn%' THEN impressions
+      -- END AS reduced_impressions,
+      -- CASE 
+      --     WHEN _platform LIKE '%Google%' THEN clicks / adnum
+      --     WHEN _platform LIKE '%LinkedIn%' THEN clicks
+      -- END AS reduced_clicks
     FROM count_ads
   ),
-  web_engagements AS (
+  web_engagement AS (
     SELECT DISTINCT
       CAST(_timestamp AS DATE) AS _date,
       _visitorid,
@@ -200,13 +188,10 @@ INSERT INTO `x-marketing.logicsource.ad_metrics` (
       ad._source,
       COUNT(DISTINCT web._visitorid) AS visitors,
       SUM(web._totalsessionviews) AS pageviews
-    FROM web_engagements AS web
+    FROM web_engagement AS web
     JOIN reduced_numbers_google_ads_agg AS ad
       ON ad._landingpageurl LIKE CONCAT('%', web._fullpage, '%')
-      AND EXTRACT(
-        DATETIME
-        FROM     ad.day
-      ) = web._date
+      AND EXTRACT(DATETIME FROM ad.day) = web._date
     WHERE UPPER(ad._source) = UPPER(web._utmsource)
       AND web._utmsource IN ('linkedin', 'LinkedIn', 'Google')
     GROUP BY 1, 2, 3, 4
@@ -218,13 +203,13 @@ INSERT INTO `x-marketing.logicsource.ad_metrics` (
    */
   add_reduced_web_page_views AS (
     SELECT
-      main.*,
+      main.* EXCEPT (_status),
       side.pageviews,
-      side.pageviews / side.ad_count AS reduced_pageviews,
+      -- side.pageviews / side.ad_count AS reduced_pageviews,
       side.visitors,
-      side.visitors / side.ad_count AS reduced_visitors
+      -- side.visitors / side.ad_count AS reduced_visitors
     FROM reduced_numbers_google_ads AS main
-    LEFT JOIN get_web_page_views AS side 
+    LEFT JOIN get_web_page_views AS side
       ON main.day = side.day
       AND main._landingpageurl = side._landingpageurl
       AND main._source = side._source
@@ -232,92 +217,3 @@ INSERT INTO `x-marketing.logicsource.ad_metrics` (
 SELECT
   *
 FROM add_reduced_web_page_views;
-
-------------------------------------------------
--------------- Content Analytics ---------------
-------------------------------------------------
--- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_ads_content_analytics` AS
-TRUNCATE TABLE `x-marketing.logicsource.db_ads_content_analytics`;
-
-INSERT INTO `x-marketing.logicsource.db_ads_content_analytics` (
-    ad_id,
-    ad_group_id,
-    day,
-    spent,
-    impressions,
-    clicks,
-    _advariation,
-    _content,
-    _screenshot,
-    _reportinggroup,
-    _campaign,
-    _source,
-    _medium,
-    _platform,
-    _asset,
-    _landingpageurl,
-    _campaignname,
-    _stage,
-    adnum,
-    reduced_spent,
-    reduced_impressions,
-    reduced_clicks,
-    pageviews,
-    reduced_pageviews,
-    visitors,
-    reduced_visitors,
-    _contentitem,
-    _contenttype,
-    _gatingstrategy,
-    _homeurl,
-    _summary,
-    _status,
-    _buyerstage,
-    _vertical,
-    _persona,
-    _jobtitles,
-    _industry
-  )
-  WITH ads_log AS (
-    SELECT
-      *
-    FROM `x-marketing.logicsource.ad_metrics`
-  ),
-  airtable AS (
-    SELECT
-      * EXCEPT (
-        _sdc_batched_at,
-        _sdc_received_at,
-        _sdc_sequence,
-        _sdc_table_version,
-        _status
-      ),
-      -- Stage is set over here
-      'Awareness' AS _stage
-    FROM `x-marketing.logicsource_mysql.db_airtable_ads`
-    WHERE _platform != ''
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY _adid ORDER BY _sdc_received_at DESC) = 1
-  ),
-  content AS (
-    SELECT
-      *
-    FROM airtable
-    JOIN `x-marketing.logicsource_mysql.db_airtable_content_inventory` CI
-      ON airtable._websiteurl = CI._homeURL
-  )
-SELECT
-  ads_log.* EXCEPT (_status),
-  content._contentitem,
-  content._contenttype,
-  content._gatingstrategy,
-  content._homeurl,
-  content._summary,
-  content._status,
-  content._buyerstage,
-  content._vertical,
-  content._persona,
-  content._jobtitles,
-  content._industry,
-FROM ads_log
-LEFT JOIN content
-  ON ads_log.ad_id = content._adid
