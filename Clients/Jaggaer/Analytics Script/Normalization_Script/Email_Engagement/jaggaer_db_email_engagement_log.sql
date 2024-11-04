@@ -372,6 +372,18 @@ clicks_downloads_timeline AS (
     ) AS _rownum
   FROM clicks_downloads_combined
 ),
+download_engagement_timeline AS (
+  SELECT 
+    * 
+  FROM clicks_downloads_timeline
+  WHERE _engagement = 'Downloaded'  
+),
+click_engagement_timeline AS (
+  SELECT 
+    *
+  FROM clicks_downloads_timeline
+  WHERE _engagement = 'Clicked'
+),
 mql_submission_email AS (
 # Get those downloads that follow right after a click 
   SELECT
@@ -385,16 +397,8 @@ mql_submission_email AS (
     download._engagement,
     click._email_id,
     click.email_template_id,
-  FROM (
-    SELECT * 
-    FROM clicks_downloads_timeline
-    WHERE _engagement = 'Downloaded'
-  ) download
-  JOIN (
-    SELECT *
-    FROM clicks_downloads_timeline
-    WHERE _engagement = 'Clicked'
-  ) click 
+  FROM download_engagement_timeline download
+  JOIN click_engagement_timeline click
     ON download._prospectID = click._prospectID
     AND EXTRACT(DAY FROM download._timestamp) = EXTRACT(DAY FROM click._timestamp)
     AND download._rownum = click._rownum + 1
@@ -507,7 +511,30 @@ WHERE origin._prospectID = scenario._prospectID
 ;
 
 
-CREATE OR REPLACE TABLE `x-marketing.jaggaer.db_lead_campaign_pardot` AS
+TRUNCATE TABLE `x-marketing.jaggaer.db_lead_campaign_pardot`;
+
+INSERT INTO `x-marketing.jaggaer.db_lead_campaign_pardot` (
+  _email,
+  _name,
+  _title,
+  _phone,
+  _seniority,
+  _company,
+  _industry,
+  _revenuerange,
+  _employees,
+  _city,
+  _state,
+  _country,
+  _sfdcLeadid,
+  _sfdcContactid,
+  _sfdcOwnerid,
+  _source,
+  _prospectAccountID,
+  _optedOut,
+  _contentTitle
+)
+
 
 SELECT
   prospect.email AS _email,
