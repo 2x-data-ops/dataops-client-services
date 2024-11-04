@@ -23,12 +23,10 @@ INSERT INTO `x-marketing.logicsource.report_consolidated_ads_metrics`
   _pageviews,
   _visitors
 )
-WITH airtable_ads AS (
-  WITH 
-  airtable AS (
-    SELECT * EXCEPT(rownum)
-    FROM ( 
-      SELECT 
+WITH 
+
+airtable AS (
+    SELECT 
         * EXCEPT(
           _sdc_batched_at, 
           _sdc_received_at,
@@ -36,16 +34,14 @@ WITH airtable_ads AS (
           _sdc_table_version
         ),
         -- Stage is set over here
-        'Awareness' AS _stage,
-        ROW_NUMBER() OVER(
-          PARTITION BY _adid
-          ORDER BY _sdc_received_at DESC
-        ) AS rownum
+        'Awareness' AS _stage
       FROM 
         `x-marketing.logicsource_mysql.db_airtable_ads`
       WHERE _platform != ''
-    )
-    WHERE rownum = 1
+      QUALIFY ROW_NUMBER() OVER(
+          PARTITION BY _adid
+          ORDER BY _sdc_received_at DESC
+        ) = 1
   ), 
   ads_title AS (
       SELECT
@@ -56,8 +52,8 @@ WITH airtable_ads AS (
           name  as _advariation,
           content_reference AS _content
       FROM
-          `logicsource_linkedin_ads.creatives`c  
-          LEFT JOIN  x-marketing.logicsource_linkedin_ads.video_ads v ON c.content.reference  = v.content_reference 
+          `x-marketing.logicsource_linkedin_ads.creatives`c  
+          LEFT JOIN  `x-marketing.logicsource_linkedin_ads.video_ads` v ON c.content.reference  = v.content_reference 
       ),
       campaigns AS (
       SELECT
@@ -71,7 +67,7 @@ WITH airtable_ads AS (
           TIMESTAMP_DIFF( run_schedule.end,run_schedule.start,DAY) AS date_diffs,
           type
       FROM
-          `logicsource_linkedin_ads.campaigns`
+          `x-marketing.logicsource_linkedin_ads.campaigns`
   ),
   campaign_group AS (
           SELECT 
@@ -108,9 +104,10 @@ WITH airtable_ads AS (
     campaign_group ON campaigns.campaign_group_id = campaign_group.groupID
   LEFT JOIN 
     airtable  ON ads_title.cID = CAST(airtable._adid AS STRING)
-  )
-  SELECT * FROM linkedin 
+  ),
 
+airtable_ads AS (
+  SELECT * FROM linkedin 
 ),
 /* 
     Linkedin ads are tied with their statistics using the ad id itself, so no duplicates
@@ -141,11 +138,17 @@ combined_data AS (
   SELECT
     ads.*,
     airtable.* EXCEPT(_id, _adid, _adtype)
-  FROM (
-    SELECT * FROM linkedin_ads 
-  ) AS ads 
+  FROM linkedin_ads AS ads 
   LEFT JOIN airtable_ads AS airtable
   ON CAST(ads.ad_id AS STRING) = airtable._adid
+),
+count_ads AS (
+  SELECT
+        *,
+        COUNT(ad_id) OVER(
+            PARTITION BY day, ad_group_id
+        ) adnum
+    FROM combined_data
 ),
 reduced_numbers_google_ads AS (
   SELECT
@@ -163,14 +166,27 @@ reduced_numbers_google_ads AS (
     --     WHEN _platform LIKE '%Google%' THEN clicks / adnum
     --     WHEN _platform LIKE '%LinkedIn%' THEN clicks
     -- END AS reduced_clicks
-  FROM (
-    SELECT
-        *,
-        COUNT(ad_id) OVER(
-            PARTITION BY day, ad_group_id
-        ) adnum
-    FROM combined_data
-  )
+  FROM count_ads
+),
+web_engagement AS (
+  SELECT DISTINCT
+           CAST(_timestamp AS DATE) AS _date,
+            _visitorid,
+           _fullurl AS _fullpage,
+            _totalsessionviews,
+            _utmsource
+        FROM `x-marketing.logicsource.db_web_engagements_log`
+),
+reduced_numbers_google_ads_agg AS (
+SELECT DISTINCT
+            day,
+            _source,
+            _landingpageurl,
+            -- Count the number of ads sharing the same URL
+            COUNT(DISTINCT ad_id) AS ad_count
+        FROM reduced_numbers_google_ads
+        GROUP BY 1, 2, 3
+        ORDER BY 4 DESC
 ),
 get_web_page_views AS (
     SELECT
@@ -180,26 +196,8 @@ get_web_page_views AS (
         ad._source,
         COUNT(DISTINCT web._visitorid) AS visitors,
         SUM(web._totalsessionviews) AS pageviews
-    FROM (
-        SELECT DISTINCT
-           CAST(_timestamp AS DATE) AS _date,
-            _visitorid,
-           _fullurl AS _fullpage,
-            _totalsessionviews,
-            _utmsource
-        FROM `x-marketing.logicsource.db_web_engagements_log`
-    ) web
-    JOIN (
-        SELECT DISTINCT
-            day,
-            _source,
-            _landingpageurl,
-            -- Count the number of ads sharing the same URL
-            COUNT(DISTINCT ad_id) AS ad_count
-        FROM reduced_numbers_google_ads
-        GROUP BY 1, 2, 3
-        ORDER BY 4 DESC
-    ) ad 
+    FROM web_engagement AS web
+    JOIN reduced_numbers_google_ads_agg AS ad 
     ON ad._landingpageurl LIKE CONCAT('%', web._fullpage, '%')
     AND EXTRACT(DATETIME FROM ad.day) = web._date
     WHERE UPPER(ad._source) = UPPER(web._utmsource) 

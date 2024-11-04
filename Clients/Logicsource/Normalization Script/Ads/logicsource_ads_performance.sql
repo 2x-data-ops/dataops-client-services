@@ -1,4 +1,50 @@
-CREATE OR REPLACE TABLE logicsource.linkedin_ads_performance AS
+--CREATE OR REPLACE TABLE `x-marketing.logicsource.linkedin_ads_performance` AS
+TRUNCATE TABLE `x-marketing.logicsource.linkedin_ads_performance`;
+
+INSERT INTO `x-marketing.logicsource.linkedin_ads_performance` (
+  _status,	
+  _websiteurl,	
+  _jobtitles,	
+  _advariation,	
+  _content,	
+  _screenshot,	
+  _assettitle,	
+  _industry,	
+  _reportinggroup,	
+  _campaign,	
+  _source,	
+  _dashboardcampaignnaming,	
+  _medium,	
+  _id,	
+  _adtype,	
+  _livedate,	
+  _platform,	
+  _segment,	
+  _landingpage,	
+  _landingpageurl,	
+  _groupName,	
+  status,	
+  _campaignName,	
+  total_budget,
+  account_name,	
+  _campaign_start_date,	
+  ads_status,	
+  date_diffs,	
+  creative_id,	
+  _sdc_sequence,	
+  _startDate,	
+  _date,	
+  _leads,	
+  _reach,	
+  _spent,
+  _impressions,	
+  _clicks,	
+  _conversions,	
+  _total_engagements,	
+  landing_page_clicks,	
+  ads_per_campaign,	
+  dailyBudget_per_ad
+)
 WITH LI_ads AS (
     SELECT 
         creative_id, 
