@@ -1,5 +1,4 @@
 --CREATE OR REPLACE TABLE `x-marketing.logicsource.ad_metrics` AS
---ad metrics
 TRUNCATE TABLE `logicsource.ad_metrics`;
 INSERT INTO `logicsource.ad_metrics`
 WITH airtable_ads AS (
@@ -28,7 +27,7 @@ WITH airtable_ads AS (
     ), 
     ads_title AS (
         SELECT
-            SPLIT(SUBSTR(id, STRPOS(id, 'sponsoredCreative:')+18))[ORDINAL(1)]  AS cID,
+            SPLIT(SUBSTR(c.id, STRPOS(c.id, 'sponsoredCreative:')+18))[ORDINAL(1)]  AS cID,
             campaign_id,
             c.account_id,
             intended_status,
@@ -36,7 +35,7 @@ WITH airtable_ads AS (
             content_reference AS _content
         FROM
             `logicsource_linkedin_ads.creatives`c  
-            LEFT JOIN  x-marketing.logicsource_linkedin_ads.video_ads v ON content.reference  = v.content_reference 
+            LEFT JOIN  x-marketing.logicsource_linkedin_ads.video_ads v ON c.content.reference  = v.content_reference 
         ),
         campaigns AS (
         SELECT
@@ -215,9 +214,9 @@ SELECT * FROM add_reduced_web_page_views;
 -------------- Content Analytics ---------------
 ------------------------------------------------
 
--- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_ads_content_inventory` AS
-TRUNCATE TABLE `x-marketing.logicsource.db_ads_content_inventory`;
-INSERT INTO `x-marketing.logicsource.db_ads_content_inventory`
+-- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_ads_content_analytics` AS
+TRUNCATE TABLE `x-marketing.logicsource.db_ads_content_analytics`;
+INSERT INTO `x-marketing.logicsource.db_ads_content_analytics`
 WITH ads_log AS (
     SELECT 
         *
