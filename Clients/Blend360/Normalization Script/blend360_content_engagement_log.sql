@@ -25,7 +25,6 @@ SELECT DISTINCT
 FROM content
 LEFT JOIN web 
   ON content._url = web._fullurl;
-
 -- Extracting hot intent topics based on the content wise mapping
 TRUNCATE TABLE `blend360.report_content_topic_metrics`;
 INSERT INTO `blend360.report_content_topic_metrics`
@@ -37,7 +36,7 @@ SELECT DISTINCT
   _url, 
   _pageviews
 FROM `blend360.db_content_engagements_log` content,
-UNNEST(SPLIT(_intentkeyword, ', ')) AS keywords
+  UNNEST(SPLIT(_intentkeyword, ', ')) AS keywords
 WHERE _intentkeyword IS NOT NULL 
   AND _intentkeyword !='' 
   AND _visitdate IS NOT NULL
