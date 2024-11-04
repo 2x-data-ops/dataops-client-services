@@ -1597,7 +1597,6 @@ SELECT
   _quarter_count
 FROM reduced_quarter;
 
-
 ------Scoring Aggregated by Segment-------
 TRUNCATE TABLE `x-marketing.blend360.abm_density_segment`;
 INSERT INTO `x-marketing.blend360.abm_density_segment` (
