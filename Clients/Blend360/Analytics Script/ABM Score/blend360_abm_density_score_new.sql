@@ -286,10 +286,7 @@ SELECT
   _contactusconversiontitle AS _campaign,
   CAST(FORMAT_DATE('%Y-%m-%d', PARSE_DATE('%m/%d/%Y', _contactusconversiondate)) AS DATE) AS _timestamp,
   '' AS _Page_Category,
-  '' AS _page_group,
-  ROW_NUMBER() OVER(
-    PARTITION BY _email, _contactusconversiontitle 
-    ORDER BY CAST(FORMAT_DATE('%Y-%m-%d',PARSE_DATE('%m/%d/%Y', _contactusconversiondate)) AS DATE) DESC) AS rownum
+  '' AS _page_group
 FROM `x-marketing.blend360_mysql.db_contact_us_form_submission` form
 LEFT JOIN `x-marketing.blend360_master_list.F1000_Acc_Name_Matching` acc 
   ON form._companyname = acc.std_name
@@ -311,10 +308,7 @@ SELECT
   _contactusconversiontitle AS _campaign,
   CAST(FORMAT_DATE('%Y-%m-%d', PARSE_DATE('%m/%d/%Y', _contactusconversiondate)) AS DATE) AS _timestamp,
   '' AS _Page_Category,
-  '' AS _page_group,
-  ROW_NUMBER() OVER(
-    PARTITION BY _email, _contactusconversiontitle 
-    ORDER BY CAST(FORMAT_DATE('%Y-%m-%d', PARSE_DATE('%m/%d/%Y', _contactusconversiondate)) AS DATE) DESC) AS rownum
+  '' AS _page_group
 FROM `x-marketing.blend360_mysql.db_contact_us_form_submission` c 
 LEFT JOIN `x-marketing.blend360_master_list.F1000_Acc_Name_Matching` acc 
   ON c._companyname = acc.std_name 
@@ -337,10 +331,7 @@ SELECT
   _contactusconversiontitle AS _campaign,
   CAST(FORMAT_DATE('%Y-%m-%d', PARSE_DATE('%m/%d/%Y', _contactusconversiondate)) AS DATE) AS _timestamp,
   '' AS _Page_Category,
-  '' AS _page_group,
-  ROW_NUMBER() OVER(
-    PARTITION BY _email, _contactusconversiontitle 
-    ORDER BY CAST(FORMAT_DATE('%Y-%m-%d', PARSE_DATE('%m/%d/%Y', _contactusconversiondate)) AS DATE) DESC) AS rownum
+  '' AS _page_group
 FROM `x-marketing.blend360_mysql.db_contact_us_form_submission` c
 LEFT JOIN `x-marketing.blend360_master_list.F1000_Acc_Name_Matching` acc 
   ON c._companyname = acc.std_name 
@@ -1416,29 +1407,13 @@ FROM filled_data
 )
 SELECT 
   _with_lag.*,
-  CASE 
-    WHEN _awareness_score IS NOT NULL AND prev_awareness_score IS NOT NULL THEN _awareness_score - prev_awareness_score 
-    ELSE NULL 
-  END AS awareness_score_change,
-  CASE 
-    WHEN _engagement_score IS NOT NULL AND prev_engagement_score IS NOT NULL THEN _engagement_score - prev_engagement_score 
-    ELSE NULL 
-  END AS engagement_score_change,
-  CASE 
-    WHEN _total_score IS NOT NULL AND prev_total_score IS NOT NULL THEN _total_score - prev_total_score 
-    ELSE NULL 
-  END AS total_score_change,
+  IF(_awareness_score IS NOT NULL AND prev_awareness_score IS NOT NULL, _awareness_score - prev_awareness_score, NULL) AS awareness_score_change,
+  IF(_engagement_score IS NOT NULL AND prev_engagement_score IS NOT NULL, _engagement_score - prev_engagement_score, NULL) AS engagement_score_change,
+  IF(_total_score IS NOT NULL AND prev_total_score IS NOT NULL, _total_score - prev_total_score, NULL) AS total_score_change,
   CONCAT(
-    CASE 
-      WHEN _awareness_score > 0 THEN ROUND(_awareness_score / (_awareness_score + _engagement_score) * 100.0 / 10)
-      ELSE 0 
-    END, 
-  " : ", 
-    CASE 
-      WHEN _engagement_score > 0 
-      THEN ROUND(_engagement_score / (_awareness_score + _engagement_score) * 100.0 / 10)
-    ELSE 0 
-    END
+    IF(_awareness_score > 0, ROUND(_awareness_score / (_awareness_score + _engagement_score) * 100.0 / 10), 0), 
+    " : ", 
+    IF(_engagement_score > 0, ROUND(_engagement_score / (_awareness_score + _engagement_score) * 100.0 / 10), 0)
   ) AS _ratio,
   highest_month_score_total,
   highest_month_score_awareness,
@@ -1596,6 +1571,7 @@ SELECT
   total_density AS monthly_total_density,
   _quarter_count
 FROM reduced_quarter;
+
 
 ------Scoring Aggregated by Segment-------
 TRUNCATE TABLE `x-marketing.blend360.abm_density_segment`;
