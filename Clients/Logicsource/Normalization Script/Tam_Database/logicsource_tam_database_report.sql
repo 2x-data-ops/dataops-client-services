@@ -21,7 +21,6 @@ INSERT INTO `x-marketing.logicsource.db_tam_database_report` (
   _manager,
   _director,
   _seniorExec,
-  --rownum,
   _date,	
   _week,
   _year,
@@ -168,8 +167,8 @@ accounts AS (
              WHERE isdeleted IS FALSE
 ),
 
-accounts_agg AS (
-  SELECT 
+tam_account AS (
+        SELECT 
           DISTINCT *,
           COUNT(DISTINCT _id) OVER(PARTITION BY  _sfdcaccountid) AS _total_contacts,
           COUNT(DISTINCT IF(_seniority IN ('Non-Manager', 'Other', 'Executive', 'Student', 'Security Administrator/Analyst'), _id, NULL )) OVER(PARTITION BY _sfdcaccountid) AS _nonManagerial,
@@ -179,24 +178,11 @@ accounts_agg AS (
         FROM accounts
         QUALIFY ROW_NUMBER() OVER(PARTITION BY  _sfdcaccountid ORDER BY _tier ASC, _company DESC, _industry DESC, _sfdcaccountid DESC, _revenue DESC) = 1 
 ),
-tam_account AS (
-   SELECT *
-   --EXCEPT(rownum, _id, _seniority) 
-   FROM accounts_agg
-    -- WHERE 
-    --   rownum = 1 
-      --AND _domain IS NOT NULL 
-      --AND _domain !='' 
-      --AND NOT REGEXP_CONTAINS(_domain, 'yahoo|gmail|outlook|hotmail')
-    ORDER BY 2 
-),
 dummy_dates AS (
   SELECT 
     DATE_TRUNC(_date, WEEK(MONDAY)) AS _date
   FROM 
-    UNNEST(GENERATE_DATE_ARRAY(CURRENT_DATE(), '2019-12-01', INTERVAL -1 WEEK )) AS _date 
-  ORDER BY 
-    1 DESC
+    UNNEST(GENERATE_DATE_ARRAY(CURRENT_DATE(), '2019-12-01', INTERVAL -1 WEEK )) AS _date
 ),
 # Each domain needs to be shown regardless if they are part of the bombora report
 /* dummy_dates AS ( 
@@ -224,7 +210,7 @@ intent_data AS (
   )
 ), */
 
-consolidated_engagements AS (
+engagement AS (
   SELECT 
       DISTINCT _domain,   
       _week,
@@ -246,14 +232,6 @@ consolidated_engagements AS (
     GROUP BY 
       1, 2, 3
 ),
-
-engagement AS (
-  SELECT  
-     *,
-  FROM consolidated_engagements
-  ORDER BY 
-    1, 3 DESC, 2 DESC
-),
 first_party_score AS (
   SELECT 
     DISTINCT _domain, 
@@ -263,8 +241,6 @@ first_party_score AS (
    (COALESCE(_quarterly_email_score, 0) + COALESCE(_quarterly_content_synd_score , 0)+ COALESCE(_quarterly_organic_social_score , 0)+ COALESCE(_quarterly_form_fill_score , 0)+ COALESCE(_quarterly_paid_ads_score , 0)+ COALESCE(_quarterly_web_score, 0)+ COALESCE(_quarterly_organic_social_score, 0))AS _t90_days_score
   FROM
     `x-marketing.logicsource.account_90days_score`
-  ORDER BY
-    _extract_date DESC
 ),
 
 account_dates AS (
