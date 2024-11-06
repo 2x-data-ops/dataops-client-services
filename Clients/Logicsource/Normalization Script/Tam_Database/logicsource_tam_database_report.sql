@@ -3,11 +3,42 @@
 --------------------------------------------------------------------------------------------------------------------------------------------
 
 -- No bombora report so it's being excluded.
-CREATE OR REPLACE TABLE `logicsource.db_tam_database_report` AS
+--CREATE OR REPLACE TABLE `x-marketing.logicsource.db_tam_database_report` AS
+TRUNCATE TABLE `x-marketing.logicsource.db_tam_database_report`;
+
+INSERT INTO `x-marketing.logicsource.db_tam_database_report` (
+  _sfdcaccountid,	
+  _email,	
+  _seniority,	
+  _company,	
+  _industry,	
+  _tier,
+  _revenue,	
+  _domain,	
+  _id,	
+  _total_contacts,
+  _nonManagerial,
+  _manager,
+  _director,
+  _seniorExec,
+  --rownum,
+  _date,	
+  _week,
+  _year,
+  new_contacts,
+  _emailOpened,
+  _emailClicked,
+  _formFilled,
+  _adsClicked,
+  _contentClicked,
+  _webVisited,
+  _t90_days_score,
+  _t90days_intent,	
+  _t90days_first_party_breakdown,	
+  _third_party_breakdown
+)
 WITH
 contacts AS (
-  --SELECT * EXCEPT( _rownum) 
-  --FROM (
      SELECT 
 lead.id AS _id,
  email AS _email,
@@ -84,13 +115,12 @@ title AS _jobtitle,
         lead.createddate AS _createddate,
          convertedaccountid AS _sfdcaccountid,
         convertedcontactid AS _sfdccontactid,
-        --ROW_NUMBER() OVER( PARTITION BY email, name ORDER BY id DESC) AS _rownum
+        
 FROM `x-marketing.logicsource_salesforce.Lead`  lead
 LEFT JOIN `x-marketing.logicsource_hubspot.contacts` k ON lead.id = k.properties.salesforceleadid.value
 LEFT JOIN `x-marketing.logicsource_salesforce.Account`  acc ON lead.convertedaccountid = acc.id
 WHERE lead.isdeleted IS FALSE
-      --) 
-  --WHERE _rownum = 1
+--QUALIFY ROW_NUMBER() OVER( PARTITION BY email, name ORDER BY id DESC) = 1
 ),
 new_weekly_contacts AS (
   SELECT
@@ -104,20 +134,19 @@ new_weekly_contacts AS (
     1, 3, 4
 )
 ,
-tam_account AS (
-   SELECT *
-   --EXCEPT(rownum, _id, _seniority) 
-   FROM (
-        SELECT 
-          DISTINCT*,
-          COUNT(DISTINCT _id) OVER(PARTITION BY  _sfdcaccountid) AS _total_contacts,
-          COUNT(DISTINCT IF(_seniority IN ('Non-Manager', 'Other', 'Executive', 'Student', 'Security Administrator/Analyst'), _id, NULL )) OVER(PARTITION BY _sfdcaccountid) AS _nonManagerial,
-          COUNT(DISTINCT IF(REGEXP_CONTAINS(_seniority, 'Manager'), _id, NULL )) OVER(PARTITION BY _sfdcaccountid) AS _manager,
-          COUNT(DISTINCT IF(REGEXP_CONTAINS(_seniority, 'Director'), _id, NULL )) OVER(PARTITION BY _sfdcaccountid) AS _director,
-          COUNT(DISTINCT IF(REGEXP_CONTAINS(_seniority, 'Senior Exec|Partner'),_id, NULL )) OVER(PARTITION BY _sfdcaccountid) AS _seniorExec, 
-          ROW_NUMBER() OVER(PARTITION BY  _sfdcaccountid ORDER BY _tier ASC, _company DESC, _industry DESC, _sfdcaccountid DESC, _revenue DESC) AS rownum  
-        FROM (
-            SELECT 
+
+companies AS (
+  SELECT 
+              property_createdate.value AS _createddate,
+              --property_domain.value 
+              companyid ,
+              property_domain.value AS _domain,
+              properties.salesforceaccountid.value AS salesforceaccountid 
+            FROM `x-marketing.logicsource_hubspot.companies`
+),
+
+accounts AS (
+  SELECT 
               DISTINCT acc.id as _sfdcaccountid, 
               _email,
               _seniority,
@@ -130,23 +159,32 @@ tam_account AS (
               -- IF(acc.target_account__c = true, 1, 0) AS _target_account
             FROM
             `x-marketing.logicsource_salesforce.Account` acc 
-           LEFT JOIN (SELECT 
-              property_createdate.value AS _createddate,
-              --property_domain.value 
-              companyid ,
-              property_domain.value AS _domain,
-              properties.salesforceaccountid.value AS salesforceaccountid 
-            FROM `x-marketing.logicsource_hubspot.companies` ) hub ON acc.id = hub.salesforceaccountid
+           LEFT JOIN companies AS hub ON acc.id = hub.salesforceaccountid
 
             --LEFT JOIN (SELECT DISTINCT  accountid FROM `x-marketing.logicsource_salesforce.Contact` 
 --UNION ALL 
 --SELECT DISTINCT  matched_account__c FROM `x-marketing.logicsource_salesforce.Lead` ) lead ON acc.id = lead.accountid
              LEFT JOIN  contacts ON acc.id = contacts._sfdcaccountid
              WHERE isdeleted IS FALSE
-        )
-    ) a
-    WHERE 
-      rownum = 1 
+),
+
+accounts_agg AS (
+  SELECT 
+          DISTINCT *,
+          COUNT(DISTINCT _id) OVER(PARTITION BY  _sfdcaccountid) AS _total_contacts,
+          COUNT(DISTINCT IF(_seniority IN ('Non-Manager', 'Other', 'Executive', 'Student', 'Security Administrator/Analyst'), _id, NULL )) OVER(PARTITION BY _sfdcaccountid) AS _nonManagerial,
+          COUNT(DISTINCT IF(REGEXP_CONTAINS(_seniority, 'Manager'), _id, NULL )) OVER(PARTITION BY _sfdcaccountid) AS _manager,
+          COUNT(DISTINCT IF(REGEXP_CONTAINS(_seniority, 'Director'), _id, NULL )) OVER(PARTITION BY _sfdcaccountid) AS _director,
+          COUNT(DISTINCT IF(REGEXP_CONTAINS(_seniority, 'Senior Exec|Partner'),_id, NULL )) OVER(PARTITION BY _sfdcaccountid) AS _seniorExec, 
+        FROM accounts
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY  _sfdcaccountid ORDER BY _tier ASC, _company DESC, _industry DESC, _sfdcaccountid DESC, _revenue DESC) = 1 
+),
+tam_account AS (
+   SELECT *
+   --EXCEPT(rownum, _id, _seniority) 
+   FROM accounts_agg
+    -- WHERE 
+    --   rownum = 1 
       --AND _domain IS NOT NULL 
       --AND _domain !='' 
       --AND NOT REGEXP_CONTAINS(_domain, 'yahoo|gmail|outlook|hotmail')
@@ -185,11 +223,9 @@ intent_data AS (
       ON accs._domain = report._domain AND ddates._date = EXTRACT(DATE FROM report._date)
   )
 ), */
-engagement AS (
-  SELECT  
-     *,
-  FROM ( 
-    SELECT 
+
+consolidated_engagements AS (
+  SELECT 
       DISTINCT _domain,   
       _week,
       _year,
@@ -200,7 +236,7 @@ engagement AS (
       COUNT(DISTINCT CASE WHEN _engagement = 'Content Engagement' THEN CONCAT(_email, _contentTitle) END ) AS _contentClicked,
       COUNT(DISTINCT CASE WHEN _engagement = 'Web Visit' THEN CONCAT(_email, _contentTitle) END ) AS _webVisited,
     FROM 
-      `logicsource.db_consolidated_engagements_log` eng
+      `x-marketing.logicsource.db_consolidated_engagements_log` eng
     /* JOIN 
       (SELECT DISTINCT _sfdcaccountid, _email FROM `spirion_mysql.db_all_contacts` WHERE _email IS NOT NULL) USING(_email) */
     WHERE 
@@ -209,7 +245,12 @@ engagement AS (
       AND _week IS NOT NULL
     GROUP BY 
       1, 2, 3
-  ) a
+),
+
+engagement AS (
+  SELECT  
+     *,
+  FROM consolidated_engagements
   ORDER BY 
     1, 3 DESC, 2 DESC
 ),
@@ -221,10 +262,22 @@ first_party_score AS (
     EXTRACT(YEAR FROM _extract_date) AS _year,
    (COALESCE(_quarterly_email_score, 0) + COALESCE(_quarterly_content_synd_score , 0)+ COALESCE(_quarterly_organic_social_score , 0)+ COALESCE(_quarterly_form_fill_score , 0)+ COALESCE(_quarterly_paid_ads_score , 0)+ COALESCE(_quarterly_web_score, 0)+ COALESCE(_quarterly_organic_social_score, 0))AS _t90_days_score
   FROM
-    `logicsource.account_90days_score`
+    `x-marketing.logicsource.account_90days_score`
   ORDER BY
     _extract_date DESC
+),
+
+account_dates AS (
+  SELECT 
+      accs.*, 
+      ddates.*,
+      EXTRACT(WEEK FROM _date) AS _week, 
+      EXTRACT(YEAR FROM _date) AS _year, 
+    FROM 
+      tam_account AS accs 
+    CROSS JOIN dummy_dates AS ddates
 )
+
 SELECT 
   DISTINCT /*  intent_data.*,  */
   main.*, 
@@ -246,16 +299,7 @@ SELECT
     END */
   cAST(NULL AS STRING)) AS _third_party_breakdown
 FROM 
-  (
-    SELECT 
-      accs.*, 
-      ddates.*,
-      EXTRACT(WEEK FROM _date) AS _week, 
-      EXTRACT(YEAR FROM _date) AS _year, 
-    FROM 
-      tam_account accs 
-    CROSS JOIN dummy_dates ddates
-  ) main
+  account_dates main
 LEFT JOIN
   engagement USING(_domain, _week, _year)
 LEFT JOIN 

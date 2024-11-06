@@ -8,16 +8,58 @@
 
 -- No bombora report so it's being excluded.
 -- CREATE OR REPLACE TABLE logicsource.db_icp_database_log AS
-TRUNCATE TABLE `logicsource.db_icp_database_log` ;
-INSERT INTO `logicsource.db_icp_database_log`
+TRUNCATE TABLE `x-marketing.logicsource.db_icp_database_log` ;
+INSERT INTO `x-marketing.logicsource.db_icp_database_log` (
+  _id,
+  _email,	
+  _name,	
+  _domain,	
+  _jobtitle,	
+  _seniority,	
+  _function,	
+  _jobrole,	
+  _mqldate,	
+  _source,	
+  _latest_source,	
+  _phone,	
+  _company,	
+  _industry,	
+  _revenue,	
+  _employee,	
+  _city,	
+  _state,	
+  _persona,	
+  _lifecycleStage,	
+  _leadscore,
+  _leadstatus,	
+  _ipqc_check,	
+  _hubspotScore,	
+  _companyID,
+  _companySegment,	
+  _leadSegment,	
+  _segment,	
+  _propertyLeadstatus,	
+  _companylinkedinbio,	
+  _company_linkedin,	
+  _employee_range,	
+  _employee_range_c,	
+  _numberofemployees,
+  _annualrevenue,
+  _annual_revenue_range,	
+  _annual_revenue_range_c,	
+  _createddate,	
+  _sfdcaccountid,	
+  _sfdccontactid,	
+  _sfdcleadid,	
+  _country,	
+  _target_contacts,
+  _target_accounts,
+  _sales_follow_up_progress,	
+  _leadsource
+)
 WITH 
-  -- To be filled up if required
-  contacts AS (
+  contact_details AS (
     SELECT 
-      * EXCEPT( _rownum, _country),
-      CASE WHEN LOWER(_country) IN ('us',  'usa', 'united states', 'united states of america') THEN 'US' ELSE _country END AS _country
-    FROM (
-      SELECT 
           vid AS _id,
           property_email.value AS _email,
           CONCAT(property_firstname.value, ' ', property_lastname.value) AS _name,
@@ -85,7 +127,7 @@ WITH
           COALESCE(property_salesforceleadid.value, properties.salesforceleadid.value) AS _sfdcleadid,
           properties.lead_type__c.value AS _sales_follow_up_progress,
           properties.leadsource.value AS _leadsource,
-          ROW_NUMBER() OVER( PARTITION BY property_email.value,CAST(vid AS STRING) ORDER BY property_lastmodifieddate.value DESC) AS _rownum,
+          
         FROM 
           `x-marketing.logicsource_hubspot.contacts` hs
         LEFT JOIN `x-marketing.logicsource_salesforce.Lead` l 
@@ -93,9 +135,15 @@ WITH
         WHERE 
           property_email.value  IS NOT NULL 
           AND property_email.value NOT LIKE '%2x.marketing%'
-        )
-    WHERE 
-      _rownum = 1
+        QUALIFY ROW_NUMBER() OVER( PARTITION BY property_email.value,CAST(vid AS STRING) ORDER BY property_lastmodifieddate.value DESC) = 1
+  ),
+
+  -- To be filled up if required
+  contacts AS (
+    SELECT 
+      * EXCEPT(_country),
+      CASE WHEN LOWER(_country) IN ('us',  'usa', 'united states', 'united states of america') THEN 'US' ELSE _country END AS _country
+    FROM contact_details
   )
 SELECT 
   DISTINCT 
