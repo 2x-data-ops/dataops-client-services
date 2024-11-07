@@ -1,6 +1,6 @@
 -- No bombora report so it's being excluded.
-TRUNCATE TABLE `blend360.db_icp_database_log` ;
-INSERT INTO `blend360.db_icp_database_log`(
+TRUNCATE TABLE `x-marketing.blend360.db_icp_database_log` ;
+INSERT INTO `x-marketing.blend360.db_icp_database_log`(
   _id,
   _email,
   _name,
@@ -99,18 +99,9 @@ SELECT
   associated_company.properties.annualrevenue.value AS _revenue,
   INITCAP(REPLACE(associated_company.properties.industry.value, '_', ' ')) AS _industry,
   associated_company.properties.numberofemployees.value AS _employee,
-  COALESCE(
-    property_city.value,
-    associated_company.properties.city.value
-  ) AS _city, 
-  COALESCE(
-    property_state.value,
-    associated_company.properties.state.value
-  ) AS _state,
-  COALESCE(
-    property_country.value, 
-    associated_company.properties.country.value
-  ) AS _country,
+  COALESCE(property_city.value, associated_company.properties.city.value) AS _city, 
+  COALESCE(property_state.value, associated_company.properties.state.value) AS _state,
+  COALESCE(property_country.value, associated_company.properties.country.value) AS _country,
   properties.blend360___lead_score.value AS _leadScore,
   '' AS _persona,
   CASE
@@ -179,10 +170,8 @@ SELECT
   _lifecycleStage,
   _createddate,
   _country,
-  COUNT(_domain) OVER(
-    PARTITION BY CONCAT(_domain, _company)) AS _num_tied_contacts,
-  CAST((COUNT(_formSubmissions) OVER(
-    PARTITION BY CONCAT(_email,_id))) AS STRING) AS _num_form_contacts,
+  COUNT(_domain) OVER(PARTITION BY CONCAT(_domain, _company)) AS _num_tied_contacts,
+  CAST((COUNT(_formSubmissions) OVER(PARTITION BY CONCAT(_email,_id))) AS STRING) AS _num_form_contacts,
   0 AS _target_contacts,
   0 AS _target_accounts,
   _leadScore AS _leadScore,
@@ -197,7 +186,7 @@ FROM contacts_v2;
 ------------------------------ Hubspot V1 ------------------------------
 ------------------------------------------------------------------------
 
-INSERT INTO `blend360.db_icp_database_log`(
+INSERT INTO `x-marketing.blend360.db_icp_database_log`(
   _id,
   _email,
   _name,
@@ -293,18 +282,9 @@ SELECT
   associated_company.properties.annualrevenue.value AS _revenue,
   INITCAP(REPLACE(associated_company.properties.industry.value, '_', ' ')) AS _industry,
   associated_company.properties.numberofemployees.value AS _employee,
-  COALESCE(
-    property_city.value,
-    associated_company.properties.city.value
-  ) AS _city, 
-  COALESCE(
-    property_state.value,
-    associated_company.properties.state.value
-  ) AS _state,
-  COALESCE(
-    property_country.value, 
-    associated_company.properties.country.value
-  ) AS _country,
+  COALESCE(property_city.value, associated_company.properties.city.value) AS _city, 
+  COALESCE(property_state.value, associated_company.properties.state.value) AS _state,
+  COALESCE(property_country.value, associated_company.properties.country.value) AS _country,
   '' AS _persona,
   CASE
     WHEN property_lifecyclestage.value = 'marketingqualifiedlead' THEN 'Marketing Qualified Lead' 
@@ -367,14 +347,12 @@ SELECT
   _lifecycleStage,
   _createddate,
   _country,
-  COUNT(_domain) OVER(
-    PARTITION BY CONCAT(_domain, _company)) AS _num_tied_contacts,
-  CAST((COUNT(_formSubmissions) OVER(
-    PARTITION BY CONCAT(_email,_id))) AS STRING) AS _num_form_contacts,
+  COUNT(_domain) OVER(PARTITION BY CONCAT(_domain, _company)) AS _num_tied_contacts,
+  CAST((COUNT(_formSubmissions) OVER(PARTITION BY CONCAT(_email,_id))) AS STRING) AS _num_form_contacts,
   0 AS _target_contacts,
   0 AS _target_accounts,
   CAST(NULL AS FLOAT64) AS _leadScore,
   _formSubmissions,
   CAST(_pageViews AS STRING) AS _pageViews,
   _hubspotlink
-FROM contacts_v1
+FROM contacts_v1;
