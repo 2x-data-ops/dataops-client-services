@@ -1,149 +1,89 @@
 CREATE OR REPLACE TABLE `x-marketing.jellyvision.facebook_ads_performance` AS
-WITH FB_ads AS (
-    SELECT
-        ad_id AS _adid,
-        adset_id AS _adset_id,
-        campaign_id AS _campaign_id,
-        ad_name as _ads_name,
-        adset_name AS _adset_name,
-        campaign_name AS _campaign_name,
-        date_start AS _date_start,
-        reach AS _reach,
-        spend AS _spend,
-        impressions AS _impressions,
-        clicks AS _clicks,
-        inline_link_clicks AS _inline_link_clicks,
-        unique_inline_link_clicks AS _unique_inline_link_clicks,
-        ctr AS _ctr,
-        cost_per_unique_click AS _cost_per_unique_click,
-        cpp AS _cpp, 
-        cpc AS _cpc, 
-        (SELECT action.value.value FROM UNNEST(actions) AS action WHERE action.value.action_type = 'lead') AS _conversions
-    FROM `x-marketing.jellyvision_facebook_ads.ads_insights` 
-)
-, ad_names AS (
-    SELECT 
-        adset_id AS _adset_id, 
-        k.id AS _adid, 
-        k.name AS _ads_name, 
-        bid_type AS _bid_type, 
-        k.status AS _status_ads, 
-        body AS _body, 
-        l.name AS _creative_name, 
-        --url_tags, 
-        l.status AS _status_creative, 
-        title AS _title  , 
-        thumbnail_url AS _thumbnail_url, 
-        instagram_actor_id AS _instagram_actor_id, 
-        image_url AS _image_url,
-        creative.id AS _creative_id,
-    FROM `x-marketing.jellyvision_facebook_ads.ads` k
-    LEFT JOIN `x-marketing.jellyvision_facebook_ads.adcreative` l 
-        ON creative.id = l.id 
-)
-, ad_adsets AS (
-    SELECT 
-        id AS _adset_id, 
-        name AS _name, 
-        created_time AS _created_time, 
-        lifetime_budget AS _lifetime_budget,
-        budget_remaining AS _budget_remaining, 
-        end_time AS _end_time 
-  FROM `x-marketing.jellyvision_facebook_ads.adsets`
-)
-, ad_campaign AS (
-    SELECT 
-        id AS _campaign_id, 
-        name AS _campaign_name, 
-        objective AS _campaign_objective, 
-        buying_type AS _buying_type, 
-        effective_status AS _effective_status, 
-        updated_time AS _updated_time
-    FROM `x-marketing.jellyvision_facebook_ads.campaigns`
-)
-, airtable_ads AS (
-    SELECT 
-        _adid, 
-        _status, 
-        _maincampaignname, 
-        _advariation, 
-        _adsize, 
-        _screenshot, 
-        _reportinggroup, 
-        _adtype, 
-        _livedate, 
-        _platform, 
-        _landingpageurl, 
-        _creativedirection, 
-        _creativedirections, 
-        _advisual 
-    FROM `x-marketing.jellyvision_mysql.jellyvision_optimization_airtable_ads_facebook` 
-)
-, combine_all AS (
-    SELECT 
-        FB_ads.*,
-        ad_names._bid_type, 
-        ad_names._status_ads, 
-        ad_names._body, 
-        ad_names._title, 
-        --ad_names.url_tags, 
-        ad_names._status_creative, 
-        ad_names._creative_name, 
-        ad_names._thumbnail_url, 
-        ad_names._instagram_actor_id, 
-        ad_names._image_url,
-        ad_adsets._created_time, 
-        ad_adsets._lifetime_budget,
-        ad_adsets._budget_remaining, 
-        ad_adsets._end_time,
-        ad_campaign._campaign_objective, 
-        ad_campaign._buying_type, 
-        ad_campaign._effective_status, 
-        ad_campaign._updated_time,
-        CAST(ad_names._adid AS INT64) AS _creative_id,
-        airtable_ads.* EXCEPT (_adid),
-    FROM FB_ads
-    LEFT JOIN ad_names 
-        ON ad_names._adid = FB_ads._adid
-    LEFT JOIN ad_adsets 
-        ON ad_adsets._adset_id = FB_ads._adset_id
-    LEFT JOIN ad_campaign 
-        ON ad_campaign._campaign_id = FB_ads._campaign_id
-    LEFT JOIN airtable_ads 
-        ON FB_ads._ads_name = airtable_ads._advariation 
-        OR FB_ads._adid = CAST(airtable_ads._adid AS STRING) 
-    QUALIFY ROW_NUMBER() 
-        OVER( PARTITION BY 
-        FB_ads._adid,
-        FB_ads._adset_id,
-        FB_ads._campaign_id,
-        FB_ads._ads_name,
-        FB_ads._adset_name,
-        FB_ads._campaign_name,
-        FB_ads._date_start,
-        FB_ads._reach,
-        FB_ads._impressions,
-        FB_ads._clicks,
-        FB_ads._inline_link_clicks,
-        FB_ads._unique_inline_link_clicks
-    ORDER BY FB_ads._date_start, CAST(FB_ads._conversions AS INT64)  DESC) = 1 
-)
-, total_ads_per_campaign AS (
-    SELECT
-        *,
-        COUNT(_adid) OVER (
-            PARTITION BY _date_start, _campaign_name
-        ) AS _ads_per_campaign
-    FROM combine_all
-)
-, daily_budget_per_ad_per_campaign AS (
-    SELECT
-        *,
-        IF (_ads_per_campaign > 0, _lifetime_budget / _ads_per_campaign, 0) AS _dailyBudget_per_ad,
-        IF ( _ads_per_campaign > 0, _budget_remaining / _ads_per_campaign, 0) AS _dailybudget_remaining_per_ad
 
-    FROM total_ads_per_campaign
+WITH  
+FB_airtable AS (
+  SELECT
+    _adid, 
+    _advariation AS _adname, 
+    '' _campaignid,  
+    _maincampaignname AS _campaignname, 
+    '' _adgroup,
+    '' _adcopy, 
+    '' _ctacopy, 
+    /*IF(LENGTH(_designtemplate) > 0, _designtemplate, _layout)*/ '' AS _layout,
+    _adsize AS _size, 
+    _platform, 
+    '' _segment,
+    '' _designcolor,
+    '' _designimages,
+    '' _designblurp,
+    '' _logos,
+    '' _copymessaging,
+    '' _copyassettype,
+    '' _copytone,
+    '' _copyproductcompanyname,
+    '' _copystatisticproofpoint,
+    '' _ctacopysofthard, 
+    _advisual AS _screenshot,
+    _creativedirections
+  
+  FROM `x-marketing.jellyvision_mysql_2.optimization_airtable_ads_facebook`
+  
+  WHERE LENGTH(_adid) > 2
+  
+  GROUP BY ALL
+),
+
+FB_base AS (
+SELECT
+    ad_id AS _adid,
+    ad_name as _adname,
+    SAFE_CAST(adset_id AS INT64) AS _adgroup,
+    adset_name,
+    SAFE_CAST(campaign_id AS INT64) AS _campaignid,
+    campaign_name AS _campaignname,
+    DATE(date_start) AS _date,
+    spend AS _spend,
+    impressions AS _impressions,
+    clicks AS _clicks,
+
+FROM `x-marketing.jellyvision_facebook_ads.ads_insights` AS ads_insights
+LEFT JOIN UNNEST (ads_insights.actions) AS actions
+  ON actions.value.action_type = 'lead'
 )
-SELECT 
-    final.* 
-FROM daily_budget_per_ad_per_campaign final;
+
+SELECT
+    FB_base._adid, 
+    FB_base._adname, 
+    FB_base._campaignid,  
+    FB_base._campaignname, 
+    FB_base._adgroup,
+    FB_airtable._adcopy, 
+    FB_airtable._ctacopy, 
+    FB_airtable._layout,
+    FB_airtable._size, 
+    "Facebook" AS _platform, 
+    FB_airtable._segment,
+    FB_airtable._designcolor,
+    FB_airtable._designimages,
+    FB_airtable._designblurp,
+    FB_airtable._logos,
+    FB_airtable._copymessaging,
+    FB_airtable._copyassettype,
+    FB_airtable._copytone,
+    FB_airtable._copyproductcompanyname,
+    FB_airtable._copystatisticproofpoint,
+    FB_airtable._ctacopysofthard, 
+    FB_airtable._screenshot,
+    FB_airtable._creativedirections,
+    FB_base._date,
+    FB_base._spend,
+    FB_base._clicks,
+    FB_base._impressions,
+    0 AS _reach,      
+    0 AS _conversions,      
+    0 AS _video_views,
+
+FROM FB_base
+LEFT JOIN FB_airtable 
+    ON FB_base._adid = CAST(FB_airtable._adid AS STRING)    
