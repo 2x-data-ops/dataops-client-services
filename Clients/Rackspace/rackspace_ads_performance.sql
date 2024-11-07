@@ -1,3 +1,11 @@
+/*
+
+Scheduler: rackspace_ads_performance
+Specs:
+  - PARTITION BY DAY(_date)
+
+*/
+
 TRUNCATE TABLE `x-marketing.rackspace.linkedin_ads_performance`;
 INSERT INTO `x-marketing.rackspace.linkedin_ads_performance`(
   _date,
