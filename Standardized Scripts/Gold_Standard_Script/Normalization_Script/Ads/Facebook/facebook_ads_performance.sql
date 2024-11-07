@@ -53,37 +53,37 @@ LEFT JOIN UNNEST (ads_insights.actions) AS actions
 )
 
 SELECT
-    FB_base._adid, 
-    FB_base._adname, 
-    FB_base._campaignid,  
-    FB_base._campaignname, 
-    FB_base._adgroup,
-    FB_airtable._adcopy, 
-    FB_airtable._ctacopy, 
+    FB_base._adid AS _ad_id, 
+    FB_base._adname AS _ad_name, 
+    FB_base._campaignid AS _campaign_id,  
+    FB_base._campaignname AS _campaign_name, 
+    FB_base._adgroup AS _ad_group,
+    FB_airtable._adcopy AS _ad_copy, 
+    FB_airtable._ctacopy AS _cta_copy, 
     FB_airtable._layout,
     FB_airtable._size, 
     "Facebook" AS _platform, 
     FB_airtable._segment,
-    FB_airtable._designcolor,
-    FB_airtable._designimages,
-    FB_airtable._designblurp,
+    FB_airtable._designcolor AS _design_color,
+    FB_airtable._designimages AS _design_images,
+    FB_airtable._designblurp AS _design_blurb,
     FB_airtable._logos,
-    FB_airtable._copymessaging,
-    FB_airtable._copyassettype,
-    FB_airtable._copytone,
-    FB_airtable._copyproductcompanyname,
-    FB_airtable._copystatisticproofpoint,
-    FB_airtable._ctacopysofthard, 
+    FB_airtable._copymessaging AS _copy_messaging,
+    FB_airtable._copyassettype AS _copy_asset_type,
+    FB_airtable._copytone AS _copy_tone,
+    FB_airtable._copyproductcompanyname AS _copy_product_company_name,
+    FB_airtable._copystatisticproofpoint AS _copy_statistic_proof_point,
+    FB_airtable._ctacopysofthard AS _cta_copy_soft_hard, 
     FB_airtable._screenshot,
-    FB_airtable._creativedirections,
+    FB_airtable._creativedirections AS _creative_directions,
     FB_base._date,
     FB_base._spend,
     FB_base._clicks,
     FB_base._impressions,
     0 AS _reach,      
     0 AS _conversions,      
-    0 AS _video_views,
-
+    0 AS _video_views
 FROM FB_base
 LEFT JOIN FB_airtable 
-    ON FB_base._adid = CAST(FB_airtable._adid AS STRING)    
+    ON FB_base._adid = CAST(FB_airtable._adid AS STRING);
+
