@@ -65,37 +65,40 @@ WITH contact_details AS (
     END AS _channel,
     COALESCE(properties.salesforceaccountid.value, property_salesforceaccountid.value) AS _salesforce_account_id,
     COALESCE(properties.salesforcecontactid.value, property_salesforcecontactid.value) AS _salesforce_contact_id
-  FROM `x-marketing.syniti_hubspot.contacts` contact, UNNEST(form_submissions) AS form
+  FROM `x-marketing.syniti_hubspot.contacts` contact,
+    UNNEST(form_submissions) AS form
   JOIN `x-marketing.syniti_hubspot.forms` forms
     ON  form.value.form_id = forms.guid
 ),
-engagement_details AS (
-  WITH linkedin_details AS (
-    SELECT
-      DISTINCT 
-      _companyname,
-      _domain,
-      metric.metric_type AS _engagement,
-      "LinkedIn" AS _influenced_source
-    FROM `x-marketing.syniti_mysql.syniti_db_linkedin_engaged_accounts`,
-      -- using unnest to sort all linkedin engagement into one column
-      UNNEST([
-        STRUCT('LinkedIn Impression' AS metric_type),
-        STRUCT('LinkedIn Clicks' AS metric_type)
-      ]) AS metric
-  ),
-  sixsense_details AS (
-    SELECT
-      DISTINCT
-      _6sensecompanyname,
-      _6sensedomain,
-      _engagement,
-      "6sense" AS _influenced_source
-    FROM x-marketing.syniti.db_6sense_engagement_log
-  )
-  SELECT * FROM linkedin_details
+linkedin_details AS (
+  SELECT DISTINCT 
+    _companyname,
+    _domain,
+    metric.metric_type AS _engagement,
+    "LinkedIn" AS _influenced_source
+  FROM `x-marketing.syniti_mysql.syniti_db_linkedin_engaged_accounts`,
+    -- using unnest to sort all linkedin engagement into one column
+    UNNEST([
+      STRUCT('LinkedIn Impression' AS metric_type),
+      STRUCT('LinkedIn Clicks' AS metric_type)
+    ]) AS metric
+),
+sixsense_details AS (
+  SELECT DISTINCT
+    _6sensecompanyname,
+    _6sensedomain,
+    _engagement,
+    "6sense" AS _influenced_source
+  FROM x-marketing.syniti.db_6sense_engagement_log
+),
+engagement_details AS ( 
+  SELECT
+    *
+  FROM linkedin_details
   UNION ALL
-  SELECT * FROM sixsense_details
+  SELECT
+    *
+  FROM sixsense_details
 )
 SELECT *,
   CASE
