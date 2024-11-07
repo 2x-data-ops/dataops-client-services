@@ -103,38 +103,38 @@ LI_airtable AS (
   LEFT JOIN LI_campaign_groups
     ON LI_campaigns.li_campaign_group_id = LI_campaign_groups.li_campaign_group_id
 )
+
 SELECT
-    LI_base._adid, 
-    LI_airtable._adname, 
-    LI_base._campaignid,  
-    LI_base._campaignname, 
-    LI_base.li_campaign_group_id AS _adgroup,
-    LI_airtable._adcopy, 
-    LI_airtable._ctacopy, 
+    LI_base._adid AS _ad_id, 
+    LI_airtable._adname AS _ad_name, 
+    LI_base._campaignid AS _campaign_id,  
+    LI_base._campaignname AS _campaign_name, 
+    LI_base.li_campaign_group_id AS _ad_group,
+    LI_airtable._adcopy AS _ad_copy, 
+    LI_airtable._ctacopy AS _cta_copy, 
     LI_airtable._layout,
     LI_airtable._size, 
     "LinkedIn" AS _platform, 
     LI_airtable._segment,
-    LI_airtable._designcolor,
-    LI_airtable._designimages,
-    LI_airtable._designblurp,
+    LI_airtable._designcolor AS _design_color,
+    LI_airtable._designimages AS _design_images,
+    LI_airtable._designblurp AS _design_blurb,
     LI_airtable._logos,
-    LI_airtable._copymessaging,
-    LI_airtable._copyassettype,
-    LI_airtable._copytone,
-    LI_airtable._copyproductcompanyname,
-    LI_airtable._copystatisticproofpoint,
-    LI_airtable._ctacopysofthard, 
+    LI_airtable._copymessaging AS _copy_messaging,
+    LI_airtable._copyassettype AS _copy_asset_type,
+    LI_airtable._copytone AS _copy_tone,
+    LI_airtable._copyproductcompanyname AS _copy_product_company_name,
+    LI_airtable._copystatisticproofpoint AS _copy_statistic_proof_point,
+    LI_airtable._ctacopysofthard AS _cta_copy_soft_hard, 
     LI_airtable._screenshot,
-    LI_airtable._creativedirections,
+    LI_airtable._creativedirections AS _creative_directions,
     LI_base._date,
     LI_base._spend,
     LI_base._clicks,
     LI_base._impressions,
     LI_base._reach,
     LI_base._conversions,
-    LI_base._video_views,
-
+    LI_base._video_views
 FROM LI_base
 LEFT JOIN LI_airtable 
     ON LI_base._adid = CAST(LI_airtable._adid AS STRING);
