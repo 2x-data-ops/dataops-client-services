@@ -61,30 +61,31 @@ sixsense_base AS (
   WHERE base._datatype = 'Ad'
   GROUP BY ALL
 )
+  
 SELECT
-  sixsense_base._adid, 
-  sixsense_base._adname, 
-  sixsense_base._campaignid,  
-  sixsense_base._campaignname, 
-  sixsense_base._adgroup,
-  sixsense_airtable._adcopy, 
-  sixsense_airtable._ctacopy, 
+  sixsense_base._adid AS _ad_id, 
+  sixsense_base._adname AS _ad_name, 
+  sixsense_base._campaignid AS _campaign_id,  
+  sixsense_base._campaignname AS _campaign_name, 
+  sixsense_base._adgroup AS _ad_group,
+  sixsense_airtable._adcopy AS _ad_copy, 
+  sixsense_airtable._ctacopy AS _cta_copy, 
   sixsense_airtable._layout,
   sixsense_airtable._size, 
   "6Sense" AS _platform, 
   sixsense_airtable._segment,
-  sixsense_airtable._designcolor,
-  sixsense_airtable._designimages,
-  sixsense_airtable._designblurp,
+  sixsense_airtable._designcolor AS _design_color,
+  sixsense_airtable._designimages AS _design_images,
+  sixsense_airtable._designblurp AS _design_blurb,
   sixsense_airtable._logos,
-  sixsense_airtable._copymessaging,
-  sixsense_airtable._copyassettype,
-  sixsense_airtable._copytone,
-  sixsense_airtable._copyproductcompanyname,
-  sixsense_airtable._copystatisticproofpoint,
-  sixsense_airtable._ctacopysofthard, 
+  sixsense_airtable._copymessaging AS _copy_messaging,
+  sixsense_airtable._copyassettype AS _copy_asset_type,
+  sixsense_airtable._copytone AS _copy_tone,
+  sixsense_airtable._copyproductcompanyname AS _copy_product_company_name,
+  sixsense_airtable._copystatisticproofpoint AS _copy_statistic_proof_point,
+  sixsense_airtable._ctacopysofthard AS _cta_copy_soft_hard, 
   sixsense_airtable._screenshot,
-  sixsense_airtable._creativedirections,
+  sixsense_airtable._creativedirections AS _creative_directions,
   sixsense_base._date,
   sixsense_base._spend,
   sixsense_base._clicks,
@@ -94,5 +95,5 @@ SELECT
   sixsense_base._video_views
 FROM sixsense_base
 LEFT JOIN sixsense_airtable 
-  ON sixsense_base._adid = CAST(sixsense_airtable._adid AS STRING)
-;
+  ON sixsense_base._adid = CAST(sixsense_airtable._adid AS STRING);
+
