@@ -42,141 +42,15 @@ INSERT INTO `x-marketing.epam.db_campaign_analysis_marketo` (
     _contenttype
 )
   
-WITH  seniority AS (
-    SELECT "Assistant to" AS title, "Non-Manager" AS seniority UNION ALL 
-    SELECT "Senior Counsel", "VP" UNION ALL
-    SELECT "Assistant General Counsel", "VP" UNION ALL
-    SELECT "General Counsel", "C-Level" UNION ALL
-    SELECT "Founder", "C-Level" UNION ALL
-    SELECT "C-Level", "C-Level" UNION ALL
-    SELECT "CDO", "C-Level" UNION ALL
-    SELECT "CIO", "C-Level" UNION ALL
-    SELECT "CMO", "C-Level" UNION ALL
-    SELECT "CFO", "C-Level" UNION ALL
-    SELECT "CEO", "C-Level" UNION ALL
-    SELECT "Chief", "C-Level" UNION ALL
-    SELECT "coordinator", "Non-Manager" UNION ALL
-    SELECT "COO", "C-Level" UNION ALL
-    SELECT "Sr. V.P.", "Senior VP" UNION ALL
-    SELECT "Sr.VP", "Senior VP" UNION ALL
-    SELECT "Senior-Vice Pres", "Senior VP" UNION ALL
-    SELECT "srvp", "Senior VP" UNION ALL
-    SELECT "Senior VP", "Senior VP" UNION ALL
-    SELECT "SR VP", "Senior VP" UNION ALL
-    SELECT "Sr Vice Pres", "Senior VP" UNION ALL
-    SELECT "Sr. VP", "Senior VP" UNION ALL
-    SELECT "Sr. Vice Pres", "Senior VP" UNION ALL
-    SELECT "S.V.P", "Senior VP" UNION ALL
-    SELECT "Senior Vice Pres", "Senior VP" UNION ALL
-    SELECT "Exec Vice Pres", "Senior VP" UNION ALL
-    SELECT "Exec Vp", "Senior VP" UNION ALL
-    SELECT "Executive VP", "Senior VP" UNION ALL
-    SELECT "Exec VP", "Senior VP" UNION ALL
-    SELECT "Executive Vice President", "Senior VP" UNION ALL
-    SELECT "EVP", "Senior VP" UNION ALL
-    SELECT "E.V.P", "Senior VP" UNION ALL
-    SELECT "SVP", "Senior VP" UNION ALL
-    SELECT "V.P", "VP" UNION ALL
-    SELECT "VP", "VP" UNION ALL
-    SELECT "Vice Pres", "VP" UNION ALL
-    SELECT "V P", "VP" UNION ALL
-    SELECT "President", "C-Level" UNION ALL
-    SELECT "Director", "Director" UNION ALL
-    SELECT "CTO", "C-Level" UNION ALL
-    SELECT "Dir", "Director" UNION ALL
-    SELECT "Dir.", "Director" UNION ALL
-    SELECT "MDR", "Non-Manager" UNION ALL
-    SELECT "MD", "Director" UNION ALL
-    SELECT "GM", "Director" UNION ALL
-    SELECT "Head", "VP" UNION ALL
-    SELECT "Manager", "Manager" UNION ALL
-    SELECT "escrow", "Non-Manager" UNION ALL
-    SELECT "cross", "Non-Manager" UNION ALL
-    SELECT "crosse", "Non-Manager" UNION ALL
-    SELECT "Partner", "C-Level" UNION ALL
-    SELECT "CRO", "C-Level" UNION ALL
-    SELECT "Chairman", "C-Level" UNION ALL
-    SELECT "Owner", "C-Level"
-),prospect_info AS (
-SELECT * EXCEPT (rownum) FROM (
+WITH prospect_info AS (
+  SELECT * EXCEPT (rownum) FROM (
       SELECT 
         CAST(marketo.id AS STRING) AS _leadid,
-        marketo.email AS _email,
+        COALESCE(marketo.email, merged.email) AS _email,
         CONCAT(marketo.firstname,' ', marketo.lastname) AS _name,
-        marketo.title,
-        CASE   WHEN LOWER(marketo.title) LIKE LOWER("%Senior Partner Marketing Manager%") THEN "Manager"
-        WHEN LOWER(marketo.title) LIKE LOWER("%Principal Marketing Manager, Strategic Partnerships%") THEN "Manager"
-        WHEN LOWER(marketo.title) LIKE LOWER("%Head of Channel Success%") THEN "Manager"
-        WHEN LOWER(marketo.title) LIKE LOWER("%Channel Partnerships Manager%") THEN "Manager"
-        WHEN LOWER(marketo.title) LIKE LOWER("%Partner Marketing Program Manager%") THEN "Manager"
-        WHEN LOWER(marketo.title) LIKE LOWER("%COO%") THEN "C-Level"
-        WHEN LOWER(marketo.title) LIKE LOWER("%CEO%") THEN "C-Level"
-        WHEN LOWER(marketo.title) LIKE LOWER("%Vice President%") THEN "VP"
-        WHEN LOWER(marketo.title) LIKE LOWER("%VP%") THEN "VP"
-        WHEN LOWER(marketo.title) LIKE LOWER("%Sr marketing manager%") THEN "Manager"
-        WHEN LOWER(marketo.title) LIKE LOWER("%Senior%") THEN "Other"
-        WHEN LOWER(marketo.title) LIKE LOWER("%Staff%") THEN "Other"
-       WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Senior Partner Marketing Manager%") THEN "Manager"
-       WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Principal Marketing Manager%") THEN "Manager"
-       WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Strategic Partnerships%") THEN "Manager"
-       WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Partner Marketing Program Manager%") THEN "Manager"
-       WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Channel Partnerships Manager%") THEN "Manager"
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Assistant to%") THEN "Non-Manager" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Senior Counsel%") THEN "VP"  
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%General Counsel%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Founder%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%C-Level%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%CDO%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%CIO%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%CMO%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%CFO%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%CEO%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Chief%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%coordinator%") THEN "Non-Manager" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%COO%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Sr. V.P.%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Sr.VP%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Senior-Vice Pres%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%srvp%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Senior VP%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%SR VP%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Sr Vice Pres%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Sr. VP%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Sr. Vice Pres%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%S.V.P%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Senior Vice Pres%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Exec Vice Pres%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Exec Vp%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Executive VP%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Exec VP%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Executive Vice President%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%EVP%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%E.V.P%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%SVP%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%V.P%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Vice President%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Vice Pres%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%V P%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%VP%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%President%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Director%") THEN "Director" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%CTO%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Dir%") THEN "Director" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Dir.%") THEN "Director" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%MDR%") THEN "Non-Manager" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%MD%") THEN "Director" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%GM%") THEN "Director" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Head%") THEN "VP" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Manager%") THEN "Manager" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%escrow%") THEN "Non-Manager" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%cross%") THEN "Non-Manager" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%crosse%") THEN "Non-Manager" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Partner%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%CRO%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Chairman%") THEN "C-Level" 
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Owner%") THEN "C-Level"
-         WHEN marketo.title IS NULL AND LOWER(marketo.title) LIKE LOWER("%Team Lead%") THEN "Manager"
-        ELSE marketo.title END AS _seniority,
+        master._jobtitle AS _title,
+        CASE WHEN master._seniority = '' THEN NULL
+        ELSE master._seniority END AS _seniority,
         marketo.phone,
         marketo.company,
         CASE WHEN LOWER(marketo.industry) = 'Retail' THEN 'Consumer'
@@ -186,26 +60,41 @@ SELECT * EXCEPT (rownum) FROM (
         ELSE marketo.industry END AS industry,
         marketo.city,
         marketo.state,
-        CASE WHEN marketo.country = 'Unknown value' THEN 'Other'
-        WHEN marketo.country LIKE '%US%' OR marketo.country LIKE '%USA%' THEN 'United States' 
-        WHEN marketo.country LIKE '%UK%' THEN 'United Kingdom'
-        WHEN marketo.country LIKE '%South Korea%' THEN 'Korea, Republic of' ELSE marketo.country END AS country,
-        c.region,
+        CASE WHEN master._country = 'Unknown value' THEN 'Other'
+        WHEN master._country LIKE '%US%' OR master._country LIKE '%USA%' THEN 'United States' 
+        WHEN master._country LIKE '%UK%' THEN 'United Kingdom'
+        WHEN master._country LIKE '%South Korea%' THEN 'Korea, Republic of' ELSE master._country END AS country,
+        CASE 
+            WHEN master._region = '' THEN NULL
+            ELSE master._region
+        END AS region,    
+        --master._region AS region,
         createdat,
         CASE WHEN LOWER(title) LIKE '%journalist%' OR LOWER(title) LIKE '%reporter%' OR LOWER(title) LIKE 'student' OR LOWER(title) LIKE 'students' OR LOWER(title) LIKE 'studentin' OR LOWER(title) LIKE 'grad student' OR LOWER(title) LIKE 'master student' OR LOWER(title) LIKE 'intern' OR LOWER(title) LIKE 'mba intern' OR LOWER(title) LIKE 'machine learning intern' OR LOWER (title) LIKE '%publication%' OR LOWER(title) LIKE 'freelance' THEN 'Disqualified Leads' ELSE 'Qualified Leads'  END AS _leadqualification,
         leadsource,
         industrypreference,
-        l._personsource,
+        master._personsource,
         ROW_NUMBER() OVER( PARTITION BY CAST(marketo.id AS STRING) ORDER BY createdat DESC) AS rownum
     FROM `x-marketing.epam_marketo.leads` marketo
-    LEFT JOIN `x-marketing.epam.db_country` c ON marketo.country = c.country
-    LEFT JOIN `x-marketing.epam_mysql.epam_db_customfields_lead` l ON l._leadid = CAST(marketo.id AS STRING)
+    LEFT JOIN `x-marketing.epam_mysql.epam_db_masterleads` master
+    ON marketo.id = CAST(master._leadid AS INT64)
+    LEFT JOIN (
+      SELECT 
+        a.leadid, 
+        m.value, 
+        l.email
+      FROM `x-marketing.epam_marketo.activities_merge_leads` a
+      JOIN UNNEST(a.merge_ids) AS m
+      JOIN `x-marketing.epam_marketo.leads` l 
+      ON m.value = l.id
+) AS merged ON marketo.id = merged.leadid  --this table is to get the email for the merge id
     WHERE 
-        marketo.email  NOT LIKE '%@2x.marketing%' AND marketo.email NOT LIKE '%2X%' AND marketo.email NOT LIKE '%@epam.com' AND marketo.email NOT LIKE 'skylarulry@yahoo.com' AND marketo.email NOT LIKE '%test%' AND marketo.email <> 'sonam.gupta@capgemini.com'
-        AND (emailinvalid IS FALSE OR unsubscribed IS FALSE)
+        (emailinvalid IS FALSE OR unsubscribed IS FALSE)
         )
         WHERE rownum = 1
-),sent_email AS (
+        AND _email  NOT LIKE '%@2x.marketing%' AND _email NOT LIKE '%2X%' AND _email NOT LIKE 'skylarulry@yahoo.com' AND _email NOT LIKE '%test%' AND _email <> 'sonam.gupta@capgemini.com'
+),
+sent_email AS (
     SELECT * EXCEPT(rownum) 
     FROM ( 
         SELECT
@@ -225,7 +114,8 @@ SELECT * EXCEPT (rownum) FROM (
         JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign ON activity.primary_attribute_value_id =campaign._pardotid
         JOIN `x-marketing.epam_marketo.leads` l ON l.id = activity.leadid
         LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d ON d.leadid = activity.leadid
-        WHERE l.email NOT LIKE '%@2x.marketing%'
+        LEFT JOIN prospect_info ON CAST(prospect_info._leadid AS INT64) = activity.leadid
+        WHERE prospect_info._email NOT LIKE '%@2x.marketing%'
         AND d.leadid IS NULL
   ) 
 WHERE rownum = 1
@@ -249,7 +139,8 @@ WHERE rownum = 1
         FROM `x-marketing.epam_marketo.activities_email_delivered` activity 
         JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign ON activity.primary_attribute_value_id =campaign._pardotid
         JOIN `x-marketing.epam_marketo.leads` l ON l.id = activity.leadid
-        WHERE l.email NOT LIKE '%@2x.marketing%'
+        LEFT JOIN prospect_info ON CAST(prospect_info._leadid AS INT64) = activity.leadid
+        WHERE prospect_info._email NOT LIKE '%@2x.marketing%'
     ) 
     WHERE rownum = 1
 
@@ -275,7 +166,8 @@ WHERE rownum = 1
         JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign ON activity.primary_attribute_value_id =campaign._pardotid
         JOIN `x-marketing.epam_marketo.leads` l ON l.id = activity.leadid  
         LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d ON d.leadid = activity.leadid  
-        WHERE l.email NOT LIKE '%@2x.marketing%'
+        LEFT JOIN prospect_info ON CAST(prospect_info._leadid AS INT64) = activity.leadid
+        WHERE prospect_info._email NOT LIKE '%@2x.marketing%'
         AND d.leadid IS NULL
     ) 
     WHERE rownum = 1
@@ -626,20 +518,27 @@ AND origin._engagement IN ( 'Delivered');
 --leads dashboard
 CREATE OR REPLACE TABLE `x-marketing.epam.db_leads` AS 
 WITH leads AS (
-    SELECT leads.*, 
+    SELECT leads.* EXCEPT (leadsource),
+    CASE WHEN LOWER(leads.leadsource) = 'contentsyndication' THEN 'Content Syndication'
+        WHEN LOWER(leads.leadsource) = 'paidlinkedin' THEN 'Paid LinkedIn'
+        WHEN LOWER(leads.leadsource) = 'inpersonevent' THEN 'InPerson Event'
+    ELSE leads.leadsource END AS leadsource , 
     CASE WHEN LOWER(title) LIKE '%journalist%' OR LOWER(title) LIKE '%reporter%' OR LOWER(title) LIKE 'student' OR LOWER(title) LIKE 'students' OR LOWER(title) LIKE 'studentin' OR LOWER(title) LIKE 'grad student' OR LOWER(title) LIKE 'master student' OR LOWER(title) LIKE 'intern' OR LOWER(title) LIKE 'mba intern' OR LOWER(title) LIKE 'machine learning intern' OR LOWER (title) LIKE '%publication%' OR LOWER(title) LIKE 'freelance' THEN 'Disqualified Leads' ELSE 'Qualified Leads' END AS _leadqualification, 
     program.name, 
     program.channel, 
     program.type, 
     program.workspace, 
-    competitor.classification,
-    c.region,
-    l._personsource
+    master._clasification,
+    master._region,
+    CASE WHEN LOWER(master._personsource) = 'contentsyndication' THEN 'Content Syndication'
+        WHEN LOWER(master._personsource) = 'paidlinkedin' THEN 'Paid LinkedIn'
+        WHEN LOWER(master._personsource) = 'inpersonevent' THEN 'InPerson Event'
+    ELSE master._personsource END AS _personsource
 FROM `x-marketing.epam_marketo.leads` leads
-LEFT JOIN `x-marketing.epam_marketo.programs` program ON leads.acquisitionprogramid = CAST(program.id AS STRING)
-LEFT JOIN `x-marketing.epam_google_sheets.partner_competitor` competitor ON LOWER(competitor.competitors) = LOWER(leads.company)
-LEFT JOIN `x-marketing.epam.db_country` c ON leads.country = c.country
-LEFT JOIN `x-marketing.epam_mysql.epam_db_customfields_lead` l ON l._leadid = CAST(leads.id AS STRING)
+LEFT JOIN `x-marketing.epam_marketo.programs` program 
+ON leads.acquisitionprogramid = CAST(program.id AS STRING)
+LEFT JOIN `x-marketing.epam_mysql.epam_db_masterleads` master
+ON leads.id = CAST(master._leadid AS INT64)
 ),
 email_lead AS (
 SELECT * FROM `x-marketing.epam.db_campaign_analysis_marketo` email WHERE _engagement = 'Delivered'
@@ -659,88 +558,110 @@ JOIN email_lead ON email_lead._prospectID = CAST(leads.id AS STRING);
 --cold and warm leads (database page)
 CREATE OR REPLACE TABLE `x-marketing.epam.db_leads_status` AS
 WITH overall_lead AS (
-SELECT 
-    DISTINCT CAST(id AS STRING) AS _prospectID, 
-    persontype, 
-    leads.country, 
-    company, 
-    email, 
-    industry,
-    /*CASE WHEN LOWER(industry) = 'retail' THEN 'Consumer'
-        WHEN LOWER(industry) = 'information technology' THEN 'Software & Hi-Tech'
-        WHEN LOWER(industry) = 'mach' THEN 'Software & Hi-Tech'
-        WHEN LOWER(industry) = 'automotive' THEN 'Industrial'
-        WHEN LOWER(industry) = 'telecom media & entertainment' THEN 'Telecom, Media & Entertainment'
-        ELSE industry END AS industry, */
-    createdat, 
-    mktoname, 
-    phone,
-    c.region,
-    leadsource,
-    industrypreference,
-    _personsource,
-    _seniority,
-    _industrystandard,
-    '' AS _segment, 
-    title AS _title
-FROM `x-marketing.epam_marketo.leads` leads
-LEFT JOIN `x-marketing.epam.db_country` c ON leads.country = c.country
-LEFT JOIN `x-marketing.epam_mysql.epam_db_customfields_lead` l ON l._leadid = CAST(id AS STRING)
-WHERE  email  NOT LIKE '%@2x.marketing%' AND email NOT LIKE '%2X%' AND email NOT LIKE '%@epam.com' AND email NOT LIKE 'skylarulry@yahoo.com' AND email NOT LIKE '%test%' AND marketingsuspended IS false
+    SELECT 
+        DISTINCT CAST(id AS STRING) AS _prospectID, 
+        persontype, 
+        leads.country, 
+        company, 
+        email, 
+        industry,
+        createdat, 
+        mktoname, 
+        phone,
+        CASE 
+            WHEN master._region = '' THEN NULL
+            ELSE master._region 
+        END AS _region,
+        --master._region,
+        leadsource,
+        industrypreference,
+        CASE 
+            WHEN _personsource = '' THEN NULL
+            WHEN LOWER(_personsource)  = 'contentsyndication' THEN 'Content Syndication'
+            WHEN LOWER(_personsource) = 'paidlinkedin' THEN 'Paid LinkedIn'
+            WHEN LOWER(_personsource) = 'inpersonevent' THEN 'InPerson Event'
+            ELSE _personsource 
+        END AS _personsource,
+        CASE 
+            WHEN _seniority = '' THEN NULL
+            ELSE _seniority 
+        END AS _seniority,
+        _industrystandard,
+        '' AS _segment, 
+        title AS _title
+    FROM `x-marketing.epam_marketo.leads` leads
+    LEFT JOIN `x-marketing.epam_mysql.epam_db_masterleads` master
+    ON leads.id = CAST(master._leadid AS INT64)
+    WHERE  email  NOT LIKE '%@2x.marketing%' AND email NOT LIKE '%2X%' AND email NOT LIKE 'skylarulry@yahoo.com' AND email NOT LIKE '%test%' AND marketingsuspended IS false
+    AND master._status = 'Marketable'
 ),
 warm_lead AS (
- SELECT 
-    DISTINCT m._prospectID, 
-    'Contact' AS persontype, 
-    m._country, 
-    m._company, 
-    m._email, 
-    m._industry,
-    /*CASE WHEN LOWER(_industry) = 'retail' THEN 'Consumer'
-        WHEN LOWER(_industry) = 'information technology' THEN 'Software & Hi-Tech'
-        WHEN LOWER(_industry) = 'mach' THEN 'Software & Hi-Tech'
-        WHEN LOWER(_industry) = 'automotive' THEN 'Industrial'
-        WHEN LOWER(_industry) = 'telecom media & entertainment' THEN 'Telecom, Media & Entertainment'
-        ELSE _industry END AS industry, */
-    m._leadcreatedDate, 
-    m._name, 
-    m._phone,
-    m._region,
-    m._leadstatus, 
-    m._industrypreference,
-    m._personsource,
-    l._seniority,
-    l._industrystandard,
-    m._segment,  
-    m._title,
-    m._campaignID, 
-    m._engagement, 
-    m._description,
-    m._subject,
-    'Warm' AS _type
- FROM `x-marketing.epam.db_campaign_analysis_marketo` m
- LEFT JOIN `x-marketing.epam_mysql.epam_db_customfields_lead` l ON l._leadid = m._prospectID
- WHERE _engagement NOT IN ('Sent','Soft Bounced','Bounced','Unsubscribed')
+    SELECT 
+        DISTINCT m._prospectID, 
+        'Contact' AS persontype, 
+        m._country, 
+        m._company, 
+        m._email, 
+        m._industry,
+        m._leadcreatedDate, 
+        m._name, 
+        m._phone,
+        m._region,
+        m._leadstatus, 
+        m._industrypreference,
+        CASE 
+            WHEN m._personsource = '' THEN NULL
+            WHEN LOWER(m._personsource)  = 'contentsyndication' THEN 'Content Syndication'
+            WHEN LOWER(m._personsource) = 'paidlinkedin' THEN 'Paid LinkedIn'
+            WHEN LOWER(m._personsource) = 'inpersonevent' THEN 'InPerson Event'
+            ELSE m._personsource 
+        END AS _personsource,
+        CASE 
+            WHEN master._seniority = '' THEN NULL
+            ELSE master._seniority 
+        END AS _seniority,
+        master._industrystandard,
+        m._segment,  
+        master._jobtitle AS _title,
+        m._campaignID, 
+        m._engagement, 
+        m._description,
+        m._subject,
+        'Warm' AS _type
+    FROM `x-marketing.epam.db_campaign_analysis_marketo` m
+    LEFT JOIN `x-marketing.epam_mysql.epam_db_masterleads` master
+    ON m._prospectID = master._leadid
+    WHERE _engagement NOT IN ('Sent','Soft Bounced','Bounced','Unsubscribed')
+    AND master._status = 'Marketable'
 ),
 cold_lead AS (
-    SELECT o.*,
-    '' AS _campaignID,
-    '' AS _engagement,
-    '' AS _description,
-    '' AS _subject,
-    'Cold' AS contacttype
+    SELECT 
+        o.*,
+        '' AS _campaignID,
+        '' AS _engagement,
+        '' AS _description,
+        '' AS _subject,
+        'Cold' AS contacttype
     FROM overall_lead o
     LEFT JOIN warm_lead w ON w._prospectID = o._prospectID
     WHERE w._prospectID IS NULL
 )
 SELECT a.* 
 FROM (
-  SELECT * FROM warm_lead
-  UNION ALL
-  SELECT * FROM cold_lead
+    SELECT * FROM warm_lead
+    UNION ALL
+    SELECT * FROM cold_lead
 ) a
-LEFT JOIN `x-marketing.epam_mysql.epam_db_ipqs_list` ipqs ON ipqs._prospectid = a._prospectID
+LEFT JOIN `x-marketing.epam_mysql.epam_db_ipqs_list` ipqs 
+ON ipqs._prospectid = a._prospectID
+LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d 
+ON d.leadid = CAST(a._prospectID AS INT64)
+LEFT JOIN `x-marketing.epam_mysql.epam_db_deleted_leads` dlead 
+ON dlead._prospectid = a._prospectID
 WHERE ipqs._prospectid IS NULL
+AND d.leadid IS NULL
+AND dlead._prospectid IS NULL
+AND (a._personsource NOT IN ('TA_LATAM','TA') OR a._personsource IS NULL)
 ;
 
 
@@ -791,7 +712,7 @@ email_engagement AS (
      LOWER(_engagement) NOT IN ('sent','delivered', 'bounced', 'unsubscribed')
     ) a
     WHERE 
-      NOT REGEXP_CONTAINS(_domain,'2x.marketing|epam|gmail|yahoo|outlook|hotmail') 
+      NOT REGEXP_CONTAINS(_domain,'2x.marketing|gmail|yahoo|outlook|hotmail') 
       AND _domain IS NOT NULL
       --AND _year = 2022 AND _year = 2023
     ORDER BY 1, 3 DESC, 2 DESC
