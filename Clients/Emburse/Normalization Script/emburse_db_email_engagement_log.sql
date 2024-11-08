@@ -103,8 +103,8 @@ SELECT DISTINCT
   leadsource
 FROM `x-marketing.emburse_marketo.leads` marketo
 WHERE email IS NOT NULL
-  AND email NOT LIKE '%2x.marketing%'
-  AND email NOT LIKE '%emburse.com%'
+  AND email NOT LIKE '%2x.marketing'
+  AND email NOT LIKE '%emburse.com'
 QUALIFY ROW_NUMBER() OVER(
   PARTITION BY email 
   ORDER BY marketo.id DESC) = 1
