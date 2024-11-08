@@ -491,15 +491,25 @@ SELECT
   properties.marketing_campaign_inclusion.value AS _contentittle,
   CASE 
     WHEN properties.marketing_campaign_inclusion.value LIKE '%2024%' 
-      AND properties.marketing_campaign_inclusion.value LIKE '%august%' THEN CAST('2024-08-01' AS DATE)
+      AND LOWER(properties.marketing_campaign_inclusion.value) LIKE '%august%' THEN CAST('2024-08-01' AS DATE)
     WHEN properties.marketing_campaign_inclusion.value LIKE '%2024%' 
-      AND properties.marketing_campaign_inclusion.value LIKE '%september%' THEN CAST('2024-09-01' AS DATE)
+      AND LOWER(properties.marketing_campaign_inclusion.value) LIKE '%september%' THEN CAST('2024-09-01' AS DATE)
     WHEN properties.marketing_campaign_inclusion.value LIKE '%2024%' 
-      AND properties.marketing_campaign_inclusion.value LIKE '%october%' THEN CAST('2024-10-01' AS DATE)
+      AND LOWER(properties.marketing_campaign_inclusion.value) LIKE '%october%' THEN CAST('2024-10-01' AS DATE)
     WHEN properties.marketing_campaign_inclusion.value LIKE '%2024%' 
-      AND properties.marketing_campaign_inclusion.value LIKE '%november%' THEN CAST('2024-11-01' AS DATE)
+      AND LOWER(properties.marketing_campaign_inclusion.value) LIKE '%november%' THEN CAST('2024-11-01' AS DATE)
     WHEN properties.marketing_campaign_inclusion.value LIKE '%2024%' 
-      AND properties.marketing_campaign_inclusion.value LIKE '%december%' THEN CAST('2024-12-01' AS DATE)
+      AND LOWER(properties.marketing_campaign_inclusion.value) LIKE '%december%' THEN CAST('2024-12-01' AS DATE)
+    WHEN properties.marketing_campaign_inclusion.value LIKE '%2025%'
+      AND LOWER(properties.marketing_campaign_inclusion.value) LIKE '%january%' THEN CAST('2025-01-01' AS DATE)
+    WHEN properties.marketing_campaign_inclusion.value LIKE '%2025%'
+      AND LOWER(properties.marketing_campaign_inclusion.value) LIKE '%february%' THEN CAST('2025-02-01' AS DATE)
+    WHEN properties.marketing_campaign_inclusion.value LIKE '%2025%'
+      AND LOWER(properties.marketing_campaign_inclusion.value) LIKE '%march%' THEN CAST('2025-03-01' AS DATE)
+    WHEN properties.marketing_campaign_inclusion.value LIKE '%2025%'
+      AND LOWER(properties.marketing_campaign_inclusion.value) LIKE '%april%' THEN CAST('2025-04-01' AS DATE)
+    WHEN properties.marketing_campaign_inclusion.value LIKE '%2025%'
+      AND LOWER(properties.marketing_campaign_inclusion.value) LIKE '%may%' THEN CAST('2025-05-01' AS DATE)
   END AS _date,
   '' AS _pagecategory,
   '' AS _pagegroup
