@@ -1,8 +1,8 @@
 -- Opportunity Influenced + Accelerated
 
--- CREATE OR REPLACE TABLE `jellyvision.opportunity_influenced_accelerated` AS
-TRUNCATE TABLE `jellyvision.opportunity_influenced_accelerated`;
-INSERT INTO `jellyvision.opportunity_influenced_accelerated`(
+-- CREATE OR REPLACE TABLE `jellyvision_v2.opportunity_influenced_accelerated` AS
+TRUNCATE TABLE `jellyvision_v2.opportunity_influenced_accelerated`;
+INSERT INTO `jellyvision_v2.opportunity_influenced_accelerated`(
     _account_id,
     _account_name,
     _domain,

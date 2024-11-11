@@ -1,4 +1,38 @@
-CREATE OR REPLACE TABLE `x-marketing.jellyvision_v2.6sense_ads_performance` AS
+-- CREATE OR REPLACE TABLE `x-marketing.jellyvision_v2.6sense_ads_performance` AS
+
+TRUNCATE TABLE `jellyvision_v2.6sense_ads_performance`;
+INSERT INTO `jellyvision_v2.6sense_ads_performance` (
+    _ad_id,
+    _ad_name,
+    _campaign_id,
+    _campaign_name,
+    _ad_group,
+    _ad_copy,
+    _cta_copy,
+    _layout,
+    _size,
+    _platform,
+    _segment,
+    _design_color,
+    _design_images,
+    _design_blurb,
+    _logos,
+    _copy_messaging,
+    _copy_asset_type,
+    _copy_tone,
+    _copy_product_company_name,
+    _copy_statistic_proof_point,
+    _cta_copy_soft_hard,
+    _screenshot,
+    _creative_directions,
+    _date,
+    _spend,
+    _clicks,
+    _impressions,
+    _reach,
+    _conversions,
+    _video_views
+)
 
 WITH sixsense_airtable AS (
   SELECT
@@ -49,9 +83,9 @@ sixsense_base AS (
       WHEN base._date LIKE '%-%'
         THEN PARSE_DATE('%F', base._date)
     END AS _date,
-    SUM(CAST(base._spend AS FLOAT64)) AS _spend,
-    SUM(CAST(base._clicks AS INT64)) AS _clicks,
-    SUM(CAST(base._impressions AS INT64)) AS _impressions,
+    SUM(SAFE_CAST(base._spend AS FLOAT64)) AS _spend,
+    SUM(SAFE_CAST(base._clicks AS INT64)) AS _clicks,
+    SUM(SAFE_CAST(base._impressions AS INT64)) AS _impressions,
     0 AS _reach,
     0 AS _conversions,
     0 AS _video_views,
