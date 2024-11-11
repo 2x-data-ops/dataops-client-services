@@ -26,6 +26,7 @@ INSERT INTO `jellyvision_v2.db_6sense_account_current_state` (
   _crm_domain,
   _crm_account
 )
+
 WITH segment_target_account AS (
     SELECT DISTINCT
       _6sensecompanyname AS _6sense_company_name,
@@ -179,7 +180,7 @@ WITH segment_target_account AS (
     FROM `x-marketing.jellyvision_mysql.jellyvision_db_6sense_lookup_table`
     QUALIFY ROW_NUMBER() OVER (
       PARTITION BY _crmaccountid, _6sensedomain
-      ORDER BY crmaccountid
+      ORDER BY _crmaccountid
     ) = 1
   )
 SELECT
