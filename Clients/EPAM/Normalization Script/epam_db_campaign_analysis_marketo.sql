@@ -42,57 +42,70 @@ INSERT INTO `x-marketing.epam.db_campaign_analysis_marketo` (
     _contenttype
 )
   
-WITH prospect_info AS (
-  SELECT * EXCEPT (rownum) FROM (
-      SELECT 
-        CAST(marketo.id AS STRING) AS _leadid,
-        COALESCE(marketo.email, merged.email) AS _email,
-        CONCAT(marketo.firstname,' ', marketo.lastname) AS _name,
-        master._jobtitle AS _title,
-        CASE WHEN master._seniority = '' THEN NULL
-        ELSE master._seniority END AS _seniority,
-        marketo.phone,
-        marketo.company,
-        CASE WHEN LOWER(marketo.industry) = 'Retail' THEN 'Consumer'
-        WHEN LOWER(marketo.industry) = 'Information Technology' THEN 'Software & Hi-Tech'
-        WHEN LOWER(marketo.industry) = 'MACH' THEN 'Software & Hi-Tech'
-        WHEN LOWER(marketo.industry) = 'Automotive' THEN 'Industrial'
-        ELSE marketo.industry END AS industry,
-        marketo.city,
-        marketo.state,
-        CASE WHEN master._country = 'Unknown value' THEN 'Other'
-        WHEN master._country LIKE '%US%' OR master._country LIKE '%USA%' THEN 'United States' 
-        WHEN master._country LIKE '%UK%' THEN 'United Kingdom'
-        WHEN master._country LIKE '%South Korea%' THEN 'Korea, Republic of' ELSE master._country END AS country,
-        CASE 
-            WHEN master._region = '' THEN NULL
-            ELSE master._region
-        END AS region,    
-        --master._region AS region,
-        createdat,
-        CASE WHEN LOWER(title) LIKE '%journalist%' OR LOWER(title) LIKE '%reporter%' OR LOWER(title) LIKE 'student' OR LOWER(title) LIKE 'students' OR LOWER(title) LIKE 'studentin' OR LOWER(title) LIKE 'grad student' OR LOWER(title) LIKE 'master student' OR LOWER(title) LIKE 'intern' OR LOWER(title) LIKE 'mba intern' OR LOWER(title) LIKE 'machine learning intern' OR LOWER (title) LIKE '%publication%' OR LOWER(title) LIKE 'freelance' THEN 'Disqualified Leads' ELSE 'Qualified Leads'  END AS _leadqualification,
-        leadsource,
-        industrypreference,
-        master._personsource,
-        ROW_NUMBER() OVER( PARTITION BY CAST(marketo.id AS STRING) ORDER BY createdat DESC) AS rownum
-    FROM `x-marketing.epam_marketo.leads` marketo
-    LEFT JOIN `x-marketing.epam_mysql.epam_db_masterleads` master
+WITH merged_id AS (
+  SELECT 
+    a.leadid, 
+    m.value, 
+    l.email
+  FROM `x-marketing.epam_marketo.activities_merge_leads` a
+  JOIN UNNEST(a.merge_ids) AS m
+  JOIN `x-marketing.epam_marketo.leads` l 
+    ON m.value = l.id
+),
+prospect AS (
+  SELECT 
+    CAST(marketo.id AS STRING) AS _leadid,
+    COALESCE(marketo.email, merged.email) AS _email,
+    CONCAT(marketo.firstname,' ', marketo.lastname) AS _name,
+    master._jobtitle AS _title,
+    CASE 
+      WHEN master._seniority = '' THEN NULL
+      ELSE master._seniority 
+    END AS _seniority,
+    marketo.phone,
+    marketo.company,
+    CASE 
+      WHEN LOWER(marketo.industry) = 'Retail' THEN 'Consumer'
+      WHEN LOWER(marketo.industry) = 'Information Technology' THEN 'Software & Hi-Tech'
+      WHEN LOWER(marketo.industry) = 'MACH' THEN 'Software & Hi-Tech'
+      WHEN LOWER(marketo.industry) = 'Automotive' THEN 'Industrial'
+      ELSE marketo.industry 
+    END AS industry,
+    marketo.city,
+    marketo.state,
+    CASE 
+      WHEN master._country = 'Unknown value' THEN 'Other'
+      WHEN master._country LIKE '%US%' OR master._country LIKE '%USA%' THEN 'United States' 
+      WHEN master._country LIKE '%UK%' THEN 'United Kingdom'
+      WHEN master._country LIKE '%South Korea%' THEN 'Korea, Republic of' 
+      ELSE master._country 
+    END AS country,
+    CASE 
+      WHEN master._region = '' THEN NULL
+      ELSE master._region
+    END AS region,
+    createdat,
+    CASE 
+      WHEN LOWER(title) LIKE '%journalist%' OR LOWER(title) LIKE '%reporter%' OR LOWER(title) LIKE 'student' OR LOWER(title) LIKE 'students' OR LOWER(title) LIKE 'studentin' OR LOWER(title) LIKE 'grad student' OR LOWER(title) LIKE 'master student' OR LOWER(title) LIKE 'intern' OR LOWER(title) LIKE 'mba intern' OR LOWER(title) LIKE 'machine learning intern' OR LOWER (title) LIKE '%publication%' OR LOWER(title) LIKE 'freelance' THEN 'Disqualified Leads' 
+      ELSE 'Qualified Leads'  
+    END AS _leadqualification,
+    leadsource,
+    industrypreference,
+    master._personsource
+  FROM `x-marketing.epam_marketo.leads` marketo
+  LEFT JOIN `x-marketing.epam_mysql.epam_db_masterleads` master
     ON marketo.id = CAST(master._leadid AS INT64)
-    LEFT JOIN (
-      SELECT 
-        a.leadid, 
-        m.value, 
-        l.email
-      FROM `x-marketing.epam_marketo.activities_merge_leads` a
-      JOIN UNNEST(a.merge_ids) AS m
-      JOIN `x-marketing.epam_marketo.leads` l 
-      ON m.value = l.id
-) AS merged ON marketo.id = merged.leadid  --this table is to get the email for the merge id
-    WHERE 
-        (emailinvalid IS FALSE OR unsubscribed IS FALSE)
-        )
-        WHERE rownum = 1
-        AND _email  NOT LIKE '%@2x.marketing%' AND _email NOT LIKE '%2X%' AND _email NOT LIKE 'skylarulry@yahoo.com' AND _email NOT LIKE '%test%' AND _email <> 'sonam.gupta@capgemini.com'
+  LEFT JOIN merged_id AS merged  --this table is to get the email for the merge id 
+    ON marketo.id = merged.leadid  
+  WHERE (emailinvalid IS FALSE OR unsubscribed IS FALSE)
+  QUALIFY ROW_NUMBER() OVER( PARTITION BY CAST(marketo.id AS STRING) ORDER BY createdat DESC) = 1
+),
+prospect_info AS (
+  SELECT 
+    * 
+  FROM prospect
+  WHERE _email NOT IN ('skylarulry@yahoo.com', 'sonam.gupta@capgemini.com')
+  AND NOT REGEXP_CONTAINS(_email, r'(@2x\.marketing|2X|test)')
 ),
 sent_email AS (
     SELECT * EXCEPT(rownum) 
