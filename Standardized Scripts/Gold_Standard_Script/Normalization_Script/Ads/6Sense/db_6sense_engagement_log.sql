@@ -1,9 +1,9 @@
 
 -- 6sense Engagement Log
 
--- CREATE OR REPLACE TABLE `jellyvision.db_6sense_engagement_log` AS
-TRUNCATE TABLE `jellyvision.db_6sense_engagement_log`;
-INSERT INTO `jellyvision.db_6sense_engagement_log`(
+-- CREATE OR REPLACE TABLE `jellyvision_v2.db_6sense_engagement_log` AS
+TRUNCATE TABLE `jellyvision_v2.db_6sense_engagement_log`;
+INSERT INTO `jellyvision_v2.db_6sense_engagement_log`(
     _6sense_company_name,
     _6sense_country,
     _6sense_domain,

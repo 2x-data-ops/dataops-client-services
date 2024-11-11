@@ -1,8 +1,8 @@
 -- 6sense Account Current State
--- CREATE OR REPLACE TABLE `jellyvision.db_6sense_account_current_state` AS
-TRUNCATE TABLE `jellyvision.db_6sense_account_current_state`;
+-- CREATE OR REPLACE TABLE `jellyvision_v2.db_6sense_account_current_state` AS
+TRUNCATE TABLE `jellyvision_v2.db_6sense_account_current_state`;
 
-INSERT INTO `jellyvision.db_6sense_account_current_state` (
+INSERT INTO `jellyvision_v2.db_6sense_account_current_state` (
   _6sense_company_name,
   _6sense_country,
   _6sense_domain,

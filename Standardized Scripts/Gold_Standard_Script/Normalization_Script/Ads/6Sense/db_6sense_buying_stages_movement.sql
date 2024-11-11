@@ -1,8 +1,8 @@
 -- 6sense Buying Stage Movement
---CREATE OR REPLACE TABLE `jellyvision.db_6sense_buying_stages_movement` AS
-TRUNCATE TABLE `jellyvision.db_6sense_buying_stages_movement`;
+--CREATE OR REPLACE TABLE `jellyvision_v2.db_6sense_buying_stages_movement` AS
+TRUNCATE TABLE `jellyvision_v2.db_6sense_buying_stages_movement`;
 
-INSERT INTO `jellyvision.db_6sense_buying_stages_movement` (
+INSERT INTO `jellyvision_v2.db_6sense_buying_stages_movement` (
     _6sense_country,	
     _6sense_domain,	
     _6sense_company_name,	
