@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE `x-marketing.jellyvision.linkedin_ads_performance` AS
+CREATE OR REPLACE TABLE `x-marketing.jellyvision_v2.linkedin_ads_performance` AS
 WITH
 
 LI_airtable AS (
