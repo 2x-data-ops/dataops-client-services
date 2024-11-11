@@ -1,34 +1,3 @@
-CREATE TEMP TABLE TEMP_ridecell_db_buying_stage AS
-SELECT
-  buying_stage.* EXCEPT (_sdc_batched_at, _sdc_received_at, _sdc_sequence, _sdc_table_version),
-  master_list. * EXCEPT (_sdc_batched_at, _sdc_extracted_at, _sdc_received_at, _sdc_sequence, _sdc_table_version)
-FROM `x-marketing.ridecell_mysql.ridecell_db_buying_stage` buying_stage
-JOIN `x-marketing.ridecell_master_list.Master_List` master_list
-  ON master_list._6sense_name = buying_stage._6sensecompanyname 
-  AND master_list._6sense_domain = buying_stage._6sensedomain 
-  AND master_list._6sense_country = buying_stage._6sensecountry;
-
-CREATE TEMP TABLE TEMP_ridecell_db_6s_target_account AS
-SELECT
-  target.* EXCEPT (_sdc_batched_at, _sdc_received_at, _sdc_sequence, _sdc_table_version),
-  master_list. * EXCEPT (_sdc_batched_at, _sdc_extracted_at, _sdc_received_at, _sdc_sequence, _sdc_table_version)
-FROM `x-marketing.ridecell_mysql.ridecell_db_6s_target_account` target
-JOIN `x-marketing.ridecell_master_list.Master_List` master_list
-  ON master_list._6sense_name = target._6sensecompanyname 
-  AND master_list._6sense_domain = target._6sensedomain 
-  AND master_list._6sense_country = target._6sensecountry;
-
-CREATE TEMP TABLE TEMP_ridecell_db_6s_reached_account AS
-SELECT
-  reached.* EXCEPT (_sdc_batched_at, _sdc_received_at, _sdc_sequence, _sdc_table_version),
-  master_list. * EXCEPT (_sdc_batched_at, _sdc_extracted_at, _sdc_received_at, _sdc_sequence, _sdc_table_version)
-FROM `x-marketing.ridecell_mysql.ridecell_db_6s_reached_account` reached
-JOIN `x-marketing.ridecell_master_list.Master_List` master_list
-  ON master_list._6sense_name = reached._6sensecompanyname 
-  AND master_list._6sense_domain = reached._6sensedomain 
-  AND master_list._6sense_country = reached._6sensecountry;
-
-
 
 
 CREATE OR REPLACE TABLE `ridecell.db_6sense_buying_stages_movement` AS
@@ -55,27 +24,29 @@ WITH sixsense_stage_order AS (
     ), 
     sixsense_buying_stage_data AS (
         SELECT DISTINCT
-            ROW_NUMBER() OVER (PARTITION BY sfdc_account_name, sfdc_billing_country, sfdc_website ORDER BY
-            CASE
-                WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
-                ELSE PARSE_DATE('%F', _extractdate) END DESC) AS _rownum,
             CASE
                 WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
                 ELSE PARSE_DATE('%F', _extractdate)
             END AS _activities_on,
-            sfdc_account_name AS _6sensecompanyname,
-            sf_account_18_id AS sf_account_id,
-            sfdc_billing_country AS _6sensecountry, 
-            sfdc_website AS _6sensedomain,
-            CONCAT(sfdc_account_name, sfdc_billing_country, sfdc_website) AS _country_account,
+            _6sensecompanyname,
+            _6sensecountry, 
+            -- sf_account_18_id AS sf_account_id,
+            _6sensedomain,
+            CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account,
             '6sense' AS _data_source,
             _buyingstagestart AS _previous_stage,
             _buyingstageend AS _current_stage
-        FROM `TEMP_ridecell_db_buying_stage` buying_stage
+        FROM `x-marketing.ridecell_mysql.ridecell_db_buying_stage` buying_stage
+        QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY _6sensecompanyname, _6sensecountry, _6sensedomain
+            ORDER BY CASE
+                WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+                ELSE PARSE_DATE('%F', _extractdate) 
+            END DESC) = 1
     ),
     latest_sixsense_buying_stage_with_order_and_movement AS (
         SELECT
-            main.* EXCEPT (_rownum),
+            main.*,
             prev._order AS _previous_stage_order,
             curr._order AS _current_stage_order,
             CASE
@@ -88,109 +59,104 @@ WITH sixsense_stage_order AS (
             ON main._previous_stage = prev._buying_stage
         LEFT JOIN sixsense_stage_order AS curr
             ON main._current_stage = curr._buying_stage
-        WHERE main._rownum = 1
     )
 SELECT *
 FROM latest_sixsense_buying_stage_with_order_and_movement;
 
 
 
-
 CREATE OR REPLACE TABLE `ridecell.db_6sense_account_current_state` AS
 
-WITH target_accounts AS (
-    SELECT DISTINCT
-        main.*
-    FROM (
-        SELECT DISTINCT
-            target6s.sfdc_account_name AS _6sensecompanyname,
-            target6s.sfdc_billing_country AS _6sensecountry,
-            target6s.sfdc_website AS _6sensedomain,
-            target6s._industrylegacy AS _6senseindustry,
-            target6s._6senseemployeerange,
-            target6s._6senserevenuerange,
-            salesforce.ridecell_industry__c AS _ridecell_industry, 
-            salesforce.account_tier__c AS _account_tier, 
-            salesforce.x18_digit_id__c AS sfdc_account_18_digit_id, 
-            salesforce.company_linkedin_url__c AS _linkedin, 
-            salesforce.original_lead_source_details__c, 
-            salesforce.most_recent_lead_source_details__c, 
-            salesforce.most_recent_lead_source__c,
-            user.name AS user_name,
-            CASE
-                WHEN target6s._extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', target6s._extractdate)
-                ELSE PARSE_DATE('%F', target6s._extractdate)
-            END AS _added_on,
-            '6sense' AS _data_source,
-            CONCAT(target6s.sfdc_account_name, target6s.sfdc_billing_country, target6s.sfdc_website) AS _country_account
-        FROM `x-marketing.ridecell_salesforce.Account` salesforce 
-        JOIN `TEMP_ridecell_db_6s_target_account` target6s
-            ON target6s.sfdc_account_name = salesforce.name
-            AND target6s.sfdc_billing_country = salesforce.billingcountry
-            AND target6s.sfdc_website = salesforce.website 
-        LEFT JOIN `x-marketing.ridecell_salesforce.User` user 
-            ON user.id = salesforce.ownerid
-        ) main
-            -- Get the earliest date of appearance of each account
-            JOIN (
-                SELECT DISTINCT 
-                    MIN(CASE
-                            WHEN target6s._extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', target6s._extractdate)
-                            ELSE PARSE_DATE('%F', target6s._extractdate)
-                        END ) AS _added_on,
-                    CONCAT(target6s.sfdc_account_name, target6s.sfdc_billing_country, target6s.sfdc_website) AS _country_account
-                FROM `TEMP_ridecell_db_6s_target_account` target6s
-                GROUP BY 2
-            ) scenario 
-            ON main._country_account = scenario._country_account 
-            AND main._added_on = scenario._added_on
-    ),
-    reached_related_info AS (  
-        SELECT DISTINCT
-            MIN(CASE
-                    WHEN reached._extractdate LIKE '%/%' AND reached._latestimpression LIKE '%/%'
-                    THEN PARSE_DATE('%m/%e/%Y', reached._latestimpression)
-                    ELSE PARSE_DATE('%F', reached._latestimpression)
-                END) OVER (PARTITION BY CONCAT(reached.sfdc_account_name, reached.sfdc_billing_country, reached.sfdc_website)) AS _first_impressions,
-            CASE
-                WHEN reached._websiteengagement = '-' THEN CAST(NULL AS STRING)
-                ELSE reached._websiteengagement
-            END AS _websiteengagement,
-            CONCAT(reached.sfdc_account_name, reached.sfdc_billing_country, reached.sfdc_website) AS _country_account
-        FROM `TEMP_ridecell_db_6s_reached_account` reached
-        WHERE _campaignid IN (  SELECT DISTINCT 
-                                    CAST(_campaignid AS STRING)
-                                FROM `x-marketing.ridecell_campaign.Campaigns`
-                                WHERE _campaignid IS NOT NULL)
-        QUALIFY ROW_NUMBER() OVER (PARTITION BY CONCAT(reached.sfdc_account_name, reached.sfdc_billing_country, reached.sfdc_website) ORDER BY CASE
-            WHEN reached._extractdate LIKE '%/%' AND reached._latestimpression LIKE '%/%'
-            THEN PARSE_DATE('%m/%e/%Y', reached._latestimpression)
-            ELSE PARSE_DATE('%F', reached._latestimpression)
-            END DESC) = 1      
-    ),
-    six_qa_related_info AS (
-      WITH _6qa_list_sfdc AS (
-        SELECT DISTINCT name, 
-              website, 
-              billingcountry, 
-              account6qa6sense__c, 
-              account6qastartdate6sense__c 
-        FROM `x-marketing.ridecell_salesforce.Account`
-        WHERE account6qa6sense__c = true
-        )
-        SELECT 
-            account6qastartdate6sense__c AS _6qa_date,
-            true AS _is_6qa,
-            CONCAT(target6s.sfdc_account_name, target6s.sfdc_billing_country, target6s.sfdc_website) AS _country_account
-        FROM _6qa_list_sfdc sfdc 
-        JOIN `TEMP_ridecell_db_6s_target_account` target6s
-            ON target6s.sfdc_account_name = sfdc.name 
-            AND target6s.sfdc_website = sfdc.website 
-            AND target6s.sfdc_billing_country = sfdc.billingcountry
-        QUALIFY ROW_NUMBER() OVER(PARTITION BY CONCAT(target6s.sfdc_account_name, target6s.sfdc_billing_country, target6s.sfdc_website) ORDER BY sfdc.account6qastartdate6sense__c) = 1
-    ),
--- Get buying stage info for each account
-    buying_stage_related_info AS (
+WITH target AS (
+  SELECT 
+    target6s._6sensecompanyname,
+    target6s._6sensecountry,
+    target6s._6sensedomain,
+    target6s._industry AS _6senseindustry,
+    target6s._6senseemployeerange,
+    target6s._6senserevenuerange,
+    CASE
+        WHEN target6s._extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', target6s._extractdate)
+        ELSE PARSE_DATE('%F', target6s._extractdate)
+    END AS _added_on,
+    '6sense' AS _data_source,
+    CONCAT(target6s._6sensecompanyname, target6s._6sensecountry, target6s._6sensedomain) AS _country_account
+  FROM `x-marketing.ridecell_mysql.ridecell_db_6s_target_account` target6s
+),
+target_with_lookup_table AS (
+  SELECT 
+    target.*,
+    master_list.sfdc_account_name,
+    master_list.sfdc_billing_country,
+    master_list.sfdc_website
+    FROM target
+    JOIN `x-marketing.ridecell_master_list.Master_List` master_list
+        ON target._6sensecompanyname = master_list._6sense_name
+        AND target._6sensecountry = master_list._6sense_country
+        AND target._6sensedomain = master_list._6sense_domain
+),
+get_salesforce_info AS (
+    SELECT
+        salesforce.x18_digit_id__c AS sfdc_account_18_digit_id,
+        salesforce.name,
+        salesforce.billingcountry,
+        salesforce.website,
+        salesforce.ridecell_industry__c AS _ridecell_industry, 
+        salesforce.account_tier__c AS _account_tier, 
+        salesforce.company_linkedin_url__c AS _linkedin, 
+        salesforce.original_lead_source_details__c, 
+        salesforce.most_recent_lead_source_details__c, 
+        salesforce.most_recent_lead_source__c,
+        user.name AS user_name
+    FROM `x-marketing.ridecell_salesforce.Account` salesforce
+    LEFT JOIN `x-marketing.ridecell_salesforce.User` user 
+        ON user.id = salesforce.ownerid
+),
+combined_target_data AS (
+    SELECT target_with_lookup_table.*,
+    get_salesforce_info.*
+    FROM target_with_lookup_table
+    LEFT JOIN get_salesforce_info
+        ON target_with_lookup_table.sfdc_account_name = get_salesforce_info.name
+        AND target_with_lookup_table.sfdc_billing_country = get_salesforce_info.billingcountry
+        AND target_with_lookup_table.sfdc_website = get_salesforce_info.website
+),
+--TARGET AGGREGATION DATA--
+combined_data_target_aggregation AS (
+    SELECT * FROM combined_target_data
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY _country_account ORDER BY _added_on ) =1
+),
+--REACHED AGGREGATION DATA--
+reached_related_info AS (
+    SELECT
+        MIN(reached._latestimpression) OVER (PARTITION BY CONCAT(reached._6sensecompanyname, reached._6sensecountry, reached._6sensedomain)) AS _first_impressions,
+        CASE
+            WHEN reached._websiteengagement = '-' THEN CAST(NULL AS STRING)
+            ELSE reached._websiteengagement
+        END AS _websiteengagement,
+        CONCAT(reached._6sensecompanyname, reached._6sensecountry, reached._6sensedomain) AS _country_account
+    FROM `x-marketing.ridecell_mysql.ridecell_db_6s_reached_account` reached
+    WHERE _campaignid IN (  SELECT DISTINCT 
+                            CAST(_campaignid AS STRING)
+                        FROM `x-marketing.ridecell_campaign.Campaigns`
+                        WHERE _campaignid IS NOT NULL)
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY CONCAT(reached._6sensecompanyname, reached._6sensecountry, reached._6sensedomain) ORDER BY reached._latestimpression DESC) = 1  
+),
+--6QA DATA--
+get_six_qa_account_in_sf AS (
+    SELECT
+        salesforceacc.account6qastartdate6sense__c AS _6qa_date,
+        true AS _is_6qa,
+        CONCAT(target_with_lookup_table._6sensecompanyname, target_with_lookup_table._6sensecountry, target_with_lookup_table._6sensedomain) AS _country_account
+    FROM `x-marketing.ridecell_salesforce.Account` salesforceacc
+    JOIN target_with_lookup_table
+        ON target_with_lookup_table.sfdc_account_name = salesforceacc.name 
+        AND target_with_lookup_table.sfdc_website = salesforceacc.website 
+        AND target_with_lookup_table.sfdc_billing_country = salesforceacc.billingcountry
+    WHERE account6qa6sense__c = true
+),
+--BUYING STAGES DATA--
+buying_stage_related_info AS (
         SELECT DISTINCT
             _previous_stage,
             _previous_stage_order,
@@ -201,23 +167,25 @@ WITH target_accounts AS (
             _country_account,
         FROM `ridecell.db_6sense_buying_stages_movement`
         QUALIFY ROW_NUMBER() OVER (PARTITION BY _country_account ORDER BY _activities_on DESC) = 1
-    ),
--- Attach all other data parts to target accounts
-    combined_data AS (
-        SELECT DISTINCT 
-            target.*, 
-            reached.* EXCEPT(_country_account),
-            stage.* EXCEPT(_country_account),
-            six_qa.* EXCEPT(_country_account)   
-        FROM target_accounts AS target
-        LEFT JOIN reached_related_info AS reached 
-            USING (_country_account)
-        LEFT JOIN buying_stage_related_info AS stage
-            USING(_country_account) 
-        LEFT JOIN six_qa_related_info AS six_qa
-            USING(_country_account)
-    )
-    SELECT * FROM combined_data;
+),
+--COMBINED ALL DATA--
+combined_all_aggregation AS (
+    SELECT
+        combined_data_target_aggregation.* EXCEPT(sfdc_account_name, sfdc_billing_country, sfdc_website, name, billingcountry, website),
+        reached_related_info.* EXCEPT(_country_account),
+        get_six_qa_account_in_sf.* EXCEPT(_country_account),
+        buying_stage_related_info.* EXCEPT(_country_account)
+    FROM combined_data_target_aggregation
+    LEFT JOIN reached_related_info
+        USING (_country_account)
+    LEFT JOIN get_six_qa_account_in_sf
+        USING (_country_account)
+    LEFT JOIN buying_stage_related_info
+        USING (_country_account)
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY _country_account ORDER BY _added_on  ) =1
+)
+
+SELECT * FROM combined_all_aggregation;
 
 
 
@@ -330,12 +298,12 @@ campaign_numbers AS (
             COUNT(*) AS _target_accounts
         FROM (
             SELECT DISTINCT 
-                main.sfdc_account_name AS _6sensecompanyname,
-                main.sfdc_billing_country AS _6sensecountry,
-                main.sfdc_website AS _6sensedomain,
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
                 main._segmentname,
                 CAST(side._campaignid AS STRING) AS _campaignid
-            FROM `TEMP_ridecell_db_6s_target_account` main
+            FROM `x-marketing.ridecell_mysql.ridecell_db_6s_target_account` main
             JOIN `x-marketing.ridecell_campaign.Campaigns` side
             ON main._segmentname = side.segment_name
         )
@@ -349,19 +317,20 @@ campaign_numbers AS (
             COUNT(*) AS _reached_accounts
         FROM (
             SELECT DISTINCT 
-                main.sfdc_account_name AS _6sensecompanyname,
-                main.sfdc_billing_country AS _6sensecountry,
-                main.sfdc_website AS _6sensedomain,
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
                 main._segmentname,
                 CAST(side._campaignid AS STRING) AS _campaignid
-            FROM `TEMP_ridecell_db_6s_target_account` main
+            FROM `x-marketing.ridecell_mysql.ridecell_db_6s_target_account` main
             JOIN `x-marketing.ridecell_campaign.Campaigns` side
                 ON main._segmentname = side.segment_name
-            JOIN `TEMP_ridecell_db_6s_reached_account` extra
-                ON main._6sensecompanyname = extra.sfdc_account_name 
-                AND main._6sensecountry = extra.sfdc_billing_country 
-                AND main._6sensedomain = extra.sfdc_website 
-                AND CAST(side._campaignid AS STRING) = extra._campaignid
+            JOIN `x-marketing.ridecell_mysql.ridecell_db_6s_reached_account` extra
+              ON main._6sensecompanyname = extra._6sensecompanyname
+              AND main._6sensecountry = extra._6sensecountry
+              AND main._6sensedomain = extra._6sensedomain
+              AND CAST(side._campaignid AS STRING) = CAST(extra._campaignid AS STRING)
+
 
         )
         GROUP BY 1
@@ -374,12 +343,12 @@ campaign_numbers AS (
             COUNT(*) AS _6qa_accounts
         FROM (
             SELECT DISTINCT 
-                main.sfdc_account_name AS _6sensecompanyname,
-                main.sfdc_billing_country AS _6sensecountry,
-                main.sfdc_website AS _6sensedomain,
+                main._6sensecompanyname,
+                main._6sensecountry,
+                main._6sensedomain,
                 main._segmentname,
                 CAST(side._campaignid AS STRING) AS _campaignid
-            FROM `TEMP_ridecell_db_6s_target_account` main
+            FROM `x-marketing.ridecell_mysql.ridecell_db_6s_target_account` main
             JOIN `x-marketing.ridecell_campaign.Campaigns` side
             ON main._segmentname = side.segment_name
             JOIN `ridecell.db_6sense_account_current_state` extra
@@ -393,21 +362,18 @@ campaign_numbers AS (
     LEFT JOIN (
       WITH main AS (
         SELECT DISTINCT 
-        main.sfdc_account_name AS _6sensecompanyname,
-        main.sfdc_billing_country AS _6sensecountry,
-        main.sfdc_website AS _6sensedomain,
+        main._6sensecompanyname,
+        main._6sensecountry,
+        main._6sensedomain,
         main._segmentname,
         CAST(side._campaignid AS STRING) AS _campaignid,  -- Cast NUMERIC to STRING
         CASE WHEN extra._clicks != '0' THEN 1 ELSE 0 END AS _clicked_account,
         CASE WHEN extra._campaignid != '' THEN 1 ELSE 0 END AS _reached_account
-        FROM `TEMP_ridecell_db_6s_target_account` main
+        FROM `x-marketing.ridecell_mysql.ridecell_db_6s_target_account` main
         JOIN `x-marketing.ridecell.6sense_campaign_list` side 
         ON main._segmentname = side.segment_name
-        JOIN `TEMP_ridecell_db_6s_reached_account` extra
-            ON main._6sensecompanyname = extra.sfdc_account_name 
-            AND main._6sensecountry = extra.sfdc_billing_country 
-            AND main._6sensedomain = extra.sfdc_website 
-        AND CAST(side._campaignid AS STRING) = extra._campaignid
+        JOIN `x-marketing.ridecell_mysql.ridecell_db_6s_reached_account` extra
+        USING(_6sensecompanyname, _6sensecountry, _6sensedomain, _campaignid)
       )
       SELECT
           _campaignid,
@@ -447,379 +413,224 @@ WITH target_accounts AS (
     SELECT *
     FROM `ridecell.db_6sense_account_current_state`
     ),
-
--- Prep the reached account data for use later
-    reached_accounts_data AS (
-        SELECT DISTINCT
-            CAST(main._clicks AS INTEGER) AS _clicks,
-            CAST(main._influencedformfills AS INTEGER) AS _influencedformfills,
-            CASE 
-                WHEN main._latestimpression LIKE '%/%'
-                THEN PARSE_DATE('%m/%e/%Y', main._latestimpression)
-                ELSE PARSE_DATE('%F', main._latestimpression)
-            END AS _latestimpression,
-            CASE 
-                WHEN main._extractdate LIKE '%/%'
-                THEN PARSE_DATE('%m/%e/%Y', main._extractdate)
-                ELSE PARSE_DATE('%F', main._extractdate)
-            END AS _activities_on, 
-            main._campaignid,
-            -- Need label to distingush 6sense and Linkedin campaigns
-            side.campaign_name AS _campaignname,
-            CONCAT(main.sfdc_account_name, main.sfdc_billing_country, main.sfdc_website) AS _country_account
-        FROM `TEMP_ridecell_db_6s_reached_account` main
-        JOIN (
+reached_accounts_data AS (
+    SELECT DISTINCT
+        CAST(reached._clicks AS INTEGER) AS _clicks,
+        CAST(reached._influencedformfills AS INTEGER) AS _influencedformfills,
+        reached._latestimpression,
+            CASE
+            WHEN reached._extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', reached._extractdate)
+            ELSE PARSE_DATE('%F', reached._extractdate)
+        END AS _activities_on, 
+        reached._campaignid,
+        -- Need label to distingush 6sense and Linkedin campaigns
+        side.campaign_name AS _campaignname,
+        CONCAT(reached._6sensecompanyname, reached._6sensecountry, reached._6sensedomain) AS _country_account
+FROM `x-marketing.ridecell_mysql.ridecell_db_6s_reached_account` reached
+JOIN (
             SELECT DISTINCT 
                 CAST(_campaignid AS STRING) AS _campaignid, 
                 campaign_name,
             FROM `x-marketing.ridecell_campaign.Campaigns`
         ) side
-        USING(_campaignid)
-    ),
+        USING(_campaignid) 
+-- QUALIFY ROW_NUMBER() OVER (PARTITION BY CONCAT(reached._6sensecompanyname, reached._6sensecountry, reached._6sensedomain) ORDER BY reached._latestimpression DESC) = 1
+),
 
--- Get campaign reached engagement for 6sense
-    sixsense_campaign_reached AS (
+combined_sixsense_activities AS (
+    SELECT * FROM (
+        -- Campaign Reached
         SELECT DISTINCT 
             _country_account, 
             '' AS sfdc_account_18_digit_id,
-            MIN(_latestimpression) OVER(PARTITION BY _country_account, _campaignname
-                ORDER BY _latestimpression) AS _timestamp,
+            MIN(DATE(_latestimpression)) OVER(
+                PARTITION BY _country_account, _campaignname
+                ORDER BY _latestimpression
+            ) AS _timestamp,
             '6sense Campaign Reached' AS _engagement,
             '6sense' AS _engagement_data_source, 
             _campaignname AS _description, 
-            1 AS _notes
+            1 AS _notes,
+            NULL as _old_notes  -- Added for uniformity
         FROM reached_accounts_data
-    ),
 
--- Get ad clicks engagement for 6sense
-    sixsense_ad_clicks AS (
-        SELECT
-            * EXCEPT(_old_notes)
-        FROM (
-            SELECT DISTINCT 
-                _country_account,
-                '' AS sfdc_account_18_digit_id, 
-                _activities_on AS _timestamp,
-                '6sense Ad Clicks' AS _engagement, 
-                '6sense' AS _engagement_data_source,
-                _campaignname AS _description,  
-                _clicks AS _notes,
-                -- Get last period's clicks to compare
-                LAG(_clicks) OVER(
-                    PARTITION BY _country_account, _campaignname
-                    ORDER BY _activities_on
-                ) AS _old_notes
-            FROM reached_accounts_data 
-            WHERE _clicks >= 1
-        )
-        -- Get those who have increased in numbers from the last period
-        WHERE (_notes - COALESCE(_old_notes, 0)) >= 1
-    ),
+        UNION ALL
 
-    -- Get form fills engagement for 6sense
-    sixsense_form_fills AS (
-        SELECT
-            * EXCEPT(_old_notes)
-        FROM (
-            SELECT DISTINCT  
-                _country_account, 
-                '' AS sfdc_account_18_digit_id,
-                _activities_on AS _timestamp,
-                '6sense Influenced Form Fill' AS _engagement, 
-                '6sense' AS _engagement_data_source,
-                _campaignname AS _description,  
-                _influencedformfills AS _notes,
-                -- Get last period's clicks to compare
-                LAG(_influencedformfills) OVER(
-                    PARTITION BY _country_account, _campaignname
-                    ORDER BY _activities_on) AS _old_notes
-            FROM reached_accounts_data 
-            WHERE _influencedformfills >= 1
-        )
-        -- Get those who have increased in numbers from the last period
-        WHERE (_notes - COALESCE(_old_notes, 0)) >= 1
-    ),
+        -- Ad Clicks
+        SELECT DISTINCT 
+            _country_account,
+            '' AS sfdc_account_18_digit_id, 
+            _activities_on AS _timestamp,
+            '6sense Ad Clicks' AS _engagement, 
+            '6sense' AS _engagement_data_source,
+            _campaignname AS _description,  
+            _clicks AS _notes,
+            LAG(_clicks) OVER(
+                PARTITION BY _country_account, _campaignname
+                ORDER BY _activities_on
+            ) AS _old_notes
+        FROM reached_accounts_data 
+        WHERE _clicks >= 1
 
-    sales_intelligence_data AS (
-      with sintel_report AS (
-        SELECT 
-          _activitytype,
-          _activitytarget,
-          _contactname,
-          _email,
-          _accountname,
-          _contactcountry,
-          _contactcity AS _city,
-          _contactstate AS _state,
-          _websiteaddress AS _domain,
-          CASE 
-              WHEN _crmaccountid LIKE 'CMA%' THEN SUBSTR(_crmaccountid, 4)  -- Removes 'CMA' by starting from the 5th character
-              ELSE _crmaccountid  -- Keeps the original value if 'CMA' is not present
-          END AS _crmaccountid,
-          CASE 
-              WHEN _activitydate LIKE '%/%'
-              THEN PARSE_DATE('%m/%e/%Y', _activitydate)
-              ELSE PARSE_DATE('%F', _activitydate)
-          END  
-          AS _date,
-        FROM `x-marketing.ridecell_mysql.ridecell_db_sales_intelligence_report`
-      ),
-      sfdc as (
-        select 
-          name AS sfdc_account_name,
-          website AS sfdc_website,
-          billingcountry AS sfdc_billing_country,
-          ridecell_industry__c AS _ridecell_industry,
-          account_tier__c AS _account_tier,
-          company_linkedin_url__c AS _linkedin,
-          original_lead_source_details__c,
-          most_recent_lead_source_details__c,
-          most_recent_lead_source__c,
-          x18_digit_id__c AS sfdc_account_18_digit_id
-        from `x-marketing.ridecell_salesforce.Account`
-      )
-      select
-        sintel_report.*,
-        sfdc.*,
-        '' AS user_name,
-        CONCAT(sfdc.sfdc_account_name, sfdc.sfdc_billing_country, sfdc.sfdc_website) AS _country_account,
+        UNION ALL
+
+        -- Form Fills
+        SELECT DISTINCT  
+            _country_account, 
+            '' AS sfdc_account_18_digit_id,
+            _activities_on AS _timestamp,
+            '6sense Influenced Form Fill' AS _engagement, 
+            '6sense' AS _engagement_data_source,
+            _campaignname AS _description,  
+            _influencedformfills AS _notes,
+            LAG(_influencedformfills) OVER(
+                PARTITION BY _country_account, _campaignname
+                ORDER BY _activities_on
+            ) AS _old_notes
+        FROM reached_accounts_data 
+        WHERE _influencedformfills >= 1
+    ) all_activities
+    WHERE 
+        -- Apply increase check only for clicks and form fills
+        (_engagement = '6sense Campaign Reached'
+        OR (_notes - COALESCE(_old_notes, 0)) >= 1)
+),
+sales_intelligence AS (
+    SELECT 
+        _activitytype,
+        _activitytarget,
+        _activitymetainfo,
+        _contactname,
+        _email,
+        _accountname,
+        CASE 
+            WHEN _crmaccountid LIKE 'CMA%' THEN SUBSTR(_crmaccountid, 4)
+            ELSE _crmaccountid
+        END AS _crmaccountid,
+        CASE 
+            WHEN _activitydate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _activitydate)
+            ELSE PARSE_DATE('%F', _activitydate)
+        END AS _date
+    FROM `x-marketing.ridecell_mysql.ridecell_db_sales_intelligence_report`    
+),
+sfdc AS (
+    SELECT
+        CONCAT(masterlist._6sense_name, masterlist._6sense_country, masterlist._6sense_domain) AS _country_account,
+        salesforce.ridecell_industry__c AS _ridecell_industry,
+        salesforce.account_tier__c AS _account_tier,
+        salesforce.company_linkedin_url__c AS _linkedin,
+        salesforce.original_lead_source_details__c,
+        salesforce.most_recent_lead_source_details__c,
+        salesforce.most_recent_lead_source__c,
+        salesforce.x18_digit_id__c AS sfdc_account_18_digit_id
+    FROM `x-marketing.ridecell_salesforce.Account` salesforce
+    JOIN `x-marketing.ridecell_master_list.Master_List` masterlist
+        ON salesforce.name = masterlist.sfdc_account_name
+        AND salesforce.billingcountry = masterlist.sfdc_billing_country
+        AND salesforce.website = masterlist.sfdc_website
+),
+activity_counts AS (
+    SELECT 
+        sales_intelligence._activitytype,
+        sales_intelligence._activitytarget,
+        sales_intelligence._activitymetainfo,
+        sales_intelligence._contactname,
+        sales_intelligence._email,
+        sales_intelligence._date,
+        sfdc._country_account,
+        sfdc.sfdc_account_18_digit_id,
         COUNT(*) AS _count
-      from sintel_report
-      left join sfdc
-        ON sfdc.sfdc_account_18_digit_id = sintel_report._crmaccountid
-      GROUP BY ALL
+    FROM sales_intelligence
+    JOIN sfdc
+        ON sfdc.sfdc_account_18_digit_id = sales_intelligence._crmaccountid
+    GROUP BY 
+        sales_intelligence._activitytype,
+        sales_intelligence._activitytarget,
+        sales_intelligence._activitymetainfo,
+        sales_intelligence._contactname,
+        sales_intelligence._email,
+        sales_intelligence._date,
+        sfdc._country_account,
+        sfdc_account_18_digit_id
+),
+aggregate_sales_intel_data AS (
+    SELECT 
+        activity_counts.* EXCEPT (sfdc_account_18_digit_id),
+        sfdc_details._ridecell_industry,
+        sfdc_details._account_tier,
+        sfdc_details._linkedin,
+        sfdc_details.original_lead_source_details__c,
+        sfdc_details.most_recent_lead_source_details__c,
+        sfdc_details.most_recent_lead_source__c,
+        sfdc_details.sfdc_account_18_digit_id
+    FROM activity_counts
+    LEFT JOIN sfdc sfdc_details
+        ON sfdc_details.sfdc_account_18_digit_id = activity_counts.sfdc_account_18_digit_id
 ),
 
     sales_intelligence_campaign_reached AS (
-
         SELECT DISTINCT 
-            _country_account, 
-            sfdc_account_18_digit_id,
-            _date AS _timestamp, 
-            _activitytype AS _engagement,
-            'Sales Intelligence' AS _engagement_data_source,
-            _activitytarget AS _description,
-            _count AS _notes
-        FROM
-            sales_intelligence_data
-        WHERE
-            _activitytype LIKE '%Reached%'
-    ),
-
-    sales_intelligence_ad_clicks AS (
-
-        SELECT DISTINCT 
-            _country_account,
-            sfdc_account_18_digit_id, 
-            _date AS _timestamp, 
-            _activitytype AS _engagement,
-            'Sales Intelligence' AS _engagement_data_source,
-            _activitytarget AS _description,
-            _count AS _notes
-        FROM
-            sales_intelligence_data
-        WHERE
-            _activitytype LIKE '%Ad Clicks%'
-
-    ),
-
-    web_visits AS (
-        SELECT DISTINCT
-            _country_account, 
-            sfdc_account_18_digit_id,
-            _date AS _timestamp, 
-            '6sense Web Visits' AS _engagement, 
-            'Sales Intelligence' AS _engagement_data_source,
-            _activitytarget AS _description,
-            _count AS _notes
-        FROM
-            sales_intelligence_data
-        WHERE
-            _activitytype LIKE '%Web Visit%'
-    ),
-
-    searched_keywords AS (
-        SELECT DISTINCT 
-            _country_account,
-            sfdc_account_18_digit_id, 
-            _date AS _timestamp, 
-            '6sense Searched Keywords' AS _engagement, 
-            'Sales Intelligence' AS _engagement_data_source,
-            _activitytarget AS _description,
-            _count AS _notes
-
-        FROM
-            sales_intelligence_data
-        WHERE
-            _activitytype LIKE '%KW Research%'
-
-    ),
-
-    email_engagements AS (
-        SELECT DISTINCT 
-            _country_account,
-            sfdc_account_18_digit_id, 
-            _date AS _timestamp, 
-            CONCAT(_activitytype, 'ed') AS _engagement, 
-            'Sales Intelligence' AS _engagement_data_source,
-            _activitytarget AS _description,
-            _count AS _notes
-
-        FROM
-            sales_intelligence_data
-        WHERE
-            REGEXP_CONTAINS(_activitytype,'Email Open|Email Click')
-
-    ),
-
-    other_engagements AS (
-        SELECT DISTINCT 
-            _country_account,
-            sfdc_account_18_digit_id, 
-            _date AS _timestamp, 
-            CASE 
-                WHEN REGEXP_CONTAINS(_activitytype,'Bombora') THEN 'Bombora Topic Surged'
-                WHEN REGEXP_CONTAINS(_activitytype,'Form Fill') THEN 'Form Filled'
-                WHEN REGEXP_CONTAINS(_activitytype,'Email Reply') THEN 'Email Replied'
-                WHEN REGEXP_CONTAINS(_activitytype,'Page Click') THEN 'Webpage Clicked'
-                WHEN REGEXP_CONTAINS(_activitytype,'Submit') THEN 'Submitted'
-                WHEN REGEXP_CONTAINS(_activitytype,'Video Play') THEN 'Video Played'
-                WHEN REGEXP_CONTAINS(_activitytype,'Attend') THEN _activitytype
-                WHEN REGEXP_CONTAINS(_activitytype,'Register') THEN _activitytype
-                ELSE 'Unclassified Engagement'
-            END 
-            AS _engagement, 
-            'Sales Intelligence' AS _engagement_data_source,
-            CASE   
-                WHEN _activitytarget = ''
+        _country_account,
+        sfdc_account_18_digit_id,
+        _date AS _timestamp,
+        CASE 
+            -- Campaign reached activities
+            WHEN _activitytype LIKE '%Web Visit%' THEN '6sense Web Visits'
+            WHEN _activitytype LIKE '%KW Research%' THEN '6sense Searched Keywords'
+            WHEN REGEXP_CONTAINS(_activitytype,'Email Open|Email Click') THEN CONCAT(_activitytype, 'ed')
+            -- Other engagements
+            WHEN REGEXP_CONTAINS(_activitytype,'Bombora') THEN 'Bombora Topic Surged'
+            WHEN REGEXP_CONTAINS(_activitytype,'Form Fill') THEN 'Form Filled'
+            WHEN REGEXP_CONTAINS(_activitytype,'Email Reply') THEN 'Email Replied'
+            WHEN REGEXP_CONTAINS(_activitytype,'Page Click') THEN 'Webpage Clicked'
+            WHEN REGEXP_CONTAINS(_activitytype,'Submit') THEN 'Submitted'
+            WHEN REGEXP_CONTAINS(_activitytype,'Video Play') THEN 'Video Played'
+            WHEN REGEXP_CONTAINS(_activitytype,'Attend') THEN _activitytype
+            WHEN REGEXP_CONTAINS(_activitytype,'Register') THEN _activitytype
+            ELSE _activitytype -- Keep original activity type for reached/clicks
+        END AS _engagement,
+        'Sales Intelligence' AS _engagement_data_source,
+        CASE   
+            WHEN _activitytarget = '' AND 
+                 NOT REGEXP_CONTAINS(_activitytype,'Reached|Ad Click|Web Visit|KW Research|Email Open|Email Click')
                 THEN CONCAT('Contact: ', IF(_contactname != '', _contactname, _email))
-                ELSE _activitytarget
-            END 
-            AS _description,  
-            _count AS _notes
-        FROM
-            sales_intelligence_data
-        WHERE NOT REGEXP_CONTAINS (_activitytype,'Reached|Ad Click|Web Visit|KW Research|Email Open|Email Click')
+            ELSE _activitytarget
+        END AS _description,
+        _count AS _notes,
+        -- NULL AS _old_notes
+    FROM aggregate_sales_intel_data
+          WHERE _activitytype LIKE '%Reached%'
+        OR _activitytype LIKE '%Ad Click%'
+        OR _activitytype LIKE '%Web Visit%'
+        OR _activitytype LIKE '%KW Research%'
+        OR REGEXP_CONTAINS(_activitytype,'Email Open|Email Click')
+        OR REGEXP_CONTAINS(_activitytype,'Bombora')
+        OR REGEXP_CONTAINS(_activitytype,'Form Fill')
+        OR REGEXP_CONTAINS(_activitytype,'Email Reply')
+        OR REGEXP_CONTAINS(_activitytype,'Page Click')
+        OR REGEXP_CONTAINS(_activitytype,'Submit')
+        OR REGEXP_CONTAINS(_activitytype,'Video Play')
+        OR REGEXP_CONTAINS(_activitytype,'Attend')
+        OR REGEXP_CONTAINS(_activitytype,'Register')
 
     ),
-
-    -- Only activities involving target accounts are considered
-    combined_data_6sense AS (
-        SELECT DISTINCT 
-            target_accounts.*,
-            activities.* EXCEPT(_country_account, sfdc_account_18_digit_id)
-        FROM (
-            SELECT * FROM sixsense_campaign_reached 
-            UNION DISTINCT
-            SELECT * FROM sixsense_ad_clicks 
-            UNION DISTINCT
-            SELECT * FROM sixsense_form_fills
-        ) activities
-    JOIN target_accounts
-    USING (_country_account)
-    ),
-
-    six_qa_related_info AS (
-    WITH _6qa_list_sfdc AS (
-        SELECT DISTINCT name, 
-            website, 
-            billingcountry, 
-            account6qa6sense__c, 
-            account6qastartdate6sense__c,
-            x18_digit_id__c AS sf_account_id
-        FROM `x-marketing.ridecell_salesforce.Account`
-        WHERE account6qa6sense__c = true
-    )
-    SELECT 
-        account6qastartdate6sense__c AS _6qa_date,
-        true AS _is_6qa,
-        CONCAT(target6s.sfdc_account_name, target6s.sfdc_billing_country, target6s.sfdc_website) AS _country_account,
-        sfdc.sf_account_id
-    FROM _6qa_list_sfdc sfdc 
-    JOIN `TEMP_ridecell_db_6s_target_account` target6s
-        ON target6s.sfdc_account_name = sfdc.name 
-        AND target6s.sfdc_website = sfdc.website 
-        AND target6s.sfdc_billing_country = sfdc.billingcountry
-    QUALIFY ROW_NUMBER() OVER(PARTITION BY CONCAT(target6s.sfdc_account_name, target6s.sfdc_billing_country, target6s.sfdc_website) ORDER BY sfdc.account6qastartdate6sense__c) = 1
-
-    ),
--- Get buying stage info for each account
-    buying_stage_related_info AS (
-        SELECT DISTINCT
-            _previous_stage,
-            _previous_stage_order,
-            _current_stage,
-            _current_stage_order,
-            _movement,
-            _activities_on AS _movement_date,
-            _country_account,
-            _6sensecompanyname,
-            sf_account_id
-        FROM `ridecell.db_6sense_buying_stages_movement`
-        QUALIFY ROW_NUMBER() OVER (PARTITION BY _country_account ORDER BY _activities_on DESC) = 1
-        ),
-
-       combined_data_si AS (
-            SELECT DISTINCT 
-                _accountname,
-                _contactcountry,
-                _domain,
-                _ridecell_industry,
-                '',
-                '',
-                _ridecell_industry,
-                _account_tier,
-                sales_intelligence_data.sfdc_account_18_digit_id,
-                _linkedin,
-                original_lead_source_details__c,
-                most_recent_lead_source_details__c,
-                most_recent_lead_source__c,
-                user_name,
-                CAST(NULL AS DATE) AS _added_on,
-                '6sense' AS _data_source,
-                sales_intelligence_data._country_account,
-                CAST(NULL AS DATE) AS _first_impressions,
-                CAST(NULL AS STRING) AS _websiteengagement,
-                _previous_stage,
-                _previous_stage_order,
-                _current_stage,
-                _current_stage_order,
-                _movement,
-                _movement_date,
-                _6qa_date,
-                _is_6qa,
-                activities.* EXCEPT(_country_account, sfdc_account_18_digit_id)
-            FROM (
-                SELECT * FROM sales_intelligence_campaign_reached
-                UNION DISTINCT 
-                SELECT * FROM sales_intelligence_ad_clicks
-                UNION DISTINCT 
-                SELECT * FROM web_visits
-                UNION DISTINCT 
-                SELECT * FROM searched_keywords
-                UNION DISTINCT 
-                SELECT * FROM email_engagements
-                UNION DISTINCT
-                SELECT * FROM other_engagements
-            ) activities
-            LEFT JOIN six_qa_related_info 
-                ON activities.sfdc_account_18_digit_id = sf_account_id
-            LEFT JOIN buying_stage_related_info
-                ON activities.sfdc_account_18_digit_id = buying_stage_related_info.sf_account_id
-            LEFT JOIN sales_intelligence_data
-                ON activities.sfdc_account_18_digit_id = sales_intelligence_data.sfdc_account_18_digit_id
-       ),
-
-       combined_data AS (
-        SELECT * FROM combined_data_6sense
+    combined_6sense_si AS (
+        SELECT * EXCEPT (_old_notes) FROM combined_sixsense_activities
         UNION ALL
-        SELECT * FROM combined_data_si
-       ),
+        SELECT * FROM sales_intelligence_campaign_reached
+    ),
+    engagement_target AS (
+        SELECT target_accounts.*,
+        combined_6sense_si.* EXCEPT (sfdc_account_18_digit_id, _country_account)
+        FROM target_accounts
+        LEFT JOIN combined_6sense_si
+        USING (_country_account)
+    ),
 
 -- Get accumulated values for each engagement
     accumulated_engagement_values AS (
         SELECT
-            *,
+            engagement_target.*,
             -- The aggregated values
             SUM(CASE WHEN _engagement = '6sense Campaign Reached' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6sense_campaign_reached,
             SUM(CASE WHEN _engagement = '6sense Ad Clicks' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6sense_ad_clicks,
@@ -829,7 +640,7 @@ WITH target_accounts AS (
             SUM(CASE WHEN _engagement = '6sense Searched Keywords' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_searched_keywords,
             SUM(CASE WHEN _engagement = 'Email Opened' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_email_open,
             SUM(CASE WHEN _engagement = 'Email Clicked' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_email_click
-        FROM combined_data     
+        FROM engagement_target     
     )
 SELECT * FROM accumulated_engagement_values;
 
@@ -840,15 +651,15 @@ CREATE OR REPLACE TABLE `ridecell.db_6sense_account_performance` AS
 -- Get all target accounts and their campaigns
 WITH target_accounts AS (
     SELECT DISTINCT 
-        main.sfdc_account_name,
-        main.sfdc_billing_country,
-        main.sfdc_website,           
+        target6s._6sensecompanyname,
+        target6s._6sensecountry,
+        target6s._6sensedomain,     
         side.segment_name,
         CAST(side._campaignid AS STRING) AS _campaignid,
         side.campaign_name AS _campaignname
-    FROM `TEMP_ridecell_db_6s_target_account` main
+    FROM `x-marketing.ridecell_mysql.ridecell_db_6s_target_account` target6s
     JOIN `x-marketing.ridecell_campaign.Campaigns` side
-    ON main._segmentname = side.segment_name
+    ON target6s._segmentname = side.segment_name
     ),
 
 -- Mark those target accounts that have been reached by their campaigns
@@ -865,18 +676,11 @@ WITH target_accounts AS (
             WHEN SAFE_CAST(side._impressions AS INTEGER) > 0 THEN true 
             END AS _has_impressions
         FROM target_accounts AS main
-        LEFT JOIN `TEMP_ridecell_db_6s_reached_account` side
-        USING(sfdc_account_name, sfdc_billing_country, sfdc_website, _campaignid)
+        LEFT JOIN `x-marketing.ridecell_mysql.ridecell_db_6s_reached_account` side
+        USING(_6sensecompanyname, _6sensecountry, _6sensedomain, _campaignid)
     )
 SELECT
-    sfdc_account_name AS _6sensecompanyname,
-    sfdc_billing_country AS _6sensecountry,
-    sfdc_website AS _6sensedomain,
-    segment_name,
-    _campaignname,
-    _is_reached,
-    _has_clicks,
-    _has_impressions
+    *
 FROM reached_accounts;
 
 
@@ -1228,7 +1032,6 @@ CREATE OR REPLACE TABLE `ridecell.opportunity_summarized` AS
       _is_stagnant_opp,
       _channel
       FROM `ridecell.opportunity_influenced_accelerated`;
-
 
 
 
