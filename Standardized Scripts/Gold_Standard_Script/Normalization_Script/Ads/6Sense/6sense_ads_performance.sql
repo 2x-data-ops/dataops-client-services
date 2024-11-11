@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE `x-marketing.jellyvision.6sense_ads_performance` AS
+CREATE OR REPLACE TABLE `x-marketing.jellyvision_v2.6sense_ads_performance` AS
 
 WITH sixsense_airtable AS (
   SELECT
