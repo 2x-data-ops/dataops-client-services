@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE `x-marketing.jellyvision.facebook_ads_performance` AS
+CREATE OR REPLACE TABLE `x-marketing.jellyvision_v2.facebook_ads_performance` AS
 
 WITH  
 FB_airtable AS (
