@@ -1,5 +1,6 @@
 --snapshot script (daily 4pm)
 --contact summary
+TRUNCATE TABLE `x-marketing.logicsource.contact_summary_daily`;
 INSERT INTO `x-marketing.logicsource.contact_summary_daily` (
   date,
   _prospectid,
@@ -22,9 +23,6 @@ INSERT INTO `x-marketing.logicsource.contact_summary_daily` (
   _hubspotscores
 )
 WITH all_contact AS (
-SELECT
-    * EXCEPT( _rownum)
-  FROM (
     SELECT DISTINCT CURRENT_DATE('Hongkong') AS date,
       CAST(vid AS STRING) AS _prospectid,
       property_email.value AS _email,
@@ -99,20 +97,17 @@ SELECT
       property_lifecyclestage.value AS _lifecycleStage,
       l.lead_score__c AS leadscore,
       property_hubspotscore.value,
-      ROW_NUMBER() OVER(
-          PARTITION BY vid,property_email.value, CONCAT(property_firstname.value, ' ', property_lastname.value)
-          ORDER BY vid DESC
-      ) AS _rownum
     FROM
       `x-marketing.logicsource_hubspot.contacts` k
       LEFT JOIN `x-marketing.logicsource_salesforce.Lead` l ON LOWER(l.email) = LOWER(property_email.value)
+    QUALIFY ROW_NUMBER() OVER(
+          PARTITION BY vid,property_email.value, CONCAT(property_firstname.value, ' ', property_lastname.value)
+          ORDER BY vid DESC
+      ) = 1
     --WHERE
       --property_email.value IS NOT NULL
       --AND property_email.value NOT LIKE '%2x.marketing%'
       --AND property_email.value NOT LIKE '%logicsource%' 
-  )
-  WHERE
-    _rownum = 1
     --AND _domain NOT IN ('logicsource.com',
       --'logicsource',
       --'2x.marketing'
@@ -125,7 +120,39 @@ WHERE date NOT IN (
 )
 ;
 
-CREATE OR REPLACE TABLE `x-marketing.logicsource.contact_summary_leadscore` AS 
+--CREATE OR REPLACE TABLE `x-marketing.logicsource.contact_summary_leadscore` AS 
+TRUNCATE TABLE `x-marketing.logicsource.contact_summary_leadscore`;
+
+INSERT INTO `x-marketing.logicsource.contact_summary_leadscore` (
+  date,	
+  _prospectid,	
+  _email,	
+  _name,	
+  _domain,	
+  jobtitle,	
+  _function,	
+  _seniority,	
+  _phone,	
+  _company,	
+  _revenue,	
+  _industry,	
+  _city,	
+  _state,	
+  _country,	
+  _persona,	
+  _lifecycleStage,	
+  leadscore,	
+  _title,	
+  _jobrole,	
+  _leadstatus,	
+  _property_leadstatus,	
+  _hubspotscore,	
+  _hubspotscores,	
+  company_id,	
+  last_week_date,	
+  _last_week_hubspotscores,	
+  _last_week_hubspotscore
+)
 WITH current_week AS (
 SELECT  d.date, CAST(vid AS STRING) AS _prospectid,
       property_email.value AS _email,
@@ -165,6 +192,8 @@ current_week
  LEFT JOIN last_week ON current_week.last_week_date = last_week.date AND current_week._prospectid = last_week._prospectid;
 
 --account summary
+TRUNCATE TABLE `x-marketing.logicsource.account_summary_daily`;
+
 INSERT INTO `x-marketing.logicsource.account_summary_daily` (
     date,
     _companyID,
