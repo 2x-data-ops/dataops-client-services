@@ -1,7 +1,7 @@
 -- CREATE OR REPLACE TABLE `x-marketing.jellyvision_v2.linkedin_ads_performance` AS
 
-TRUNCATE TABLE `jellyvision_v2.linkedin_ads_performance`;
-INSERT INTO `jellyvision_v2.linkedin_ads_performance` (
+TRUNCATE TABLE `x-marketing.jellyvision_v2.linkedin_ads_performance`;
+INSERT INTO `x-marketing.jellyvision_v2.linkedin_ads_performance` (
     _ad_id,
     _ad_name,
     _campaign_id,
