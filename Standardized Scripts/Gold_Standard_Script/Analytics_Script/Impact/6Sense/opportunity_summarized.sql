@@ -64,4 +64,4 @@ SELECT DISTINCT
     ) AS _is_later_accelerating_activity,
     _is_stagnant_opp,
     _channel
-FROM `jellyvision.opportunity_influenced_accelerated`;
+FROM `jellyvision_v2.opportunity_influenced_accelerated`;

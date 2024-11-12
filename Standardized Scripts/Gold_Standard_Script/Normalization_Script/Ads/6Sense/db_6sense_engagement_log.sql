@@ -65,7 +65,7 @@ WITH target_accounts AS (
         _crmaccountid AS _crm_account_id,
         _crmdomain AS _crm_domain,
         _crmaccount AS _crm_account 
-    FROM `jellyvision.db_6sense_account_current_state`
+    FROM `jellyvision_v2.db_6sense_account_current_state`
 ),
 -- Prep the reached account data for use later
 optimization_airtable_ads_6sense AS (
@@ -243,6 +243,17 @@ sales_intelligence_engagements AS (
     FROM sales_intelligence_data
     WHERE _activity_type != ''
 ),
+
+final_activities AS (
+    SELECT * FROM campaign_reached 
+    UNION DISTINCT
+    SELECT * FROM ad_clicks 
+    UNION DISTINCT
+    SELECT * FROM influenced_form_fills
+    UNION DISTINCT
+    SELECT * FROM sales_intelligence_engagements
+),
+
 -- Only activities involving target accounts are considered
 combined_data AS (
     SELECT DISTINCT 
@@ -269,24 +280,17 @@ combined_data AS (
         target_accounts._crm_account_id,
         target_accounts._crm_domain,
         target_accounts._crm_account,
-        activities._email,
-        activities._timestamp,
-        activities._engagement,
-        activities._engagement_data_source,
-        activities._description,
-        activities._notes 
-    FROM (
-        SELECT * FROM campaign_reached 
-        UNION DISTINCT
-        SELECT * FROM ad_clicks 
-        UNION DISTINCT
-        SELECT * FROM influenced_form_fills
-        UNION DISTINCT
-        SELECT * FROM sales_intelligence_engagements
-    ) activities
+        final_activities._email,
+        final_activities._timestamp,
+        final_activities._engagement,
+        final_activities._engagement_data_source,
+        final_activities._description,
+        final_activities._notes 
+    FROM final_activities
     JOIN target_accounts
     USING (_country_account)
 ),
+
 -- Get accumulated values for each engagement
 accumulated_engagement_values AS (
     SELECT
@@ -301,4 +305,5 @@ accumulated_engagement_values AS (
         SUM(CASE WHEN _engagement = 'Email Opened' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_email_opens,
     FROM combined_data
 )
+
 SELECT * FROM accumulated_engagement_values;

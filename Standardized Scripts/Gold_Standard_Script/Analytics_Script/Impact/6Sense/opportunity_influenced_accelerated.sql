@@ -63,7 +63,7 @@ account_engagements AS (
             WHEN _engagement LIKE '%6sense%' THEN '6sense'
             WHEN _engagement LIKE '%LinkedIn%' THEN 'LinkedIn'
         END AS _channel
-    FROM `jellyvision.db_6sense_engagement_log`
+    FROM `jellyvision_v2.db_6sense_engagement_log`
 ),
 -- Get all generated opportunities
 -- Wont be having the current stage and stage change date in this CTE
