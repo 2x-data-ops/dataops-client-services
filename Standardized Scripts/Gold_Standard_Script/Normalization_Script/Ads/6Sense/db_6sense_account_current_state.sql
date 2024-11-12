@@ -1,7 +1,7 @@
 -- 6sense Account Current State
--- CREATE OR REPLACE TABLE `jellyvision_v2.db_6sense_account_current_state` AS
-TRUNCATE TABLE `jellyvision_v2.db_6sense_account_current_state`;
-INSERT INTO `jellyvision_v2.db_6sense_account_current_state` (
+-- CREATE OR REPLACE TABLE `x-marketing.jellyvision_v2.db_6sense_account_current_state` AS
+TRUNCATE TABLE `x-marketing.jellyvision_v2.db_6sense_account_current_state`;
+INSERT INTO `x-marketing.jellyvision_v2.db_6sense_account_current_state` (
   _6sense_company_name,
   _6sense_country,
   _6sense_domain,
@@ -109,7 +109,7 @@ WITH segment_target_account AS (
       act.name AS _account_name,
       web_domain_name__c AS _domain,
       --COALESCE(act.shippingcountry, act.billingcountry) AS _country
-    FROM `jellyvision_salesforce.Account` act
+    FROM `x-marketing.jellyvision_salesforce.Account` act
     WHERE isdeleted IS FALSE
   ),
   -- Get the date when account first became a 6QA
@@ -149,7 +149,7 @@ WITH segment_target_account AS (
       _movement,
       _activities_on AS _movement_date,
       _country_account,
-    FROM `jellyvision.db_6sense_buying_stages_movement`
+    FROM `x-marketing.jellyvision.db_6sense_buying_stages_movement`
     QUALIFY ROW_NUMBER() OVER (
       PARTITION BY  _country_account
       ORDER BY _activities_on DESC
