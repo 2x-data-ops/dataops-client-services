@@ -1,71 +1,46 @@
-
 -- 6sense Engagement Log
 
--- CREATE OR REPLACE TABLE `jellyvision.db_6sense_engagement_log` AS
-TRUNCATE TABLE `jellyvision.db_6sense_engagement_log`;
-INSERT INTO `jellyvision.db_6sense_engagement_log`(
-    _6sense_company_name,
-    _6sense_country,
-    _6sense_domain,
-    _domain,
-    _6sense_industry,
-    _6sense_employee_range,
-    _6sense_revenue_range,
-    _added_on,
-    _country_account,
-    _first_impressions,
-    _website_engagement,
-    _6qa_date,
-    _is_6qa,
-    _6sensescore,
-    _prev_stage,
-    _prev_order,
-    _current_stage,
-    _curr_order,
-    _movement,
-    _movement_date,
-    _crm_account_id,
-    _crm_domain,
-    _crm_account,
-    _email,
-    _timestamp,
-    _engagement,
-    _engagement_data_source,
-    _description,
-    _notes,
-    _total_6sense_campaign_reached,
-    _total_6sense_ad_clicks,
-    _total_searched_keywords,
-    _total_web_visits,
-    _total_email_opens
+-- CREATE OR REPLACE TABLE `jellyvision_v2.db_6sense_engagement_log` AS
+TRUNCATE TABLE `x-marketing.jellyvision_v2.db_6sense_engagement_log`;
+INSERT INTO `x-marketing.jellyvision_v2.db_6sense_engagement_log`(
+  _6sense_company_name,
+  _6sense_country,
+  _6sense_domain,
+  _domain,
+  _6sense_industry,
+  _6sense_employee_range,
+  _6sense_revenue_range,
+  _added_on,
+  _country_account,
+  _first_impressions,
+  _website_engagement,
+  _6qa_date,
+  _is_6qa,
+  _6sense_score,
+  _prev_stage,
+  _prev_order,
+  _current_stage,
+  _curr_order,
+  _movement,
+  _movement_date,
+  _crm_account_id,
+  _crm_domain,
+  _crm_account,
+  _email,
+  _timestamp,
+  _engagement,
+  _engagement_data_source,
+  _description,
+  _notes,
+  _total_6sense_campaign_reached,
+  _total_6sense_ad_clicks,
+  _total_searched_keywords,
+  _total_web_visits,
+  _total_email_opens
 )
 -- Get all target accounts and their unique info
 WITH target_accounts AS (
-    SELECT 
-        _6sensecompanyname AS _6sense_company_name,
-        _6sensecountry AS _6sense_country,
-        _6sensedomain AS _6sense_domain, 
-        _domain,
-        _6senseindustry AS _6sense_industry,
-        _6senseemployeerange AS _6sense_employee_range,
-        _6senserevenuerange AS _6sense_revenue_range,
-        _added_on,
-        _country_account,
-        _first_impressions,
-        _website_engagement,
-        _6qa_date,
-        _is_6qa,
-        _6sensescore,
-        _prev_stage,
-        _prev_order,
-        _current_stage,
-        _curr_order,
-        _movement,
-        _movement_date,
-        _crmaccountid AS _crm_account_id,
-        _crmdomain AS _crm_domain,
-        _crmaccount AS _crm_account 
-    FROM `jellyvision.db_6sense_account_current_state`
+    SELECT * FROM `x-marketing.jellyvision_v2.db_6sense_account_current_state`
 ),
 -- Prep the reached account data for use later
 optimization_airtable_ads_6sense AS (
@@ -158,7 +133,7 @@ sales_intelligence_activities AS (
         sales._activitytarget AS _activity_target,
         sales._activitydate AS _activity_date
     FROM `x-marketing.jellyvision_mysql.jellyvision_db_sales_intelligence_activities` sales
-    LEFT JOIN `jellyvision_salesforce.Account` act
+    LEFT JOIN `x-marketing.jellyvision_salesforce.Account` act
         ON REPLACE(sales._crmaccountid, 'CMA', '') = act.id
     WHERE act.accountupdatedate6sense__c IS NOT NULL
 ),
@@ -243,6 +218,17 @@ sales_intelligence_engagements AS (
     FROM sales_intelligence_data
     WHERE _activity_type != ''
 ),
+
+final_activities AS (
+    SELECT * FROM campaign_reached 
+    UNION DISTINCT
+    SELECT * FROM ad_clicks 
+    UNION DISTINCT
+    SELECT * FROM influenced_form_fills
+    UNION DISTINCT
+    SELECT * FROM sales_intelligence_engagements
+),
+
 -- Only activities involving target accounts are considered
 combined_data AS (
     SELECT DISTINCT 
@@ -259,7 +245,7 @@ combined_data AS (
         target_accounts._website_engagement,
         target_accounts._6qa_date,
         target_accounts._is_6qa,
-        target_accounts._6sensescore,
+        target_accounts._6sense_score,
         target_accounts._prev_stage,
         target_accounts._prev_order,
         target_accounts._current_stage,
@@ -269,24 +255,17 @@ combined_data AS (
         target_accounts._crm_account_id,
         target_accounts._crm_domain,
         target_accounts._crm_account,
-        activities._email,
-        activities._timestamp,
-        activities._engagement,
-        activities._engagement_data_source,
-        activities._description,
-        activities._notes 
-    FROM (
-        SELECT * FROM campaign_reached 
-        UNION DISTINCT
-        SELECT * FROM ad_clicks 
-        UNION DISTINCT
-        SELECT * FROM influenced_form_fills
-        UNION DISTINCT
-        SELECT * FROM sales_intelligence_engagements
-    ) activities
+        final_activities._email,
+        final_activities._timestamp,
+        final_activities._engagement,
+        final_activities._engagement_data_source,
+        final_activities._description,
+        final_activities._notes 
+    FROM final_activities
     JOIN target_accounts
     USING (_country_account)
 ),
+
 -- Get accumulated values for each engagement
 accumulated_engagement_values AS (
     SELECT
@@ -301,4 +280,5 @@ accumulated_engagement_values AS (
         SUM(CASE WHEN _engagement = 'Email Opened' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_email_opens,
     FROM combined_data
 )
+
 SELECT * FROM accumulated_engagement_values;

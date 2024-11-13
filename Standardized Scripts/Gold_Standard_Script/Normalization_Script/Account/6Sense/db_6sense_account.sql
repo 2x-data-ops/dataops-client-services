@@ -3,9 +3,10 @@
 -----------------------------------------------------------------------------------------------
 
 ---- 6Sense Account ----
-TRUNCATE TABLE `jellyvision.db_6sense_account`;
+-- CREATE OR REPLACE TABLE `x-marketing.jellyvision_v2.db_6sense_account` AS
 
-INSERT INTO `jellyvision.db_6sense_account` (
+TRUNCATE TABLE `jellyvision_v2.db_6sense_account`;
+INSERT INTO `jellyvision_v2.db_6sense_account` (
   _is_6qa,
   _account_profile_score_6sense,
   _account_6qa_age_in_days_6sense,

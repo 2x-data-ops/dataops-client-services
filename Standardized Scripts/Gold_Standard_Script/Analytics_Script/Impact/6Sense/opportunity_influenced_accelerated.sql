@@ -1,41 +1,42 @@
 -- Opportunity Influenced + Accelerated
 
--- CREATE OR REPLACE TABLE `jellyvision.opportunity_influenced_accelerated` AS
-TRUNCATE TABLE `jellyvision.opportunity_influenced_accelerated`;
-INSERT INTO `jellyvision.opportunity_influenced_accelerated`(
-    _account_id,
-    _account_name,
-    _domain,
-    _country,
-    _opp_id,
-    _opp_name,
-    _opp_owner_name,
-    _opp_type,
-    _created_date,
-    _closed_date,
-    _amount,
-    _stage_change_date,
-    _current_stage,
-    _stage_history,
-    _6sense_company_name,
-    _6sense_country,
-    _6sense_domain,
-    _6qa_date,
-    _engagement,
-    _eng_id,
-    _eng_timestamp,
-    _eng_description,
-    _eng_notes,
-    _channel,
-    _is_matched_opp,
-    _is_influencing_activity,
-    _is_influenced_opp,
-    _is_accelerating_activity,
-    _is_accelerated_opp,
-    _is_later_accelerating_activity,
-    _is_later_accelerated_opp,
-    _is_stagnant_opp
+-- CREATE OR REPLACE TABLE `x-marketing.jellyvision_v2.opportunity_influenced_accelerated` AS
+TRUNCATE TABLE `x-marketing.jellyvision_v2.opportunity_influenced_accelerated`;
+INSERT INTO `x-marketing.jellyvision_v2.opportunity_influenced_accelerated`(
+  _account_id,
+  _account_name,
+  _domain,
+  _country,
+  _opp_id,
+  _opp_name,
+  _opp_owner_name,
+  _opp_type,
+  _created_date,
+  _closed_date,
+  _amount,
+  _stage_change_date,
+  _current_stage,
+  _stage_history,
+  _6sense_company_name,
+  _6sense_country,
+  _6sense_domain,
+  _6qa_date,
+  _engagement,
+  _eng_id,
+  _eng_timestamp,
+  _eng_description,
+  _eng_notes,
+  _channel,
+  _is_matched_opp,
+  _is_influencing_activity,
+  _is_influenced_opp,
+  _is_accelerating_activity,
+  _is_accelerated_opp,
+  _is_later_accelerating_activity,
+  _is_later_accelerated_opp,
+  _is_stagnant_opp
 )
+
 -- Get account engagements of target account 
 WITH account_name AS (
     SELECT
@@ -49,12 +50,12 @@ WITH account_name AS (
 ), 
 account_engagements AS (
     SELECT DISTINCT 
-        _6sensecompanyname AS _6sense_company_name,
-        _6sensecountry AS _6sense_country,
-        _6sensedomain AS _6sense_domain, 
+        _6sense_company_name,
+        _6sense_country,
+        _6sense_domain, 
         _6qa_date,
         _engagement,
-        _crmaccountid AS _account_id, 
+        _crm_account_id AS _account_id, 
         ROW_NUMBER() OVER() AS _eng_id,
         _timestamp AS _eng_timestamp,
         _description AS _eng_description,
@@ -63,7 +64,7 @@ account_engagements AS (
             WHEN _engagement LIKE '%6sense%' THEN '6sense'
             WHEN _engagement LIKE '%LinkedIn%' THEN 'LinkedIn'
         END AS _channel
-    FROM `jellyvision.db_6sense_engagement_log`
+    FROM `x-marketing.jellyvision_v2.db_6sense_engagement_log`
 ),
 -- Get all generated opportunities
 -- Wont be having the current stage and stage change date in this CTE
@@ -80,10 +81,10 @@ opps_created AS (
         DATE(opp.createddate) AS _created_date,
         DATE(opp.closedate) AS _closed_date,
         opp.amount AS _amount
-    FROM `jellyvision_salesforce.Opportunity` opp
-    LEFT JOIN `jellyvision_salesforce.Account` act
+    FROM `x-marketing.jellyvision_salesforce.Opportunity` opp
+    LEFT JOIN `x-marketing.jellyvision_salesforce.Account` act
         ON opp.accountid = act.id 
-    LEFT JOIN `jellyvision_salesforce.User` own
+    LEFT JOIN `x-marketing.jellyvision_salesforce.User` own
         ON opp.ownerid = own.id 
     WHERE opp.isdeleted = FALSE
         AND EXTRACT(YEAR FROM opp.createddate) >= 2023 
@@ -97,7 +98,7 @@ opp_field_history AS (
         DATE(createddate) AS _historical_stage_change_date,
         oldvalue AS _previous_stage,
         newvalue__st AS _next_stage
-    FROM `jellyvision_salesforce.OpportunityFieldHistory` 
+    FROM `x-marketing.jellyvision_salesforce.OpportunityFieldHistory` 
     WHERE field = 'StageName'
         AND isdeleted = FALSE
 ),
