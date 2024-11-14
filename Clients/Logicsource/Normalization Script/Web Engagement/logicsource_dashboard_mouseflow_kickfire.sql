@@ -65,6 +65,7 @@ WITH
         _utmcontent,
         _utmterm,
         _isisp,
+        CONCAT(_visitorid, _timestamp) AS _key,
         -- _totalPages total pages visited groupped by domain and day
         ROW_NUMBER() OVER(PARTITION BY _domain, _recordingid, _visitorid, EXTRACT(DATE FROM _timestamp) ORDER BY _timestamp) AS _order
       FROM
@@ -90,11 +91,11 @@ WITH
       `x-marketing.webtrack_ipcompany.webtrack_ipcompany_6sense` _6sense
   ),
   mouseflow_recording_order AS (
-    SELECT DISTINCT CONCAT(_visitorid, _timestamp) AS _key FROM mouseflow_recording WHERE _order = 1
+    SELECT DISTINCT _key FROM mouseflow_recording WHERE _order = 1
   ),
   mouseflow_recording_agg AS (
     SELECT
-        CONCAT(_visitorid, _timestamp) AS _key,
+        _key,
         STRING_AGG( _entrypage, ", \n" ) OVER(PARTITION BY _visitorid, DATE(_timestamp) ORDER BY _timestamp) AS _webActivity,
         STRING_AGG( _entryurl, ", \n"  ) OVER(PARTITION BY _visitorid, DATE(_timestamp) ORDER BY _timestamp) AS _webActivityURL,    
         #_fullurl AS _fullurl,
@@ -110,14 +111,14 @@ WITH
       USING(_key)
   )
 SELECT
-  mouseflow_recording.*EXCEPT(_order),
+  mouseflow_recording.*EXCEPT(_order,_key),
   webtrack_6sense.* EXCEPT(_ipAddr),
   mouseflow_pageviews.* EXCEPT (_key) 
 FROM 
   mouseflow_recording 
 LEFT JOIN 
   mouseflow_pageviews 
-    ON mouseflow_recording._order = 1 AND CONCAT(mouseflow_recording._visitorid, mouseflow_recording._timestamp) = mouseflow_pageviews._key
+    ON mouseflow_recording._order = 1 AND mouseflow_recording._key = mouseflow_pageviews._key
 LEFT JOIN 
   webtrack_6sense 
     ON mouseflow_recording._ipAddr = webtrack_6sense._ipAddr
