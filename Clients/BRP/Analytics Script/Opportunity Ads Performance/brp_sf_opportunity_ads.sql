@@ -49,7 +49,7 @@ WITH oppscontact AS (
         isprimary
     FROM `x-marketing.brp_salesforce.OpportunityContactRole`
     WHERE isdeleted IS FALSE
-        AND isprimary IS TRUE
+      AND isprimary IS TRUE
 ), 
 opps AS (
     SELECT 
@@ -76,7 +76,7 @@ opps AS (
     LEFT JOIN `x-marketing.brp_salesforce.User` user
         ON user.id = opp.ownerid
     WHERE pl_inside_sales__c IS TRUE
-        AND gclid__c IS NOT NULL 
+      AND gclid__c IS NOT NULL 
 ), 
 leads AS (
     SELECT 
@@ -223,7 +223,7 @@ LEFT JOIN `x-marketing.brp_salesforce.RecordType` r
 LEFT JOIN `x-marketing.brp_salesforce.User` user
     ON user.id = opp.ownerid
 WHERE gclid__c IS NOT NULL
-    AND isdeleted IS FALSE;
+  AND isdeleted IS FALSE;
 
 
 TRUNCATE TABLE `x-marketing.brp.sf_opportunity_closed`;
@@ -268,7 +268,7 @@ ON r.id = opp.recordtypeid
 LEFT JOIN `x-marketing.brp_salesforce.User` user
     ON user.id = opp.ownerid
 WHERE gclid__c IS NOT NULL
-    AND isdeleted IS FALSE;
+  AND isdeleted IS FALSE;
 
 
 TRUNCATE TABLE `x-marketing.brp.sf_leads`;
@@ -331,7 +331,7 @@ FROM `x-marketing.brp_salesforce.Lead` leads
 LEFT JOIN `x-marketing.brp_salesforce.User` user
     ON user.id = ownerid
 WHERE gclid__c IS NOT NULL
-    AND isdeleted IS FALSE;
+  AND isdeleted IS FALSE;
 
 
 TRUNCATE TABLE `x-marketing.brp.sf_opportunity_created_with_utm`;
@@ -389,7 +389,7 @@ LEFT JOIN `x-marketing.brp_salesforce.User` user
 LEFT JOIN `x-marketing.brp_salesforce.Lead` leads
     ON leads.gclid__c = opp.gclid__c
 WHERE opp.gclid__c IS NOT NULL
-    AND opp.isdeleted IS FALSE;
+  AND opp.isdeleted IS FALSE;
 
 
 TRUNCATE TABLE `x-marketing.brp.sf_opportunity_closed_with_utm`;
@@ -446,4 +446,4 @@ LEFT JOIN `x-marketing.brp_salesforce.User` user
 LEFT JOIN `x-marketing.brp_salesforce.Lead` leads
     ON leads.gclid__c = opp.gclid__c
 WHERE opp.gclid__c IS NOT NULL
-    AND opp.isdeleted IS FALSE;
+  AND opp.isdeleted IS FALSE;
