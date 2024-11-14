@@ -37,11 +37,7 @@ INSERT INTO `x-marketing.logicsource.dashboard_mouseflow_kickfire`  (
 )
 WITH 
   mouseflow_recording AS (
-    SELECT
-      DISTINCT *
-    FROM
-    (
-      SELECT
+    SELECT DISTINCT
         _recordingID, 
         _visitorID,
         _ipAddr,
@@ -73,7 +69,6 @@ WITH
         ROW_NUMBER() OVER(PARTITION BY _domain, _recordingid, _visitorid, EXTRACT(DATE FROM _timestamp) ORDER BY _timestamp) AS _order
       FROM
         `x-marketing.logicsource.db_web_engagements_log`
-    )
   ),
   webtrack_6sense AS (
     SELECT
@@ -94,12 +89,11 @@ WITH
     FROM
       `x-marketing.webtrack_ipcompany.webtrack_ipcompany_6sense` _6sense
   ),
-  mouseflow_pageviews AS (
+  mouseflow_recording_order AS (
+    SELECT DISTINCT CONCAT(_visitorid, _timestamp) AS _key FROM mouseflow_recording WHERE _order = 1
+  ),
+  mouseflow_recording_agg AS (
     SELECT
-      *
-    FROM
-    (
-      SELECT
         CONCAT(_visitorid, _timestamp) AS _key,
         STRING_AGG( _entrypage, ", \n" ) OVER(PARTITION BY _visitorid, DATE(_timestamp) ORDER BY _timestamp) AS _webActivity,
         STRING_AGG( _entryurl, ", \n"  ) OVER(PARTITION BY _visitorid, DATE(_timestamp) ORDER BY _timestamp) AS _webActivityURL,    
@@ -107,9 +101,13 @@ WITH
         -- ROW_NUMBER() OVER(PARTITION BY _userid, DATE(_timestamp) ORDER BY _timestamp) _page_order
       FROM
         mouseflow_recording
-    )
-    JOIN
-      (SELECT DISTINCT CONCAT(_visitorid, _timestamp) AS _key FROM mouseflow_recording WHERE _order = 1) USING(_key)
+  ),
+  mouseflow_pageviews AS (
+    SELECT
+      *
+    FROM mouseflow_recording_agg
+    JOIN mouseflow_recording_order
+      USING(_key)
   )
 SELECT
   mouseflow_recording.*EXCEPT(_order),

@@ -257,7 +257,44 @@ WHERE
 
 -- CREATE OR REPLACE TABLE `x-marketing.logicsource.db_web_content_analytics` AS
 TRUNCATE TABLE `x-marketing.logicsource.db_web_content_analytics`;
-INSERT INTO `x-marketing.logicsource.db_web_content_analytics`
+INSERT INTO `x-marketing.logicsource.db_web_content_analytics` (
+    _recordingurl,
+    _recordingid,
+    _visitorid,
+    _userstatus,
+    _page,
+    _pagegroup,
+    _fullurl,
+    _cleanpage,
+    _nextpage,
+    _totalsessionviews,
+    _engagementtime,
+    _timespent,
+    _timestamp,
+    _stage,
+    _goalcompletion,
+    _utmsource,
+    _utmcampaign,
+    _utmmedium,
+    _utmcontent,
+    _utmterm,
+    _ipaddr,
+    _domain,
+    _name,
+    _city,
+    _region,
+    _country,
+    _isisp,
+    _contentitem,
+    _contenttype,
+    _gatingstrategy,
+    _homeurl,
+    _summary,
+    _status,
+    _buyerstage,
+    _vertical,
+    _persona
+)
 WITH web_log AS (
     SELECT
         *
