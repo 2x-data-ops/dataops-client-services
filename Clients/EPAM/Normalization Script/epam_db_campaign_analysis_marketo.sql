@@ -108,190 +108,199 @@ prospect_info AS (
   AND NOT REGEXP_CONTAINS(_email, r'(@2x\.marketing|2X|test)')
 ),
 sent_email AS (
-    SELECT * EXCEPT(rownum) 
-    FROM ( 
-        SELECT
-            activity._sdc_sequence,
-            activity.primary_attribute_name,
-            CAST(activity.primary_attribute_value_id AS STRING) AS campaignID,
-            activity.activitydate AS _timestamp,
-            EXTRACT(DAYOFWEEK FROM activity.activitydate) AS _dayofweek,
-            CAST( activity.leadid AS STRING) AS _leadid, 
-            email AS _email,
-            campaign._campaignname AS _description,
-            '' as _url_link,
-            'Sent' AS _engagement,
-            CAST(null AS String) AS _isBot,
-            ROW_NUMBER() OVER( PARTITION BY activity.leadid,activity.primary_attribute_value ORDER BY activity.activitydate DESC) AS rownum
-        FROM `x-marketing.epam_marketo.activities_send_email` activity 
-        JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign ON activity.primary_attribute_value_id =campaign._pardotid
-        JOIN `x-marketing.epam_marketo.leads` l ON l.id = activity.leadid
-        LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d ON d.leadid = activity.leadid
-        LEFT JOIN prospect_info ON CAST(prospect_info._leadid AS INT64) = activity.leadid
-        WHERE prospect_info._email NOT LIKE '%@2x.marketing%'
-        AND d.leadid IS NULL
-  ) 
-WHERE rownum = 1
-
-),delivered_email AS (
-    SELECT * EXCEPT(rownum) 
-    FROM ( 
-        SELECT
-            activity._sdc_sequence,
-            activity.primary_attribute_name,
-            CAST(activity.primary_attribute_value_id AS STRING) AS campaignID,
-            activity.activitydate AS _timestamp, 
-            EXTRACT(DAYOFWEEK FROM activity.activitydate) AS _dayofweek,
-            CAST( activity.leadid AS STRING) AS _leadid, 
-            email AS _email,
-            campaign._campaignname AS _description,
-            '' as _url_link,
-            'Delivered' AS _engagement,
-            CAST(null AS String)  AS _isBot,
-            ROW_NUMBER() OVER( PARTITION BY activity.leadid,activity.primary_attribute_value ORDER BY activity.activitydate DESC) AS rownum
-        FROM `x-marketing.epam_marketo.activities_email_delivered` activity 
-        JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign ON activity.primary_attribute_value_id =campaign._pardotid
-        JOIN `x-marketing.epam_marketo.leads` l ON l.id = activity.leadid
-        LEFT JOIN prospect_info ON CAST(prospect_info._leadid AS INT64) = activity.leadid
-        WHERE prospect_info._email NOT LIKE '%@2x.marketing%'
-    ) 
-    WHERE rownum = 1
-
-),open_email AS (
-    SELECT * EXCEPT(rownum) 
-    FROM ( 
-        SELECT
-            activity._sdc_sequence,
-            activity.primary_attribute_name,
-            CAST(activity.primary_attribute_value_id AS STRING) AS campaignID,
-            activity.activitydate AS _timestamp, 
-            EXTRACT(DAYOFWEEK FROM activity.activitydate) AS _dayofweek,
-            CAST( activity.leadid AS STRING) AS _leadid, 
-            email AS _email,
-            CASE WHEN activity.primary_attribute_value = 'Ecosystem Education Webinar Email 2.Email 2' THEN 'Ecosystem Email 2.Email 2' 
-            WHEN activity.primary_attribute_value = 'Ecosystem Education Webinar Email 1.Email 1' THEN 'Ecosystem Email 1.Email 1' 
-            ELSE campaign._campaignname END AS _description, 
-            '' as _url_link,
-            'Opened' AS _engagement,
-            CAST(is_bot_activity AS STRING) AS _isBot,
-            ROW_NUMBER() OVER( PARTITION BY activity.leadid,activity.primary_attribute_value ORDER BY activity.activitydate DESC) AS rownum
-        FROM `x-marketing.epam_marketo.activities_open_email` activity
-        JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign ON activity.primary_attribute_value_id =campaign._pardotid
-        JOIN `x-marketing.epam_marketo.leads` l ON l.id = activity.leadid  
-        LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d ON d.leadid = activity.leadid  
-        LEFT JOIN prospect_info ON CAST(prospect_info._leadid AS INT64) = activity.leadid
-        WHERE prospect_info._email NOT LIKE '%@2x.marketing%'
-        AND d.leadid IS NULL
-    ) 
-    WHERE rownum = 1
-
-),clicked_email AS (
-        SELECT
-            activity._sdc_sequence,
-            activity.primary_attribute_name,
-            CAST(activity.primary_attribute_value_id AS STRING) AS campaignID,
-            activity.activitydate AS _timestamp, 
-            EXTRACT(DAYOFWEEK FROM activity.activitydate) AS _dayofweek,
-            CAST( activity.leadid AS STRING) AS _leadid, 
-            email AS _email,
-            campaign._campaignname AS _description, 
-            activity.link as _url_link,
-            'Clicked' AS _engagement,
-            CAST(is_bot_activity AS STRING) AS _isBot,
-            ROW_NUMBER() OVER( PARTITION BY activity.leadid,activity.primary_attribute_value ORDER BY activity.activitydate DESC) AS rownum
-        FROM `x-marketing.epam_marketo.activities_click_email` activity 
-        JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign ON activity.primary_attribute_value_id =campaign._pardotid
-        JOIN `x-marketing.epam_marketo.leads` l ON l.id = activity.leadid
-        LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d ON d.leadid = activity.leadid
-        WHERE CAST(is_bot_activity AS STRING) = 'false' 
-        --AND activity.link NOT LIKE '%iclick%'
-        AND l.email NOT LIKE '%@2x.marketing%'
-        AND d.leadid IS NULL
-        AND activity._sdc_sequence <> 1697681411029821012
-
+  SELECT
+    activity._sdc_sequence,
+    activity.primary_attribute_name,
+    CAST(activity.primary_attribute_value_id AS STRING) AS campaignID,
+    activity.activitydate AS _timestamp,
+    EXTRACT(DAYOFWEEK FROM activity.activitydate) AS _dayofweek,
+    CAST( activity.leadid AS STRING) AS _leadid, 
+    email AS _email,
+    campaign._campaignname AS _description,
+    '' as _url_link,
+    'Sent' AS _engagement,
+    CAST(null AS String) AS _isBot
+  FROM `x-marketing.epam_marketo.activities_send_email` activity 
+  JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign 
+    ON activity.primary_attribute_value_id =campaign._pardotid
+  JOIN `x-marketing.epam_marketo.leads` l 
+    ON l.id = activity.leadid
+  LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d 
+    ON d.leadid = activity.leadid
+  LEFT JOIN prospect_info 
+    ON CAST(prospect_info._leadid AS INT64) = activity.leadid
+  WHERE prospect_info._email NOT LIKE '%@2x.marketing%'
+    AND d.leadid IS NULL
+  QUALIFY ROW_NUMBER() OVER( 
+    PARTITION BY activity.leadid, activity.primary_attribute_value 
+    ORDER BY activity.activitydate DESC
+  ) = 1
+),
+delivered_email AS ( 
+  SELECT
+    activity._sdc_sequence,
+    activity.primary_attribute_name,
+    CAST(activity.primary_attribute_value_id AS STRING) AS campaignID,
+    activity.activitydate AS _timestamp, 
+    EXTRACT(DAYOFWEEK FROM activity.activitydate) AS _dayofweek,
+    CAST( activity.leadid AS STRING) AS _leadid, 
+    email AS _email,
+    campaign._campaignname AS _description,
+    '' as _url_link,
+    'Delivered' AS _engagement,
+    CAST(null AS String)  AS _isBot
+  FROM `x-marketing.epam_marketo.activities_email_delivered` activity 
+  JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign 
+    ON activity.primary_attribute_value_id =campaign._pardotid
+  JOIN `x-marketing.epam_marketo.leads` l 
+    ON l.id = activity.leadid
+  LEFT JOIN prospect_info 
+    ON CAST(prospect_info._leadid AS INT64) = activity.leadid
+  WHERE prospect_info._email NOT LIKE '%@2x.marketing%'
+  QUALIFY ROW_NUMBER() OVER( 
+    PARTITION BY activity.leadid, activity.primary_attribute_value 
+    ORDER BY activity.activitydate DESC
+  ) = 1
+),
+open_email AS (
+  SELECT
+    activity._sdc_sequence,
+    activity.primary_attribute_name,
+    CAST(activity.primary_attribute_value_id AS STRING) AS campaignID,
+    activity.activitydate AS _timestamp, 
+    EXTRACT(DAYOFWEEK FROM activity.activitydate) AS _dayofweek,
+    CAST( activity.leadid AS STRING) AS _leadid, 
+    email AS _email,
+    CASE 
+      WHEN activity.primary_attribute_value = 'Ecosystem Education Webinar Email 2.Email 2' THEN 'Ecosystem Email 2.Email 2' 
+      WHEN activity.primary_attribute_value = 'Ecosystem Education Webinar Email 1.Email 1' THEN 'Ecosystem Email 1.Email 1' 
+      ELSE campaign._campaignname 
+    END AS _description, 
+    '' as _url_link,
+    'Opened' AS _engagement,
+    CAST(is_bot_activity AS STRING) AS _isBot  
+  FROM `x-marketing.epam_marketo.activities_open_email` activity
+  JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign 
+    ON activity.primary_attribute_value_id =campaign._pardotid
+  JOIN `x-marketing.epam_marketo.leads` l 
+    ON l.id = activity.leadid  
+  LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d 
+    ON d.leadid = activity.leadid  
+  LEFT JOIN prospect_info 
+    ON CAST(prospect_info._leadid AS INT64) = activity.leadid
+  WHERE prospect_info._email NOT LIKE '%@2x.marketing%'
+    AND d.leadid IS NULL
+  QUALIFY ROW_NUMBER() OVER( 
+    PARTITION BY activity.leadid, activity.primary_attribute_value 
+    ORDER BY activity.activitydate DESC
+  ) = 1
+),
+clicked_email AS (
+  SELECT
+    activity._sdc_sequence,
+    activity.primary_attribute_name,
+    CAST(activity.primary_attribute_value_id AS STRING) AS campaignID,
+    activity.activitydate AS _timestamp, 
+    EXTRACT(DAYOFWEEK FROM activity.activitydate) AS _dayofweek,
+    CAST( activity.leadid AS STRING) AS _leadid, 
+    email AS _email,
+    campaign._campaignname AS _description, 
+    activity.link as _url_link,
+    'Clicked' AS _engagement,
+    CAST(is_bot_activity AS STRING) AS _isBot,
+    ROW_NUMBER() OVER( 
+      PARTITION BY activity.leadid,activity.primary_attribute_value 
+      ORDER BY activity.activitydate DESC
+    ) AS rownum
+  FROM `x-marketing.epam_marketo.activities_click_email` activity 
+  JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign 
+    ON activity.primary_attribute_value_id =campaign._pardotid
+  JOIN `x-marketing.epam_marketo.leads` l 
+    ON l.id = activity.leadid
+  LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d 
+    ON d.leadid = activity.leadid
+  WHERE CAST(is_bot_activity AS STRING) = 'false' 
+    --AND activity.link NOT LIKE '%iclick%'
+    AND l.email NOT LIKE '%@2x.marketing%'
+    AND d.leadid IS NULL
+    AND activity._sdc_sequence <> 1697681411029821012
 ),
 unique_click AS (
-    SELECT * EXCEPT(rownum) 
-    FROM ( 
-        SELECT * FROM clicked_email
-   ) WHERE rownum = 1
+  SELECT 
+    * EXCEPT(rownum) 
+  FROM (SELECT * FROM clicked_email) 
+  WHERE rownum = 1
 ),
 iclick_history AS (
-    SELECT * EXCEPT(rownum)
-    FROM clicked_email
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11
-    HAVING COUNTIF (_url_link NOT LIKE '%iclick%') = 0
+  SELECT 
+    * EXCEPT(rownum)
+  FROM clicked_email
+  GROUP BY 1,2,3,4,5,6,7,8,9,10,11
+  HAVING COUNTIF (_url_link NOT LIKE '%iclick%') = 0
 ),
 total_click AS (
-    SELECT * FROM unique_click
-    WHERE _leadid NOT IN (
-      SELECT _leadid FROM iclick_history
-    )
-    /* SELECT * EXCEPT (rn) 
-    FROM (
-        SELECT
-    *,
-    ROW_NUMBER() OVER (PARTITION BY campaignID, _leadid, _email ORDER BY _timestamp DESC) AS rn
-  FROM unique_click
+  SELECT * FROM unique_click
   WHERE _leadid NOT IN (
-    SELECT _leadid FROM no_iclick
+    SELECT _leadid FROM iclick_history
   )
-    ) 
-    WHERE rn = 1 */  -- Option to remove the duplicate for special case
 ),
-open_click AS ( --merge open and click data
+--merge open and click data
+open_click AS (
+  SELECT * FROM open_email
+  UNION ALL
+  SELECT * FROM total_click
+
+),
+--to populate the data in 'Clicked' but not appear in 'Opened'
+new_open AS (
+  SELECT 
+    * EXCEPT (_engagement,_isBot), 
+    'Opened' AS _engagement, 
+    CAST(_isBot AS STRING) AS _isBot
+  FROM open_click
+  WHERE _engagement <> 'Opened' 
+    AND _engagement = 'Clicked'
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY _leadid,_description ORDER BY _timestamp DESC) = 1
+), 
+--remove duplicate between the Clicked and Opened list data
+total_open AS (
+  SELECT 
+    open.*
+  FROM (
     SELECT * FROM open_email
     UNION ALL
-    SELECT * FROM total_click
-
-), new_open AS ( --to populate the data in Clicked but not appear in Opened list
-    SELECT * EXCEPT (rownum)
-    FROM (SELECT * EXCEPT (_engagement,_isBot), 
-    'Opened' AS _engagement, 
-    CAST(_isBot AS STRING) AS _isBot,
-    ROW_NUMBER() OVER (PARTITION BY _leadid,_description ORDER BY _timestamp DESC) AS rownum
-    FROM open_click
-    WHERE _engagement <> 'Opened' AND _engagement = 'Clicked')
-    WHERE rownum = 1
-
-), total_open AS ( --remove duplicate between the Clicked and Opened list data
-    SELECT * EXCEPT (rownum)
-    FROM (
-    SELECT open.*, ROW_NUMBER() OVER (PARTITION BY _leadid,_description ORDER BY _timestamp DESC) AS rownum FROM (
-        SELECT * FROM open_email
-        UNION ALL
-        SELECT * FROM new_open
-    ) open
-    )
-    WHERE rownum = 1
-
+    SELECT * FROM new_open
+  ) open
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY _leadid,_description ORDER BY _timestamp DESC) = 1
 ), 
 unsubscribed_email AS (
-    SELECT * EXCEPT(rownum) 
-    FROM ( 
-        SELECT
-            activity._sdc_sequence,
-            activity.primary_attribute_name,
-            CAST(activity.primary_attribute_value_id AS STRING) AS campaignID,
-            activity.activitydate AS _timestamp, 
-            EXTRACT(DAYOFWEEK FROM activity.activitydate) AS _dayofweek,
-            CAST( activity.leadid AS STRING) AS _leadid, 
-            email AS _email,
-            campaign._campaignname AS _description, 
-            activity.referrer_url as _url_link,
-            'Unsubscribed' AS _engagement,
-            CAST(null AS String) AS _isBot,
-            ROW_NUMBER() OVER( PARTITION BY activity.leadid,activity.primary_attribute_value ORDER BY activity.activitydate DESC) AS rownum
-        FROM `x-marketing.epam_marketo.activities_unsubscribe_email` activity
-        JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign ON activity.primary_attribute_value_id =campaign._pardotid 
-        JOIN `x-marketing.epam_marketo.leads` l ON l.id = activity.leadid
-        LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d ON d.leadid = activity.leadid
-        WHERE l.email NOT LIKE '%@2x.marketing%'
-        AND d.leadid IS NULL
-    ) 
-    WHERE rownum = 1
-
-),bounced_email AS (
+  SELECT
+    activity._sdc_sequence,
+    activity.primary_attribute_name,
+    CAST(activity.primary_attribute_value_id AS STRING) AS campaignID,
+    activity.activitydate AS _timestamp, 
+    EXTRACT(DAYOFWEEK FROM activity.activitydate) AS _dayofweek,
+    CAST( activity.leadid AS STRING) AS _leadid, 
+    email AS _email,
+    campaign._campaignname AS _description, 
+    activity.referrer_url as _url_link,
+    'Unsubscribed' AS _engagement,
+    CAST(null AS String) AS _isBot
+  FROM `x-marketing.epam_marketo.activities_unsubscribe_email` activity
+  JOIN `x-marketing.epam_mysql.epam_db_airtable_email` campaign 
+    ON activity.primary_attribute_value_id =campaign._pardotid 
+  JOIN `x-marketing.epam_marketo.leads` l 
+    ON l.id = activity.leadid
+  LEFT JOIN `x-marketing.epam_marketo.activities_delete_lead` d 
+    ON d.leadid = activity.leadid
+  WHERE l.email NOT LIKE '%@2x.marketing%'
+    AND d.leadid IS NULL
+  QUALIFY ROW_NUMBER() OVER( 
+    PARTITION BY activity.leadid, activity.primary_attribute_value 
+    ORDER BY activity.activitydate DESC
+  ) = 1
+),
+bounced_email AS (
     SELECT * EXCEPT(rownum) 
     FROM ( 
         SELECT
