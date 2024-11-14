@@ -642,7 +642,13 @@ aggregate_sales_intel_data AS (
             SUM(CASE WHEN _engagement = 'Email Clicked' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_email_click
         FROM engagement_target     
     )
-SELECT * FROM accumulated_engagement_values;
+SELECT
+    -- pulling salesforce account name instead of 6sense (analyst requirement)
+    accumulated_engagement_values.* EXCEPT (_6sensecompanyname),
+    master_list.sfdc_account_name AS _6sensecompanyname,
+FROM accumulated_engagement_values
+LEFT JOIN `x-marketing.ridecell_master_list.Master_List` master_list
+    ON accumulated_engagement_values._6sensecompanyname = master_list._6sense_name;
 
 
 
@@ -692,7 +698,8 @@ CREATE OR REPLACE TABLE `ridecell.opportunity_influenced_accelerated` AS
 -- Get account engagements of target account 
 WITH target_account_engagements AS (
     SELECT DISTINCT 
-        _6sensecompanyname,
+        -- prev table pull the salesforce account name instead of 6sense
+        master_list._6sense_name AS _6sensecompanyname,
         _6sensecountry,
         _6sensedomain,
         _6qa_date, 
@@ -706,7 +713,9 @@ WITH target_account_engagements AS (
             WHEN _engagement LIKE '%6sense%' THEN '6sense'
             WHEN _engagement LIKE '%LinkedIn%' THEN 'LinkedIn'
         END AS _channel
-    FROM `ridecell.db_6sense_engagement_log`
+    FROM `ridecell.db_6sense_engagement_log` engagement_log
+    LEFT JOIN `x-marketing.ridecell_master_list.Master_List` master_list
+        ON engagement_log._6sensecompanyname = master_list._6sense_name
     ),
 
 -- Get all generated opportunities
