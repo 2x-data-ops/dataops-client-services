@@ -12,7 +12,7 @@ SET date_ranges = ARRAY(
 );
 
 
-DELETE FROM `logicsource.account_90days_score` WHERE _domain IS NOT NULL;
+DELETE FROM `x-marketing.logicsource.account_90days_score` WHERE _domain IS NOT NULL;
 
 LOOP
   IF index = array_length(date_ranges) 
@@ -22,16 +22,16 @@ LOOP
     DECLARE date_end DATE DEFAULT date_ranges[OFFSET(index)].max_date;
     DECLARE date_start DATE DEFAULT date_ranges[OFFSET(index)].min_date;
 
-    INSERT INTO `logicsource.account_90days_score`
+    INSERT INTO `x-marketing.logicsource.account_90days_score` 
 WITH
       all_accounts AS (
         SELECT DISTINCT _domain FROM `x-marketing.logicsource.db_consolidated_engagements_log` WHERE _domain IS NOT NULL
       ),
+      consolidated_engagements AS (
+        SELECT DISTINCT * FROM `x-marketing.logicsource.db_consolidated_engagements_log` WHERE _engagement IS NOT NULL
+      ),
       weekly_contact_engagement AS (
-        SELECT 
-          *
-        FROM (  
-          SELECT
+        SELECT
             DISTINCT
             _domain,
             COUNT(DISTINCT CASE WHEN _engagement = 'Email Opened' THEN CONCAT(_email, _contentTitle) END) AS _distinctOpen,
@@ -54,17 +54,13 @@ WITH
             COUNT(DISTINCT CASE WHEN _engagement = 'Organic Social'  AND _contentTitle = 'Follow' THEN CONCAT(_email, _contentTitle) END ) AS _distinctorganicadsfollow,
             COUNT(DISTINCT CASE WHEN _engagement = 'Organic Social'  AND _contentTitle = 'Visit' THEN CONCAT(_email, _contentTitle) END ) AS _distinctorganicadsvisit,
             COUNT(DISTINCT CASE WHEN _engagement = 'Organic Social'  AND SUBSTR(_description, 1,7) LIKE  '%Clicks%' OR SUBSTR(_description, 1,4) LIKE  '%Like%' THEN CONCAT(_email, _contentTitle) END ) AS _distinctorganicadsclick_like,
-          FROM
-            (SELECT DISTINCT * FROM `logicsource.db_consolidated_engagements_log` WHERE _engagement IS NOT NULL)
+          FROM consolidated_engagements
           WHERE
           DATE( CAST(_date AS DATE)) BETWEEN date_start AND date_end
            AND 
             _domain IS NOT NULL
           GROUP BY
             1
-        )
-        ORDER BY 
-          _distinctContactUsForm DESC, _distinctWebinarForm DESC, _distinctGatedContent DESC
       )
       ,weekly_contact_scoring AS (
         SELECT
@@ -181,19 +177,9 @@ WITH
         FROM
           weekly_contact_scoring
       ) -- Get web visits data from mouseflow, tying with webtrack through IP address to get company's domain
-      ,weekly_web_data AS (
-      SELECT
-        _domain,
-        -- _week,
-        -- _year,
-        -- COALESCE(SUM(newsletter_subscription), 0) AS newsletter_subscription,
-        COALESCE((SUM(_website_time_spent)), 0) AS _website_time_spent,
-        COALESCE(SUM(CASE WHEN _pageName IS NOT NULL THEN 1 END), 0) AS _website_page_view,
-        COALESCE(COUNT(DISTINCT _visitorid), 0) AS _website_visitor_count,
-        COALESCE(COUNT(DISTINCT CASE WHEN _pageName LIKE "%careers%" THEN _visitorid END), 0) AS _career_page,
-        TRUE AS _visited_website,
-        -- MAX(_timestamp) AS last_engaged_date
-      FROM (
+      ,
+      
+      mouseflow_kickfire AS (
         /* SELECT
           DATE(_starttime) AS _timestamp,
           company._domain,
@@ -202,13 +188,13 @@ WITH
           COUNT(DISTINCT msflow._visitorid) AS _website_visitor_count,
           -- newsletter_subscription in the future,
         FROM
-          `logicsource_mysql.mouseflow_pageviews` msflow
+          `x-marketing.logicsource_mysql.mouseflow_pageviews` msflow
         LEFT JOIN (
           SELECT
             DISTINCT _ipaddr,
             _website AS _domain
           FROM
-            `webtrack_ipcompany.webtrack_ipcompany_6sense`) company
+            `x-marketing.webtrack_ipcompany.webtrack_ipcompany_6sense`) company
           USING
             (_ipaddr)
         GROUP BY
@@ -224,37 +210,34 @@ WITH
             CAST(_engagementtime AS INT64) AS _website_time_spent,
             _totalPages AS _website_page_view
           FROM 
-            `logicsource.dashboard_mouseflow_kickfire` web 
+            `x-marketing.logicsource.dashboard_mouseflow_kickfire` web 
           WHERE 
             NOT REGEXP_CONTAINS(LOWER(_source), 'linkedin|google|email') 
             AND _webactivity IS NOT NULL
-          ORDER BY
-            _timestamp DESC
-          )
+      ),
+      
+      weekly_web_data AS (
+      SELECT
+        _domain,
+        -- _week,
+        -- _year,
+        -- COALESCE(SUM(newsletter_subscription), 0) AS newsletter_subscription,
+        COALESCE((SUM(_website_time_spent)), 0) AS _website_time_spent,
+        COALESCE(SUM(CASE WHEN _pageName IS NOT NULL THEN 1 END), 0) AS _website_page_view,
+        COALESCE(COUNT(DISTINCT _visitorid), 0) AS _website_visitor_count,
+        COALESCE(COUNT(DISTINCT CASE WHEN _pageName LIKE "%careers%" THEN _visitorid END), 0) AS _career_page,
+        TRUE AS _visited_website,
+        -- MAX(_timestamp) AS last_engaged_date
+      FROM mouseflow_kickfire
         WHERE
           (_timestamp BETWEEN date_start AND date_end)
         AND  
           LENGTH(_domain) > 2
         GROUP BY
           1 
-     )
-     -- Get scores for web visits activity
-    , weekly_web_score AS (
-        SELECT
-          * EXCEPT(website_time_spent_score,
-            website_page_view_score,
-            website_visitor_count_score,
-            visited_website_score),
-            website_time_spent_score AS _website_time_spent_score,
-            website_page_view_score AS _website_page_view_score,
-            website_visitor_count_score AS _website_visitor_count_score,
-            visited_website_score AS _visited_website_score,
-            CASE
-              WHEN (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score) > 40 THEN 40
-              ELSE (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score)
-            END AS _quarterly_web_score
-        FROM (
-          SELECT
+     ),
+     weekly_web_data_score AS (
+      SELECT
             *,
             COALESCE((_website_time_spent), 0)
               AS website_time_spent_score,
@@ -284,7 +267,24 @@ WITH
               CASE WHEN _career_page > 1 THEN -5 ELSE 0 END AS career_page_score,
             5 AS visited_website_score
           FROM
-            weekly_web_data ) 
+            weekly_web_data 
+     )
+     -- Get scores for web visits activity
+    , weekly_web_score AS (
+        SELECT
+          * EXCEPT(website_time_spent_score,
+            website_page_view_score,
+            website_visitor_count_score,
+            visited_website_score),
+            website_time_spent_score AS _website_time_spent_score,
+            website_page_view_score AS _website_page_view_score,
+            website_visitor_count_score AS _website_visitor_count_score,
+            visited_website_score AS _visited_website_score,
+            CASE
+              WHEN (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score) > 40 THEN 40
+              ELSE (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score)
+            END AS _quarterly_web_score
+        FROM weekly_web_data_score 
       )
       ,final_scoring AS (
         SELECT 
@@ -336,7 +336,8 @@ WITH
           contact_score_limit ON all_accounts._domain = contact_score_limit._domain
         LEFT JOIN
           weekly_web_score ON all_accounts._domain = weekly_web_score._domain
-      )    SELECT 
+      )    
+    SELECT 
       *,
       date_end AS _extract_date,
       date_start AS _Tminus90_date 

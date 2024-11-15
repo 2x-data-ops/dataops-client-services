@@ -1,7 +1,71 @@
-CREATE OR REPLACE TABLE `x-marketing.logicsource.db_abm_account` AS 
-WITH account AS (
-  SELECT * EXCEPT (_rownum)
-  FROM (
+--CREATE OR REPLACE TABLE `x-marketing.logicsource.db_abm_account` AS 
+TRUNCATE TABLE `x-marketing.logicsource.db_abm_account`;
+
+INSERT INTO `x-marketing.logicsource.db_abm_account` (
+  contact_id,
+  _firstName,
+  _lastName,
+  _jobTitle,
+  _email,
+  _mobile_phone,
+  _phone,
+  _state,
+  _country,
+  _linked_c,
+  _leadSegment,
+  _managementLevel,
+  _jobRole,
+  _marketableReasonID,
+  _latestSource,
+  _analyticsSource,
+  _score,
+  _analyticsNumPageViews,
+  _analyticsLastTimestamp,
+  _emailDelivered,
+  _emailClick,
+  _experienceid,
+  _experienceyear,
+  _experiencetitle,
+  _experiencecompany,
+  account_id,
+  urls,
+  _hubspotactivitesdetails,
+  _timestamp,
+  first_conversion,
+  _lifecyclestage,
+  _hubspotscore,
+  _tell_us_more,
+  _lead_segment__c,
+  _ip_country,
+  _ip_country_code,
+  _job_function,
+  _mobilephone,
+  _companyname,
+  _aboutcompany,
+  _industry,
+  _revenue,
+  _numberofemployees,
+  _website,
+  _address,
+  _companyState,
+  _companyZip,
+  _companyCity,
+  _companyCountry,
+  _interestingtopicsdate,
+  _interestingtopicssourceurl,
+  _interestingtopicid,
+  _interestingtopicsevent,
+  _interestingtopicseventclassification,
+  _accountid,
+  _abmstatus,
+  _abmlink,
+  _abmcreateddate
+)
+WITH contact_experience AS (
+  SELECT * FROM `x-marketing.logicsource_mysql.db_contact_experience` WHERE _sdc_deleted_at IS NULL 
+),
+
+account AS (
   SELECT 
       cast(acc.associated_company.company_id AS STRING) AS account_id,
       CAST(vid AS STRING) AS contact_id,
@@ -28,13 +92,13 @@ WITH account AS (
   _interestingtopicid, 
   _interestingtopicsevent, 
   _interestingtopicseventclassification,
-  exp._accountid, _abmstatus, _abmlink,    _abmcreateddate AS _abmcreateddate,
-   ROW_NUMBER() OVER( PARTITION BY acc.associated_company.company_id,vid, _interestingtopicid ORDER BY property_lastmodifieddate.value DESC) AS _rownum,
+  contact_experience._accountid, _abmstatus, _abmlink,    _abmcreateddate AS _abmcreateddate,
+   
  FROM `x-marketing.logicsource_hubspot.contacts` acc
- JOIN (SELECT * FROM `x-marketing.logicsource_mysql.db_contact_experience` WHERE _sdc_deleted_at IS NULL ) exp on CAST(vid AS STRING) = exp._contactid 
-   LEFT JOIN `x-marketing.logicsource_mysql.db_account_news`  news ON exp._accountid = news. _accountid 
-  )
-   WHERE _rownum = 1
+ 
+ JOIN contact_experience on CAST(vid AS STRING) = contact_experience._contactid 
+   LEFT JOIN `x-marketing.logicsource_mysql.db_account_news`  news ON contact_experience._accountid = news. _accountid 
+  QUALIFY ROW_NUMBER() OVER( PARTITION BY acc.associated_company.company_id,vid, _interestingtopicid ORDER BY property_lastmodifieddate.value DESC) = 1
 ), contact AS (
   SELECT 
   CAST(vid AS STRING) AS contact_id,
@@ -67,9 +131,9 @@ WITH account AS (
     JOIN (SELECT * FROM `x-marketing.logicsource_mysql.db_contact_experience` WHERE _sdc_deleted_at IS NULL ) exp on CAST(vid AS STRING)= exp._contactid 
     --WHERE  properties.email.value = 'trina_gizel@echo-usa.com'
     
- ), hubspot_activites AS (
-  
-WITH hubspot_activity AS (
+ ), 
+ 
+ hubspot_activity AS (
   SELECT 
   CAST(associated_company.company_id AS STRING) AS company_id,
   property_hs_analytics_first_url.value AS urls, 
@@ -93,13 +157,20 @@ SELECT CAST(associated_company.company_id AS STRING),form.value.title, "Form sub
       UNION ALL 
       SELECT CAST(_company_id AS STRING), _contentTitle, CONCAT("Email ", _engagement),_prospectID,_timestamp FROM `x-marketing.logicsource.db_email_engagements_log` 
 WHERE _engagement IN ( "Clicked", "Opened")
-)
+),
+
+contact_ids AS (
+  SELECT DISTINCT _contactid  FROM `x-marketing.logicsource_mysql.db_contact_experience` 
+WHERE _sdc_deleted_at IS NULL 
+),
+ 
+ hubspot_activites AS (
+  
 --SELECT * FROM abm_hubspot
 
  --UNION ALL
 SELECT hubspot_activity.* FROM hubspot_activity
-JOIN (SELECT DISTINCT _contactid  FROM `x-marketing.logicsource_mysql.db_contact_experience` 
-WHERE _sdc_deleted_at IS NULL ) contact ON hubspot_activity. contact_id = contact._contactid
+JOIN contact_ids ON hubspot_activity.contact_id = contact_ids._contactid
  WHERE urls IS NOT NULL
 
  ),hubspot_data AS (
@@ -115,9 +186,6 @@ property_job_function.value AS _job_function,
 property_mobilephone.value AS _mobilephone
 FROM `x-marketing.logicsource_hubspot.contacts` 
  )
- SELECT * ,
- --ROW_NUMBER() OVER( PARTITION BY property_email.value ORDER BY property_lastmodifieddate.value DESC) AS _rownum,
- FROM ( 
  SELECT contact.*,
  hubspot_activites.* EXCEPT (contact_id,company_id),
  hubspot_data.* EXCEPT (  contact_id),
@@ -126,6 +194,5 @@ FROM `x-marketing.logicsource_hubspot.contacts`
  LEFT JOIN hubspot_activites ON contact.contact_id = hubspot_activites.contact_id
  LEFT JOIN hubspot_data ON contact.contact_id = hubspot_data.contact_id
  LEFT JOIN account ON contact.account_id = account.account_id
- )
  --WHERE contact.contact_id  = '104401'
  --WHERE _companyname IS NOT NULL
