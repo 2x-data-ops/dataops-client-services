@@ -1,3 +1,4 @@
+/* snapshot table */
 DECLARE index INT64 DEFAULT 0;
 
 DECLARE date_ranges ARRAY<STRUCT<max_date DATE, min_date DATE>>;
@@ -98,164 +99,74 @@ LOOP
         *,
         #Calculating total email score
         (
-          (
-            CASE
-              WHEN _distinctClick >= 5 THEN 10
-              --WHEN _distinctOpen BETWEEN 3 AND 6 THEN 3
-              ELSE 0
-            END + 
-            CASE
-              WHEN _distinctOpen >= 5 THEN 5
-              -- WHEN _distinctOpen BETWEEN 3 AND 6 THEN 3
-              ELSE 0
-            END
-          ) + 
           #Email Open
           (
-            CASE
-              WHEN _distinctClick >= 2 THEN 10
-              --WHEN _distinctClick BETWEEN 3 AND 6 THEN 5
-              ELSE 0
-            END
-          ) #Email Click
+            IF(_distinctClick >= 5, 10, 0) + 
+            IF(_distinctOpen >= 5, 5, 0)
+          ) +
+          #Email Click
+          (
+            IF(_distinctClick >= 2, 10, 0)
+          )
         ) AS _email_score,
         #Calculating total unsubscribed score
         -- (CASE WHEN _unsubscribed > 0 THEN -10 ELSE 0 END ) AS _unsubscribed_score,
         #Calculating total content syndication score
         --COALESCE(CAST(NULL AS INT64), 0) 
-        CASE
-          WHEN _distinctcontentsync >= 1 THEN 30
-          ELSE 0
-        END AS _content_synd_score,
+        IF(_distinctcontentsync >= 1, 30, 0) AS _content_synd_score,
         #Calculating total organic social score
         --COALESCE(CAST(NULL AS INT64), 0) 
         (
-          (
-            CASE
-              WHEN _distinctorganicadsshare >= 1 THEN 15
-              ELSE 0
-            END
-          ) + #paidadsshare
-          (
-            CASE
-              WHEN _distinctorganicadscomment >= 1 THEN 10
-              ELSE 0
-            END
-          ) + #paidadscomment
-          (
-            CASE
-              WHEN _distinctorganicadsfollow >= 1 THEN 4
-              ELSE 0
-            END
-          ) + #paidadsfollow
-          (
-            CASE
-              WHEN _distinctorganicadsclick_like >= 1 THEN 5
-              ELSE 0
-            END
-          ) #paidsadsclick_like
+          (IF(_distinctorganicadsshare >= 1, 15, 0)) + #paidadsshare
+          (IF(_distinctorganicadscomment >= 1, 10, 0)) + #paidadscomment
+          (IF(_distinctorganicadsfollow >= 1, 4, 0)) + #paidadsfollow
+          (IF(_distinctorganicadsclick_like >= 1, 5, 0)) #paidsadsclick_like
         ) AS _organic_social_score,
         #Calculating form fill score 
         (
-          (
-            CASE
-              WHEN _distinctContactUsForm >= 1 THEN 50
-              ELSE 0
-            END
-          )
+          (IF(_distinctContactUsForm >= 1, 50, 0))
         ) AS _contact_us_form_score,
         #Contact Us Form
         (
-          (
-            CASE
-              WHEN _distinctWebinarattended >= 1 THEN 5
-              ELSE 0
-            END
-          ) + #Webinar Form
-          (
-            CASE
-              WHEN _distinctWebinarForm >= 1 THEN 15
-              ELSE 0
-            END
-          ) + (
-            CASE
-              WHEN _distinctGatedContent >= 1 THEN 20
-              ELSE 0
-            END
-          )
+          (IF(_distinctWebinarattended >= 1, 5, 0)) + #Webinar Form
+          (IF(_distinctWebinarForm >= 1, 15, 0)) + 
+          (IF(_distinctGatedContent >= 1, 20, 0))
         ) AS _other_form_fill_score,
         (
-          (
-            CASE
-              WHEN _distinctpaidadsshare >= 1 THEN 15
-              ELSE 0
-            END
-          ) + #paidadsshare
-          (
-            CASE
-              WHEN _distinctpaidadscomment >= 1 THEN 10
-              ELSE 0
-            END
-          ) + #paidadscomment
-          (
-            CASE
-              WHEN _distinctpaidadsfollow >= 1 THEN 4
-              ELSE 0
-            END
-          ) + #paidadsfollow
-          (
-            CASE
-              WHEN _distinctpaidadsvisit >= 1 THEN 5
-              ELSE 0
-            END
-          ) + #paidsadsvisit
-          (
-            CASE
-              WHEN _distinctpaidadsclick_like >= 1 THEN 5
-              ELSE 0
-            END
-          ) #paidsadsclick_like
+          (IF(_distinctpaidadsshare >= 1, 15, 0)) + #paidadsshare
+          (IF(_distinctpaidadscomment >= 1, 10, 0)) + #paidadscomment
+          (IF(_distinctpaidadsfollow >= 1, 4, 0)) + #paidadsfollow
+          (IF(_distinctpaidadsvisit >= 1, 5, 0)) + #paidsadsvisit
+          (IF(_distinctpaidadsclick_like >= 1, 5, 0)) #paidsadsclick_like
         ) AS _paid_ads_score,
       FROM weekly_contact_engagement
     ),
     contact_score_limit AS (
       SELECT
         *,
+        -- Setting of threshold for max of email score
         (
-          -- Setting of threshold for max of email score
           IF(_email_score > 20, 20, _email_score)
         ) AS _email_score_total,
+        -- Setting of threshold for max of content synd score
         (
-          -- Setting of threshold for max of content synd score
           IF(_content_synd_score > 30, 30, _content_synd_score)
         ) AS _content_synd_score_total,
+        -- Setting of threshold for max of organic social form score
         (
-          -- Setting of threshold for max of organic social form score
-          IF(
-            _organic_social_score > 35,
-            35,
-            _organic_social_score
-          )
+          IF(_organic_social_score > 35, 35, _organic_social_score)
         ) AS _organic_social_score_total,
+        -- Setting of threshold for max of organic social form score
         (
-          -- Setting of threshold for max of organic social form score
           IF(_paid_ads_score > 35, 35, _paid_ads_score)
         ) AS _paid_ads_score_total,
+        -- Setting of threshold for max of email score
         (
-          -- Setting of threshold for max of email score
-          IF(
-            _other_form_fill_score > 30,
-            30,
-            _other_form_fill_score
-          )
+          IF(_other_form_fill_score > 30, 30, _other_form_fill_score)
         ) AS _other_form_fill_score_total,
-        (
-          -- Setting of threshold for max of gated/webinar form score
-          IF(
-            _other_form_fill_score > 30,
-            30,
-            _other_form_fill_score
-          ) + _contact_us_form_score
+        -- Setting of threshold for max of gated/webinar form score
+        (        
+          IF(_other_form_fill_score > 30, 30, _other_form_fill_score) + _contact_us_form_score
         ) AS _form_fill_score_total,
       FROM weekly_contact_scoring
     ),
@@ -284,14 +195,8 @@ LOOP
         _domain,
         _visitorid,
         DATETIME(_timestamp) AS _timestamp,
-        EXTRACT(
-          WEEK
-          FROM _timestamp
-        ) AS _week,
-        EXTRACT(
-          YEAR
-          FROM _timestamp
-        ) AS _year,
+        EXTRACT(WEEK FROM _timestamp) AS _week,
+        EXTRACT(YEAR FROM _timestamp) AS _year,
         _entrypage AS _pageName,
         -- "Web Visit" AS _engagement, 
         CAST(_engagementtime AS INT64) AS _website_time_spent,
@@ -307,23 +212,9 @@ LOOP
         -- _year,
         -- COALESCE(SUM(newsletter_subscription), 0) AS newsletter_subscription,
         COALESCE((SUM(_website_time_spent)), 0) AS _website_time_spent,
-        COALESCE(
-          SUM(
-            CASE
-              WHEN _pageName IS NOT NULL THEN 1
-            END
-          ),
-          0
-        ) AS _website_page_view,
+        COALESCE(SUM(IF(_pageName IS NOT NULL, 1, 0)), 0) AS _website_page_view,
         COALESCE(COUNT(DISTINCT _visitorid), 0) AS _website_visitor_count,
-        COALESCE(
-          COUNT(
-            DISTINCT CASE
-              WHEN _pageName LIKE "%careers%" THEN _visitorid
-            END
-          ),
-          0
-        ) AS _career_page,
+        COALESCE(COUNT(DISTINCT IF(_pageName LIKE "%careers%", _visitorid, NULL)),  0) AS _career_page,
         TRUE AS _visited_website,
         -- MAX(_timestamp) AS last_engaged_date
       FROM mouseflow_kickfire
@@ -336,27 +227,14 @@ LOOP
         *,
         COALESCE((_website_time_spent), 0) AS website_time_spent_score,
         (
-          CASE
-            WHEN _website_page_view >= 5 THEN 15 -- WHEN _website_page_view < 5 THEN 10
-            ELSE 0
-          END + CASE
-            WHEN _website_page_view <= 5 THEN 10 -- WHEN _website_page_view < 5 THEN 10
-            ELSE 0
-          END
+          IF(_website_page_view >= 5, 15, 0) +
+          IF(_website_page_view <= 5, 10, 0)
         ) AS website_page_view_score,
         (
-          CASE
-            WHEN _website_visitor_count >= 3 THEN 10 -- WHEN _website_visitor_count < 3 THEN 5
-            ELSE 0
-          END + CASE
-            WHEN _website_visitor_count < 3 THEN 5 -- WHEN _website_visitor_count < 3 THEN 5
-            ELSE 0
-          END
+          IF(_website_visitor_count >= 3, 10, 0) +
+          IF(_website_visitor_count < 3, 5, 0)
         ) AS website_visitor_count_score,
-        CASE
-          WHEN _career_page > 1 THEN -5
-          ELSE 0
-        END AS career_page_score,
+        IF(_career_page > 1, -5, 0) AS career_page_score,
         5 AS visited_website_score
       FROM weekly_web_data
     ),
@@ -375,10 +253,14 @@ LOOP
         visited_website_score AS _visited_website_score,
         CASE
           WHEN (
-            website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score
+            website_time_spent_score + website_page_view_score +
+            website_visitor_count_score + visited_website_score +
+            career_page_score
           ) > 40 THEN 40
           ELSE (
-            website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score
+            website_time_spent_score + website_page_view_score +
+            website_visitor_count_score + visited_website_score +
+            career_page_score
           )
         END AS _quarterly_web_score
       FROM weekly_web_data_score
