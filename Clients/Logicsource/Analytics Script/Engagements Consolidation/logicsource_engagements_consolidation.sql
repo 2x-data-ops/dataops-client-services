@@ -476,7 +476,7 @@ opps_created AS (
     main.isdeleted = False
     AND main.type !='Renewal'
     AND LOWER(_accountname) NOT LIKE '%logicsource%'
-    AND EXTRACT(YEAR FROM main.createddate ) IN (2022, 2023)
+    AND EXTRACT(YEAR FROM main.createddate ) IN (2022, 2023,2024)
 ),
 opp_hist AS(
   SELECT
