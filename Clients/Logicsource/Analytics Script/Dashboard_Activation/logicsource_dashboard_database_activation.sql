@@ -4,9 +4,14 @@
 
 -- SELECT SUM(_weekly_account_engagement) FROM `logicsource.dashboard_database_activation`;
 
-CREATE OR REPLACE TABLE `logicsource.dashboard_database_activation` AS
---TRUNCATE TABLE `logicsource.dashboard_database_activation`;
---INSERT INTO `logicsource.dashboard_database_activation`
+--CREATE OR REPLACE TABLE `logicsource.dashboard_database_activation` AS
+TRUNCATE TABLE `logicsource.dashboard_database_activation`;
+INSERT INTO `logicsource.dashboard_database_activation` (
+  _date,
+  _engaged_accounts,
+  _contacts_created,
+  _account_created
+)
 WITH 
   dummy_dates AS (
     SELECT
@@ -32,34 +37,36 @@ FROM `x-marketing.logicsource_salesforce.Lead` WHERE isdeleted IS FALSE
     GROUP BY 
       1
   ),
+  accounts AS (
+    SELECT DISTINCT  MIN(createddate) AS _createddate, id AS _domain
+      FROM `x-marketing.logicsource_salesforce.Account` 
+      WHERE isdeleted IS FALSE
+      GROUP BY 2
+  ),
   accounts_created AS (
     SELECT 
       DATE(_createddate) AS _createddate,
       COUNT(DISTINCT _domain) AS _account_created
-    FROM
-    (
-      SELECT DISTINCT  MIN(createddate) AS _createddate, id AS _domain
-      FROM `x-marketing.logicsource_salesforce.Account` 
-      WHERE isdeleted IS FALSE
-      GROUP BY 2
-    )
+    FROM accounts
     GROUP BY 
       1
+  ),
+  consolidated_engagements AS (
+    SELECT DISTINCT * FROM `x-marketing.logicsource.db_consolidated_engagements_log` WHERE _engagement IN ('Email Clicked', 'Email Opened', 'Form Filled')
+  ),
+  consolidated_engagement_dates AS (
+    SELECT 
+        MIN(EXTRACT(DATE FROM _date)) AS _date,
+        _sfdcaccountid
+      FROM consolidated_engagements
+      GROUP BY 
+        2
   ),
   account_engagement AS (
     SELECT 
       _date,
       COUNT(DISTINCT _sfdcaccountid) AS _engaged_accounts
-    FROM
-    (
-      SELECT 
-        MIN(EXTRACT(DATE FROM _date)) AS _date,
-        _sfdcaccountid
-      FROM
-        (SELECT DISTINCT * FROM `x-marketing.logicsource.db_consolidated_engagements_log` WHERE _engagement IN ('Email Clicked', 'Email Opened', 'Form Filled'))
-      GROUP BY 
-        2
-    )
+    FROM consolidated_engagement_dates
     GROUP BY 
       1
   )
