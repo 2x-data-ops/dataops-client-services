@@ -116,5 +116,9 @@ WITH main_data AS (
 SELECT
   *
 FROM main_data
+
+WHERE lower(_name) NOT LIKE 'test%'
+AND _email NOT LIKE '%@2x.marketing'
 -- take latest engagement per email, and form url
 QUALIFY ROW_NUMBER() OVER(PARTITION BY _email, _page_url ORDER BY _timestamp) = 1
+
