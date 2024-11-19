@@ -10,9 +10,7 @@ INSERT INTO `logicsource.db_consolidated_engagements_log`
  WITH 
 #Query to pull all the contacts in the leads table from Hubspot
 contacts AS (
-  SELECT * EXCEPT( _rownum) 
-  FROM (
-     SELECT 
+  SELECT 
         CAST(vid AS STRING) AS _id,
         property_email.value AS _email,
         CONCAT(property_firstname.value, ' ', property_lastname.value) AS _name,
@@ -42,7 +40,7 @@ contacts AS (
         form_submissions,
         property_salesforceaccountid.value AS _sfdcaccountid,
         property_salesforcecontactid.value AS _sfdccontactid,
-        ROW_NUMBER() OVER( PARTITION BY property_email.value, CONCAT(property_firstname.value, ' ', property_lastname.value) ORDER BY vid DESC) AS _rownum
+        
       FROM 
         `x-marketing.logicsource_hubspot.contacts` k
         LEFT JOIN `x-marketing.logicsource_salesforce.Lead`  lead ON k.properties.salesforceleadid.value = lead.id
@@ -50,8 +48,7 @@ contacts AS (
         property_email.value IS NOT NULL 
         AND property_email.value NOT LIKE '%2x.marketing%'
         AND property_email.value NOT LIKE '%logicsourceworkplace.com%'
-      ) 
-  WHERE _rownum = 1
+      QUALIFY ROW_NUMBER() OVER( PARTITION BY property_email.value, CONCAT(property_firstname.value, ' ', property_lastname.value) ORDER BY vid DESC) = 1
 ), accounts  AS (
 SELECT * EXCEPT (_order)
 FROM (
@@ -263,22 +260,8 @@ content_engagement AS (
     WHERE
       LENGTH(_weburls) > 1
   ), */
-form_fills AS (
-  SELECT * EXCEPT (rownum) 
-  FROM (
+  downloaded AS (
     SELECT 
-      activity.email AS _email,
-      _domain AS _domain,
-      activity.timestamp AS _date,
-      EXTRACT(WEEK FROM activity.timestamp) AS _week,  
-      EXTRACT(YEAR FROM activity.timestamp) AS _year,
-      form_title,
-      'Form Filled' AS _engagement,
-      activity.description AS _description,
-      0 AS frequency,
-     ROW_NUMBER() OVER(PARTITION BY email, description ORDER BY timestamp DESC) AS rownum
-    FROM (
-       SELECT 
           CAST(NULL AS STRING) AS devicetype,
           SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_hsmi=') + 9), '&')[ORDINAL(1)] AS _campaignID, #utm_content
           REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, 'utm_campaign') + 13), '&')[ORDINAL(1)], '%20', ' '), '%3A',':') AS _campaign,
@@ -295,14 +278,24 @@ form_fills AS (
         LEFT JOIN 
           `x-marketing.logicsource_hubspot.forms` forms ON form.value.form_id = forms.guid
          -- WHERE    properties.email.value = 'michelle.fuentesfina@roquette.com'
-        ) activity
+  ),
+form_fills AS (
+  SELECT 
+      activity.email AS _email,
+      _domain AS _domain,
+      activity.timestamp AS _date,
+      EXTRACT(WEEK FROM activity.timestamp) AS _week,  
+      EXTRACT(YEAR FROM activity.timestamp) AS _year,
+      form_title,
+      'Form Filled' AS _engagement,
+      activity.description AS _description,
+      0 AS frequency
+    FROM downloaded AS activity
     --LEFT JOIN 
      -- `x-marketing.logicsource_hubspot.campaigns` campaign ON activity._campaignID = CAST(campaign.id AS STRING)
-  )
-  WHERE 
-    rownum = 1
     --AND 
    --AND _domain  = 'key-notion.com'
+   QUALIFY ROW_NUMBER() OVER(PARTITION BY email, description ORDER BY timestamp DESC) = 1
    UNION ALL 
     SELECT 
     _contactemail, 
@@ -476,7 +469,7 @@ opps_created AS (
     main.isdeleted = False
     AND main.type !='Renewal'
     AND LOWER(_accountname) NOT LIKE '%logicsource%'
-    AND EXTRACT(YEAR FROM main.createddate ) IN (2022, 2023,2024)
+    AND EXTRACT(YEAR FROM main.createddate ) >= 2022
 ),
 opp_hist AS(
   SELECT
@@ -745,18 +738,16 @@ dummy_dates AS ( # Each domain needs to be shown regardless if they are part of 
  EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _email_week,
  EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _email_year
  FROM (
-  SELECT * EXCEPT (rownum)
-  FROM (
-    SELECT 
+  SELECT 
     _domain,
     _email,
     _id,
-    MAX(_date) OVER(PARTITION BY _domain)  AS _last_engagement_TS,
-    ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _date DESC) AS rownum 
+    MAX(_date) OVER(PARTITION BY _domain)  AS _last_engagement_TS
+    
     FROM  `logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Email Opened', 'Email Clicked')
-  ) WHERE rownum = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _date DESC) = 1
   ) _last_engagement 
   RIGHT JOIN email_engagements ON  email_engagements._domain = _last_engagement._domain
 )
@@ -819,15 +810,13 @@ FROM (
   EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _formfilled_week,
   EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _formfilled_year
   FROM (
-    SELECT * EXCEPT (rownum)
-    FROM (
-      SELECT _domain,
-      MAX(_date) OVER(PARTITION BY _domain)  AS _last_engagement_TS,
-      ROW_NUMBER() OVER(PARTITION BY _domain  ORDER BY _date DESC) AS rownum 
+    SELECT _domain,
+      MAX(_date) OVER(PARTITION BY _domain)  AS _last_engagement_TS
+      
       FROM  `logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Form Filled')
-      ) WHERE rownum = 1
+      QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain  ORDER BY _date DESC) = 1
       ) _last_engagement 
       RIGHT JOIN formfilled_engagements ON  formfilled_engagements._domain = _last_engagement._domain
 ) 
@@ -886,20 +875,18 @@ SELECT _domain,_paidadssharetotal,_paidadscommenttotal,_paidadsfollowtotal,_paid
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _paid_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _paid_social_year
             FROM (
-  SELECT * EXCEPT (rownum)
-  FROM (
-  SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END AS _id,
-  MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS,
-  ROW_NUMBER() OVER(PARTITION BY 
-    _domain,_email,_id  ORDER BY _date DESC) AS rownum 
-   FROM  `logicsource.db_consolidated_engagements_log`
-    WHERE
-      _engagement IN ("Paid Ads")
-  ) WHERE rownum = 1
+    SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
+  WHEN _domain  IS NULL THEN _email
+  ELSE CONCAT(_email, " ",_domain) END AS _id,
+    MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
+  WHEN _domain  IS NULL THEN _email
+  ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS,
+    
+    FROM  `logicsource.db_consolidated_engagements_log`
+      WHERE
+        _engagement IN ("Paid Ads")
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY 
+      _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
   RIGHT JOIN paid_sosial_engagements ON  paid_sosial_engagements._domain = _last_engagement ._domain
 )
@@ -960,20 +947,17 @@ SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_orga
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _organc_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _organc_social_year
             FROM (
-  SELECT * EXCEPT (rownum)
-  FROM (
-  SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END AS _id,
-  MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS,
-  ROW_NUMBER() OVER(PARTITION BY 
-    _domain,_email,_id  ORDER BY _date DESC) AS rownum 
-   FROM  `logicsource.db_consolidated_engagements_log`
-    WHERE
-      _engagement IN ("Paid Ads")
-  ) WHERE rownum = 1
+    SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
+    WHEN _domain  IS NULL THEN _email
+    ELSE CONCAT(_email, " ",_domain) END AS _id,
+      MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
+    WHEN _domain  IS NULL THEN _email
+    ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS     
+      FROM  `logicsource.db_consolidated_engagements_log`
+        WHERE
+          _engagement IN ("Paid Ads")
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY 
+        _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
   RIGHT JOIN organic_sosial_engagements ON  organic_sosial_engagements._domain = _last_engagement ._domain
 ),weekly_web_data  AS (
@@ -1219,8 +1203,7 @@ LEFT JOIN icp_score on all_data._domain = icp_score._domain
  
 CREATE OR REPLACE TABLE `logicsource.contact_engagement_scoring` AS 
 WITH contacts AS (
-SELECT * EXCEPT (rownum) FROM (
-    SELECT
+SELECT
       CAST(vid AS STRING) AS _id,
       property_email.value AS _email,
       COALESCE(CONCAT(property_firstname.value, ' ', property_lastname.value),property_firstname.value) AS _name,
@@ -1267,16 +1250,15 @@ SELECT * EXCEPT (rownum) FROM (
       associated_company.properties.salesforceaccountid.value AS salesforceaccountid, 
       properties.salesforceleadid.value AS salesforceleadid,
       properties.salesforcecontactid.value AS salesforcecontactid,
-      ROW_NUMBER() OVER( PARTITION BY property_email.value,CAST(vid AS STRING) ORDER BY properties.createdate.value DESC) AS rownum
+      
     FROM
       `x-marketing.logicsource_hubspot.contacts` k
       LEFT JOIN `x-marketing.logicsource_salesforce.Lead` l ON LOWER(l.email) = LOWER(property_email.value)
     WHERE
      property_email.value IS NOT NULL
       AND property_email.value NOT LIKE '%2x.marketing%'
-      AND property_email.value NOT LIKE '%logicsource%' 
-)
-WHERE rownum = 1
+      AND property_email.value NOT LIKE '%logicsource%'
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY property_email.value,CAST(vid AS STRING) ORDER BY properties.createdate.value DESC) = 1
 )
 ,
 dummy_dates AS ( # Each domain needs to be shown regardless if they are part of the bombora report or has 0 engagements
@@ -1335,18 +1317,15 @@ dummy_dates AS ( # Each domain needs to be shown regardless if they are part of 
  EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _email_week,
  EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _email_year
  FROM (
-  SELECT * EXCEPT (rownum)
-  FROM (
-    SELECT 
+  SELECT 
     _domain,
     _email,
     _id,
-    MAX(_date) OVER(PARTITION BY _domain,_email,_id)  AS _last_engagement_TS,
-    ROW_NUMBER() OVER(PARTITION BY _domain,_email,_id  ORDER BY _date DESC) AS rownum 
+    MAX(_date) OVER(PARTITION BY _domain,_email,_id)  AS _last_engagement_TS
     FROM  `logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Email Opened', 'Email Clicked')
-  ) WHERE rownum = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
   RIGHT JOIN email_engagements ON  email_engagements._id = _last_engagement._id
 )
@@ -1408,15 +1387,13 @@ FROM (
   EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _formfilled_week,
   EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _formfilled_year
   FROM (
-    SELECT * EXCEPT (rownum)
-    FROM (
-      SELECT _domain,_email,_id,
+    SELECT _domain,_email,_id,
       MAX(_date) OVER(PARTITION BY _domain,_email,_id)  AS _last_engagement_TS,
-      ROW_NUMBER() OVER(PARTITION BY _domain,_email,_id  ORDER BY _date DESC) AS rownum 
+      
       FROM  `logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Form Filled')
-      ) WHERE rownum = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain,_email,_id  ORDER BY _date DESC) = 1
       ) _last_engagement 
       RIGHT JOIN formfilled_engagements ON  formfilled_engagements._id = _last_engagement._id
 ) 
@@ -1477,20 +1454,18 @@ SELECT _domain,_email,_id,_paidadssharetotal,_paidadscommenttotal,_paidadsfollow
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _paid_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _paid_social_year
             FROM (
-  SELECT * EXCEPT (rownum)
-  FROM (
   SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END AS _id,
-  MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS,
-  ROW_NUMBER() OVER(PARTITION BY 
-    _domain,_email,_id  ORDER BY _date DESC) AS rownum 
-   FROM  `logicsource.db_consolidated_engagements_log`
-    WHERE
-      _engagement IN ("Paid Ads")
-  ) WHERE rownum = 1
+  WHEN _domain  IS NULL THEN _email
+  ELSE CONCAT(_email, " ",_domain) END AS _id,
+    MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
+  WHEN _domain  IS NULL THEN _email
+  ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS,
+    
+    FROM  `logicsource.db_consolidated_engagements_log`
+      WHERE
+        _engagement IN ("Paid Ads")
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY 
+      _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
   RIGHT JOIN paid_sosial_engagements ON  paid_sosial_engagements._id = _last_engagement ._id
 )
@@ -1551,20 +1526,17 @@ SELECT _domain,_email,_id,_organicsharetotal,_organiccommenttotal,_organicfollow
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _organc_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _organc_social_year
             FROM (
-  SELECT * EXCEPT (rownum)
-  FROM (
   SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END AS _id,
-  MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS,
-  ROW_NUMBER() OVER(PARTITION BY 
-    _domain,_email,_id  ORDER BY _date DESC) AS rownum 
+  WHEN _domain  IS NULL THEN _email
+  ELSE CONCAT(_email, " ",_domain) END AS _id,
+    MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
+  WHEN _domain  IS NULL THEN _email
+  ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS
    FROM  `logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ("Paid Ads")
-  ) WHERE rownum = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY 
+    _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
   RIGHT JOIN organic_sosial_engagements ON  organic_sosial_engagements._id = _last_engagement ._id
 ), combine_all AS ( #combine all channel data and calculate into the max data. 
@@ -1823,18 +1795,15 @@ SELECT * FROM hubspot_domain
  EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _email_week,
  EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _email_year
  FROM (
-  SELECT * EXCEPT (rownum)
-  FROM (
-    SELECT 
+  SELECT 
     _domain,
     _email,
     _id,
-    MAX(_date) OVER(PARTITION BY _domain)  AS _last_engagement_TS,
-    ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _date DESC) AS rownum 
+    MAX(_date) OVER(PARTITION BY _domain)  AS _last_engagement_TS 
     FROM  `logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Email Opened', 'Email Clicked')
-  ) WHERE rownum = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _date DESC) = 1
   ) _last_engagement 
   RIGHT JOIN email_engagements ON  email_engagements._domain = _last_engagement._domain
 )
@@ -1891,15 +1860,13 @@ FROM (
   EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _formfilled_week,
   EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _formfilled_year
   FROM (
-    SELECT * EXCEPT (rownum)
-    FROM (
-      SELECT _domain,
+    SELECT _domain,
       MAX(_date) OVER(PARTITION BY _domain)  AS _last_engagement_TS,
-      ROW_NUMBER() OVER(PARTITION BY _domain  ORDER BY _date DESC) AS rownum 
+      
       FROM  `logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Form Filled')
-      ) WHERE rownum = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain  ORDER BY _date DESC) = 1
       ) _last_engagement 
       RIGHT JOIN formfilled_engagements ON  formfilled_engagements._domain = _last_engagement._domain
 ) 
@@ -1958,20 +1925,17 @@ SELECT _domain,_paidadssharetotal,_paidadscommenttotal,_paidadsfollowtotal,_paid
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _paid_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _paid_social_year
             FROM (
-  SELECT * EXCEPT (rownum)
-  FROM (
   SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END AS _id,
-  MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS,
-  ROW_NUMBER() OVER(PARTITION BY 
-    _domain,_email,_id  ORDER BY _date DESC) AS rownum 
-   FROM  `logicsource.db_consolidated_engagements_log`
-    WHERE
-      _engagement IN ("Paid Ads")
-  ) WHERE rownum = 1
+  WHEN _domain  IS NULL THEN _email
+  ELSE CONCAT(_email, " ",_domain) END AS _id,
+    MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
+  WHEN _domain  IS NULL THEN _email
+  ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS
+    FROM  `logicsource.db_consolidated_engagements_log`
+      WHERE
+        _engagement IN ("Paid Ads")
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY 
+      _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
   RIGHT JOIN paid_sosial_engagements ON  paid_sosial_engagements._domain = _last_engagement ._domain
 )
@@ -2032,20 +1996,17 @@ SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_orga
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _organc_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _organc_social_year
             FROM (
-  SELECT * EXCEPT (rownum)
-  FROM (
   SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END AS _id,
-  MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
-WHEN _domain  IS NULL THEN _email
-ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS,
-  ROW_NUMBER() OVER(PARTITION BY 
-    _domain,_email,_id  ORDER BY _date DESC) AS rownum 
-   FROM  `logicsource.db_consolidated_engagements_log`
-    WHERE
-      _engagement IN ("Paid Ads")
-  ) WHERE rownum = 1
+  WHEN _domain  IS NULL THEN _email
+  ELSE CONCAT(_email, " ",_domain) END AS _id,
+    MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
+  WHEN _domain  IS NULL THEN _email
+  ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS
+    FROM  `logicsource.db_consolidated_engagements_log`
+      WHERE
+        _engagement IN ("Paid Ads")
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY 
+      _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
   RIGHT JOIN organic_sosial_engagements ON  organic_sosial_engagements._domain = _last_engagement ._domain
 ),weekly_web_data  AS (
