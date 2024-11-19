@@ -93,22 +93,19 @@ WITH contact AS (
         email,
         mailingcountry AS country,
         mailingcity, 
-        ''company,
+        '' AS company,
         accountid,
-        '' convertedaccountid, 
+        '' AS convertedaccountid, 
         lastmodifiedbyid, 
-        ''convertedopportunityid, 
+        '' AS convertedopportunityid, 
         casesafeid__c, 
-        ''website, 
-        ''convertedcontactid,
+        '' AS website, 
+        '' AS convertedcontactid,
         converted_lead_id__c,
-        CASE 
-            WHEN converted_lead_id__c IS NOT NULL THEN TRUE 
-            ELSE FALSE 
-        END AS converted, 
+        IF(converted_lead_id__c IS NOT NULL, TRUE, FALSE) AS converted, 
         lead_source_original__c, 
         state__c, 
-        ''street, 
+        '' AS street, 
         createddate, 
         person_source__c, 
         person_source_sub_type__c, 
@@ -185,18 +182,15 @@ leads AS (
         country AS country,
         city, 
         company,
-        ''accountid,
+        '' AS accountid,
         convertedaccountid,  
         lastmodifiedbyid, 
         convertedopportunityid, 
         casesafeid__c, 
         website, 
         convertedcontactid,
-        ''converted_lead_id__c,
-        CASE 
-            WHEN convertedcontactid IS NOT NULL THEN TRUE 
-            ELSE FALSE 
-        END AS converted, 
+        '' AS converted_lead_id__c,
+        IF(convertedcontactid IS NOT NULL, TRUE, FALSE) AS converted,
         lead_source_original__c, 
         state__c, 
         street, 
@@ -272,4 +266,4 @@ FROM contact
 UNION ALL 
 SELECT 
     * 
-FROM leads
+FROM leads;
