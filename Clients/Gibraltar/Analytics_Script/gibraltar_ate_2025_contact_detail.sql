@@ -119,7 +119,7 @@ SELECT
 FROM main_data
 -- removing test email
 WHERE _email NOT LIKE '%@2x.marketing'
-    AND _email NOT IN ('pscelsi@gibraltar1.com', 'cobrown@gibraltar1.com', 'kkasumi@gibraltar1.com', 'jache@gibraltar1.com', 'kbooker@gibraltar1.com', 'john.jsilas5@gmail.com', 'johnjj5525@gmail.com')
+    AND _email NOT IN ('john.jsilas5@gmail.com', 'johnjj5525@gmail.com')
 -- take latest engagement per email, and form url
 QUALIFY ROW_NUMBER() OVER(PARTITION BY _email, _page_url ORDER BY _timestamp) = 1
 
