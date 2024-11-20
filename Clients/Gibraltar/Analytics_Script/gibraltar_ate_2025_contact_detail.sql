@@ -112,13 +112,14 @@ WITH main_data AS (
       ON form.value.form_id = forms.guid
     -- data filtered to this specific event
     WHERE form.value.title = 'ATE 2025 Registration Form (Event Specific)'
+    
 )
 SELECT
   *
 FROM main_data
-
-WHERE lower(_name) NOT LIKE 'test%'
-AND _email NOT LIKE '%@2x.marketing'
+-- removing test email
+WHERE _email NOT LIKE '%@2x.marketing'
+    AND _email NOT IN ('pscelsi@gibraltar1.com', 'cobrown@gibraltar1.com', 'kkasumi@gibraltar1.com', 'jache@gibraltar1.com', 'kbooker@gibraltar1.com', 'john.jsilas5@gmail.com', 'johnjj5525@gmail.com')
 -- take latest engagement per email, and form url
 QUALIFY ROW_NUMBER() OVER(PARTITION BY _email, _page_url ORDER BY _timestamp) = 1
 
