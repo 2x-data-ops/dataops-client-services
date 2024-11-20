@@ -3,10 +3,42 @@
 --------------------------------------------------------------------------------------------------------------------------------------------
 
 
---CREATE OR REPLACE TABLE `logicsource.db_consolidated_engagements_log` AS 
+-- CREATE OR REPLACE TABLE `logicsource.db_consolidated_engagements_log` AS 
 TRUNCATE TABLE `logicsource.db_consolidated_engagements_log`;
-INSERT INTO `logicsource.db_consolidated_engagements_log`
---CREATE OR REPLACE TABLE `logicsource.db_consolidated_engagements_log` AS 
+INSERT INTO `logicsource.db_consolidated_engagements_log` (
+  _domain,
+  _email,
+  _week,
+  _year,
+  _contentTitle,
+  _engagement,
+  _description,
+  frequency,
+  _avg_bombora_score,
+  _id,
+  _name,
+  _jobtitle,
+  _seniority,
+  _jobrole,
+  _lead_segment,
+  _source,
+  _function,
+  _phone,
+  _company,
+  _leadstatus,
+  _revenue,
+  _industry,
+  _city,
+  _state,
+  _country,
+  _persona,
+  _lifecycleStage,
+  _sfdcaccountid,
+  _sfdccontactid,
+  _date,
+  _extract_date,
+  _t90_days_score
+)
  WITH 
 #Query to pull all the contacts in the leads table from Hubspot
 contacts AS (
@@ -49,16 +81,10 @@ contacts AS (
         AND property_email.value NOT LIKE '%2x.marketing%'
         AND property_email.value NOT LIKE '%logicsourceworkplace.com%'
       QUALIFY ROW_NUMBER() OVER( PARTITION BY property_email.value, CONCAT(property_firstname.value, ' ', property_lastname.value) ORDER BY vid DESC) = 1
-), accounts  AS (
-SELECT * EXCEPT (_order)
-FROM (
-SELECT *, 
-ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _id DESC) AS _order
-FROM (
-SELECT *EXCEPT(_order) 
- FROM 
-  (
-    SELECT 
+), 
+
+accounts_combined AS (
+  SELECT 
       DISTINCT properties.domain.value AS _domain, 
       CAST( sfdc.companyid AS STRING) AS _id,
       CAST(NULL AS STRING) AS _name, 
@@ -81,14 +107,12 @@ SELECT *EXCEPT(_order)
       CAST(NULL AS STRING) AS _lifecycleStage,
       _sfdcaccountid,
       CAST(NULL AS STRING) _sfdccontactid,
-       ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY property_hs_lastmodifieddate.value DESC) AS _order
+       
     FROM 
       contacts
     RIGHT JOIN
       `logicsource_hubspot.companies` sfdc ON contacts._persona = CAST( sfdc.companyid AS STRING)
-  )
-  WHERE
-    _order = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY property_hs_lastmodifieddate.value DESC) = 1
      UNION ALL 
       SELECT DISTINCT _domain AS _domain, 
  CAST(NULL AS STRING)  AS _id,
@@ -141,34 +165,38 @@ SELECT *EXCEPT(_order)
  FROM `x-marketing.logicsource_mysql.db_airtable_linkedin_ad_account_engagement` 
  WHERE 
  (_accountdomain IS NOT NULL AND _accountdomain != '')
-)
-) WHERE _order = 1
+),
+
+accounts  AS (
+  SELECT
+    *
+  FROM accounts_combined
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _id DESC) = 1
 ) ,
-#Query to pull the email engagement 
+#Query to pull the email engagement
+email_engagement_source AS (
+  SELECT DISTINCT _email, 
+  RIGHT(_email,LENGTH(_email)-STRPOS(_email,'@')) AS _domain, 
+  TIMESTAMP(FORMAT_TIMESTAMP('%F %I:%M:%S %Z', _timestamp)) AS _date,
+  EXTRACT(WEEK FROM _timestamp) AS _week,  
+  EXTRACT(YEAR FROM _timestamp) AS _year,
+  _contentTitle AS _contentTitle, 
+  CONCAT("Email ", INITCAP(_engagement)) AS _engagement,
+  _description,
+  0 AS frequency,
+  FROM `logicsource.db_email_engagements_log`
+  WHERE 
+    /* (EXTRACT(DATE FROM _timestamp) BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 180 DAY ) AND CURRENT_DATE() )
+    AND */ LOWER(_engagement) NOT IN ('sent','delivered', 'downloaded', 'bounced', 'unsubscribed', 'processed', 'deffered', 'spam', 'suppressed', 'dropped','mql')
+),
+
 email_engagement AS (
     SELECT 
       *
-    FROM ( 
-      SELECT DISTINCT _email, 
-      RIGHT(_email,LENGTH(_email)-STRPOS(_email,'@')) AS _domain, 
-      TIMESTAMP(FORMAT_TIMESTAMP('%F %I:%M:%S %Z', _timestamp)) AS _date,
-      EXTRACT(WEEK FROM _timestamp) AS _week,  
-      EXTRACT(YEAR FROM _timestamp) AS _year,
-      _contentTitle AS _contentTitle, 
-      CONCAT("Email ", INITCAP(_engagement)) AS _engagement,
-      _description,
-      0 AS frequency,
-      FROM 
-        (SELECT * FROM `logicsource.db_email_engagements_log`)
-      WHERE 
-        /* (EXTRACT(DATE FROM _timestamp) BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 180 DAY ) AND CURRENT_DATE() )
-        AND */ LOWER(_engagement) NOT IN ('sent','delivered', 'downloaded', 'bounced', 'unsubscribed', 'processed', 'deffered', 'spam', 'suppressed', 'dropped','mql')
-    ) a
+    FROM email_engagement_source
     WHERE 
       NOT REGEXP_CONTAINS(_domain,'2x.marketing|logicsource') 
-      AND _domain IS NOT NULL 
-    ORDER BY 
-      1, 3 DESC, 2 DESC
+      AND _domain IS NOT NULL
 ),
 web_engagements AS (
   SELECT
@@ -191,8 +219,6 @@ web_engagements AS (
   --WHERE 
     --NOT REGEXP_CONTAINS(LOWER(_fullurl), 'unsubscribe')
     --AND NOT REGEXP_CONTAINS(LOWER(_fullurl), '=linkedin|=google|=6sense')
-  ORDER BY 
-    _domain, _timestamp DESC
 ),
 ad_clicks AS (
   /*SELECT 
@@ -355,8 +381,6 @@ first_party_score AS (
     (COALESCE(_quarterly_email_score, 0) + COALESCE(_quarterly_content_synd_score , 0)+ COALESCE(_quarterly_organic_social_score , 0)+ COALESCE(_quarterly_form_fill_score , 0)+ COALESCE(_quarterly_paid_ads_score , 0)+ COALESCE(_quarterly_web_score, 0)+ COALESCE(_quarterly_organic_social_score, 0)) AS _t90_days_score
   FROM
    `logicsource.account_90days_score`
-  ORDER BY
-    _extract_date  DESC
 /* ), 
 engagement_grade AS (
   SELECT 
@@ -378,47 +402,49 @@ engagement_grade AS (
     _week DESC */
 ),
 # Combining the engagements - Contact based and account based engagements
+combine_email_form_fills AS (
+  SELECT * FROM email_engagement 
+    UNION ALL
+    SELECT * FROM form_fills
+),
+combine_web_ads AS (
+  -- SELECT * FROM intent_score UNION ALL
+    SELECT *, CAST(NULL AS INTEGER) AS _avg_bombora_score FROM web_engagements UNION ALL
+    SELECT *, CAST(NULL AS INTEGER) AS _avg_bombora_score FROM ad_clicks 
+    --UNION ALL
+    --SELECT *, CAST(NULL AS INTEGER) AS _avg_bombora_score FROM content_engagement
+),
 engagements AS (
 # Contact based engagement query
   SELECT DISTINCT
      contacts._domain, 
     contacts._email,
-    dummy_dates.*EXCEPT(_date), 
-    engagements.*EXCEPT(_date, _week, _year, _domain, _email),
+    dummy_dates.* EXCEPT(_date), 
+    eng.* EXCEPT(_date, _week, _year, _domain, _email),
     CAST(NULL AS INTEGER) AS _avg_bombora_score,
-    contacts.*EXCEPT(_domain, _email, form_submissions),
-    engagements._date ,
-    CAST(engagements._date AS DATE) AS _extract_date
+    contacts.* EXCEPT(_domain, _email, form_submissions),
+    eng._date ,
+    CAST(eng._date AS DATE) AS _extract_date
   FROM 
     dummy_dates
-  JOIN (
-    SELECT * FROM email_engagement 
-    UNION ALL
-    SELECT * FROM form_fills
-  ) engagements USING(_week, _year)
+  JOIN combine_email_form_fills AS eng USING(_week, _year)
   RIGHT JOIN
-    contacts  ON engagements._email = contacts._email
+    contacts  ON eng._email = contacts._email
   UNION ALL
 # Account based engagement query
   SELECT 
     DISTINCT accounts._domain, 
     CAST(NULL AS STRING) AS _email,
-    dummy_dates.*EXCEPT(_date), 
-    engagements.*EXCEPT(_timestamp, _week, _year, _domain, _email),
-    accounts.*EXCEPT(_domain),
-    engagements._timestamp,
-    CAST(engagements._timestamp AS DATE) AS _extract_date
+    dummy_dates.* EXCEPT(_date), 
+    eng.* EXCEPT(_timestamp, _week, _year, _domain, _email),
+    accounts.* EXCEPT(_domain),
+    eng._timestamp,
+    CAST(eng._timestamp AS DATE) AS _extract_date
   FROM 
     dummy_dates
   CROSS JOIN
     accounts
-  JOIN (
-    -- SELECT * FROM intent_score UNION ALL
-    SELECT *, CAST(NULL AS INTEGER) AS _avg_bombora_score FROM web_engagements UNION ALL
-    SELECT *, CAST(NULL AS INTEGER) AS _avg_bombora_score FROM ad_clicks 
-    --UNION ALL
-    --SELECT *, CAST(NULL AS INTEGER) AS _avg_bombora_score FROM content_engagement
-  ) engagements USING(_domain, _week, _year)
+  JOIN combine_web_ads AS eng USING(_domain, _week, _year)
  ),
 sfdc AS (
   SELECT 
@@ -473,24 +499,15 @@ opps_created AS (
 ),
 opp_hist AS(
   SELECT
-    *
-  FROM
-  (
-    SELECT
       DISTINCT opportunityid AS _opportunityid,
       createddate AS _oppLastChangeinStage,
       oldvalue AS _previousstage,
-      newvalue AS _currentstage,
-      ROW_NUMBER() OVER(PARTITION BY opportunityid ORDER BY createddate DESC) AS _order
+      newvalue AS _currentstage
     FROM
       `logicsource_salesforce.OpportunityFieldHistory`
     WHERE
       field = 'StageName'
-    ORDER BY
-      _oppLastChangeinStage DESC
-  )
-  WHERE
-    _order = 1
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY opportunityid ORDER BY createddate DESC) = 1
 ),
 opps_stage_change AS (
   SELECT
@@ -589,81 +606,81 @@ FROM
 ;
 
 
-CREATE OR REPLACE TABLE `logicsource.account_engagement_scoring` AS 
-WITH account AS (
-SELECT * EXCEPT (_order), "Target" AS _source 
-FROM (
-SELECT *, 
-ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _company DESC) AS _order
-FROM (
-SELECT *EXCEPT(_order) 
- FROM 
-  (
-   SELECT
-      associated_company.properties.domain.value AS _domain,
-     
-      associated_company.properties.name.value AS _company,
-      CAST(associated_company.properties.annualrevenue.value AS STRING) AS _revenue,
-      CASE WHEN associated_company.properties.industry.value = 'RETAIL' THEN 'Retail'
-      WHEN associated_company.properties.industry.value = 'INSURANCE' THEN 'Insurance'
-      WHEN associated_company.properties.industry.value LIKE '%FOOD_PRODUCTION%' THEN 'Manufacturing'
-      WHEN associated_company.properties.industry.value = 'HOSPITALITY' THEN 'Hospitality'
-      WHEN associated_company.properties.industry.value = 'HOSPITAL_HEALTH_CARE' THEN 'Hospital & Health Care'
-      WHEN associated_company.properties.name.value LIKE '%BT%' THEN 'Media & Internet' ELSE associated_company.properties.industry.value
-      END AS _industry,
+--CREATE OR REPLACE TABLE `logicsource.account_engagement_scoring` AS 
+WITH 
 
+contacts_lead AS (
+  SELECT
+        associated_company.properties.domain.value AS _domain,
       
-      associated_company.properties.segment__c.value AS _company_segment,
-     
-      associated_company.properties.employee_range.value AS _employee_range, 
-      associated_company.properties.employee_range_c.value AS _employee_range_c, 
-      CAST(associated_company.properties.numberofemployees.value AS NUMERIC) AS _numberofemployees, 
-      CAST(associated_company.properties.annualrevenue.value AS NUMERIC) AS _annualrevenue, 
-      associated_company.properties.annual_revenue_range.value AS _annual_revenue_range, 
-      associated_company.properties.annual_revenue_range_c.value AS _annual_revenue_range_c,
-      ROW_NUMBER() OVER( PARTITION BY associated_company.properties.domain.value,associated_company.company_id ORDER BY properties.createdate.value DESC) AS _order
-   FROM
-      `x-marketing.logicsource_hubspot.contacts` k
-      LEFT JOIN `x-marketing.logicsource_salesforce.Lead` l ON LOWER(l.email) = LOWER(property_email.value)
-  )
-  WHERE
-    _order = 1
-     UNION ALL 
-      SELECT DISTINCT _domain AS _domain, 
-      CAST(NULL AS STRING) AS _company,
-      -- CAST(NULL AS STRING) AS _lastname,
-      CAST(NULL AS STRING) AS _revenue,
-      CAST(NULL AS STRING) AS _industry,
-            CAST(NULL AS STRING) AS  _company_segment,
-      CAST(NULL AS STRING) AS _employee_range, 
-       CAST(NULL AS STRING) AS _employee_range_c,
-     CAST(NULL AS NUMERIC) AS  _numberofemployees, 
-     CAST(NULL AS NUMERIC) AS _annualrevenue,
-       CAST(NULL AS STRING) AS  _annual_revenue_range,  
-        CAST(NULL AS STRING) AS  _annual_revenue_range_c,
+        associated_company.properties.name.value AS _company,
+        CAST(associated_company.properties.annualrevenue.value AS STRING) AS _revenue,
+        CASE WHEN associated_company.properties.industry.value = 'RETAIL' THEN 'Retail'
+        WHEN associated_company.properties.industry.value = 'INSURANCE' THEN 'Insurance'
+        WHEN associated_company.properties.industry.value LIKE '%FOOD_PRODUCTION%' THEN 'Manufacturing'
+        WHEN associated_company.properties.industry.value = 'HOSPITALITY' THEN 'Hospitality'
+        WHEN associated_company.properties.industry.value = 'HOSPITAL_HEALTH_CARE' THEN 'Hospital & Health Care'
+        WHEN associated_company.properties.name.value LIKE '%BT%' THEN 'Media & Internet' ELSE associated_company.properties.industry.value
+        END AS _industry,
 
- FROM `logicsource.dashboard_mouseflow_kickfire`
- WHERE 
- (_domain IS NOT NULL AND _domain != '')
-  UNION ALL 
- SELECT DISTINCT  CASE WHEN _accountdomain = 'optum.com/' THEN 'optum.com' ELSE _accountdomain END   AS _domain, 
-      CAST(NULL AS STRING) AS _company,
-      -- CAST(NULL AS STRING) AS _lastname,
-      CAST(NULL AS STRING) AS _revenue,
-    _industry AS _industry, 
-            CAST(NULL AS STRING) AS  _company_segment,
-      CAST(NULL AS STRING) AS _employee_range, 
-       CAST(NULL AS STRING) AS _employee_range_c,
-     CAST(NULL AS NUMERIC) AS  _numberofemployees, 
-     CAST(NULL AS NUMERIC) AS _annualrevenue,
-       CAST(NULL AS STRING) AS  _annual_revenue_range,  
-        CAST(NULL AS STRING) AS  _annual_revenue_range_c,
- FROM `x-marketing.logicsource_mysql.db_airtable_linkedin_ad_account_engagement` 
- WHERE 
- (_accountdomain IS NOT NULL AND _accountdomain != '')
-)
-) WHERE _order = 1
-), zoominfo AS (
+        
+        associated_company.properties.segment__c.value AS _company_segment,
+      
+        associated_company.properties.employee_range.value AS _employee_range, 
+        associated_company.properties.employee_range_c.value AS _employee_range_c, 
+        CAST(associated_company.properties.numberofemployees.value AS NUMERIC) AS _numberofemployees, 
+        CAST(associated_company.properties.annualrevenue.value AS NUMERIC) AS _annualrevenue, 
+        associated_company.properties.annual_revenue_range.value AS _annual_revenue_range, 
+        associated_company.properties.annual_revenue_range_c.value AS _annual_revenue_range_c,
+        
+    FROM
+        `x-marketing.logicsource_hubspot.contacts` k
+        LEFT JOIN `x-marketing.logicsource_salesforce.Lead` l ON LOWER(l.email) = LOWER(property_email.value)
+    QUALIFY ROW_NUMBER() OVER( PARTITION BY associated_company.properties.domain.value,associated_company.company_id ORDER BY properties.createdate.value DESC) = 1
+),
+
+combine_mouseflow_airtable AS (
+  SELECT *
+  FROM contacts_lead
+      UNION ALL 
+        SELECT DISTINCT _domain AS _domain, 
+        CAST(NULL AS STRING) AS _company,
+        -- CAST(NULL AS STRING) AS _lastname,
+        CAST(NULL AS STRING) AS _revenue,
+        CAST(NULL AS STRING) AS _industry,
+              CAST(NULL AS STRING) AS  _company_segment,
+        CAST(NULL AS STRING) AS _employee_range, 
+        CAST(NULL AS STRING) AS _employee_range_c,
+      CAST(NULL AS NUMERIC) AS  _numberofemployees, 
+      CAST(NULL AS NUMERIC) AS _annualrevenue,
+        CAST(NULL AS STRING) AS  _annual_revenue_range,  
+          CAST(NULL AS STRING) AS  _annual_revenue_range_c,
+
+  FROM `logicsource.dashboard_mouseflow_kickfire`
+  WHERE _domain IS NOT NULL AND _domain != ''
+    UNION ALL 
+  SELECT DISTINCT  CASE WHEN _accountdomain = 'optum.com/' THEN 'optum.com' ELSE _accountdomain END   AS _domain, 
+        CAST(NULL AS STRING) AS _company,
+        -- CAST(NULL AS STRING) AS _lastname,
+        CAST(NULL AS STRING) AS _revenue,
+      _industry AS _industry, 
+              CAST(NULL AS STRING) AS  _company_segment,
+        CAST(NULL AS STRING) AS _employee_range, 
+        CAST(NULL AS STRING) AS _employee_range_c,
+      CAST(NULL AS NUMERIC) AS  _numberofemployees, 
+      CAST(NULL AS NUMERIC) AS _annualrevenue,
+        CAST(NULL AS STRING) AS  _annual_revenue_range,  
+          CAST(NULL AS STRING) AS  _annual_revenue_range_c,
+  FROM `x-marketing.logicsource_mysql.db_airtable_linkedin_ad_account_engagement` 
+  WHERE _accountdomain IS NOT NULL AND _accountdomain != ''
+),
+account AS (
+  SELECT *, 
+  "Target" AS _source
+  FROM combine_mouseflow_airtable
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _company DESC) = 1
+),
+   zoominfo AS (
    SELECT DISTINCT
     _domain, 
     _company,
@@ -682,7 +699,7 @@ SELECT CASE WHEN mainAcc._domain IS NULL THEN zoominfo._domain ELSE mainAcc._dom
 CASE WHEN mainAcc._domain IS NULL THEN zoominfo._company ELSE mainAcc._company END AS _company,
 mainAcc.* EXCEPT (_source,_domain,_company),
  CASE WHEN mainAcc._domain IS NOT NULL THEN mainAcc._source ELSE "Bombora" END AS _source,
-FROM account   mainAcc
+FROM account AS  mainAcc
 LEFT JOIN  zoominfo  USING (_domain)
 )
 ,
@@ -697,47 +714,50 @@ dummy_dates AS ( # Each domain needs to be shown regardless if they are part of 
   ORDER BY 
     1 DESC
 )
-,email_engagements AS (
-  SELECT * EXCEPT (_email_score), CASE WHEN _email_score >= 20 THEN 20 ELSE _email_score END AS _email_score  FROM (
-    SELECT _domain,_emailOpentotal,_emailClickedtotal,
-    SUM(DISTINCT(CASE WHEN _emailOpentotal >= 10 THEN 1 * 10 ELSE 0 END)) AS _emailopenscore_more,
-    SUM(DISTINCT(CASE WHEN _emailClickedtotal >= 5 THEN  1 * 10 ELSE 0 END)) AS _emailopenscore,
-    SUM(DISTINCT(CASE WHEN _emailClickedtotal >= 2 THEN 1 * 10 ELSE 0 END)) AS _emailclickscore_more,
-  
-  ((CASE WHEN _emailOpentotal >= 10 THEN 1 * 10 ELSE 0 END)+(CASE WHEN _emailClickedtotal >= 5 THEN  1 * 10 ELSE 0 END)+(CASE WHEN _emailClickedtotal >= 2 THEN 1 * 10 ELSE 0 END) ) AS _email_score
-    FROM
-    (
-      SELECT  
-     _domain,
-     SUM(_emailOpened) AS _emailOpentotal, 
-     SUM(_emailClicked) AS _emailClickedtotal, 
-     FROM (
-      SELECT
+,
+
+email_opened_clicked AS (
+  SELECT
       _domain,
       SUM(CASE WHEN _engagement = 'Email Opened' THEN 1 ELSE 0 END ) AS _emailOpened,  
       SUM( CASE WHEN _engagement = 'Email Clicked' THEN 1 ELSE 0 END) AS _emailClicked,
       -- SUM(CASE WHEN _engagement = 'Web Visits' THEN 1 END) AS _webVisit,
       -- EXTRACT(WEEK FROM _timestamp) AS _week, EXTRACT(YEAR FROM _timestamp) AS _year
-      FROM ( SELECT * FROM  `logicsource.db_consolidated_engagements_log`
-    WHERE
+      FROM `logicsource.db_consolidated_engagements_log`
+      WHERE
       _engagement IN ('Email Opened', 'Email Clicked')
-    )
     --WHERE _domain = 'fedex.com'
     GROUP BY 1
-    ) a
+),
+
+email_opened_clicked_total AS (
+  SELECT  
+     _domain,
+     SUM(_emailOpened) AS _emailOpentotal, 
+     SUM(_emailClicked) AS _emailClickedtotal, 
+     FROM email_opened_clicked
     --WHERE _domain = 'foodtravelexperts.com'
   GROUP BY 1
-  ORDER BY 1, 3 DESC, 2 DESC)
+),
+
+email_opened_clicked_score AS (
+  SELECT _domain,_emailOpentotal,_emailClickedtotal,
+    SUM(DISTINCT(CASE WHEN _emailOpentotal >= 10 THEN 1 * 10 ELSE 0 END)) AS _emailopenscore_more,
+    SUM(DISTINCT(CASE WHEN _emailClickedtotal >= 5 THEN  1 * 10 ELSE 0 END)) AS _emailopenscore,
+    SUM(DISTINCT(CASE WHEN _emailClickedtotal >= 2 THEN 1 * 10 ELSE 0 END)) AS _emailclickscore_more,
+  
+  ((CASE WHEN _emailOpentotal >= 10 THEN 1 * 10 ELSE 0 END)+(CASE WHEN _emailClickedtotal >= 5 THEN  1 * 10 ELSE 0 END)+(CASE WHEN _emailClickedtotal >= 2 THEN 1 * 10 ELSE 0 END) ) AS _email_score
+    FROM email_opened_clicked_total
   GROUP BY 1,2,3
-  ORDER BY _emailOpentotal DESC
-  )
+),
+
+email_engagements AS (
+  SELECT * EXCEPT (_email_score), CASE WHEN _email_score >= 20 THEN 20 ELSE _email_score END AS _email_score  
+  FROM email_opened_clicked_score
 )
-, email_last_engagementdate AS(
- SELECT email_engagements.*,
- CAST(_last_engagement._last_engagement_TS AS DATE) AS _last_engagement_email,
- EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _email_week,
- EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _email_year
- FROM (
+, 
+
+email_last_engagements AS (
   SELECT 
     _domain,
     _email,
@@ -748,15 +768,49 @@ dummy_dates AS ( # Each domain needs to be shown regardless if they are part of 
     WHERE
       _engagement IN ('Email Opened', 'Email Clicked')
     QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _date DESC) = 1
-  ) _last_engagement 
+),
+
+email_last_engagementdate AS (
+ SELECT email_engagements.*,
+ CAST(_last_engagement._last_engagement_TS AS DATE) AS _last_engagement_email,
+ EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _email_week,
+ EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _email_year
+ FROM email_last_engagements AS _last_engagement 
   RIGHT JOIN email_engagements ON  email_engagements._domain = _last_engagement._domain
 )
-,formfilled_engagements AS (
-  SELECT *,CASE WHEN   _GatedContentscore + _distinctWebinarFormscore +  _distinctWebinarattendedscore >= 30 THEN 30 ELSE _GatedContentscore + _distinctWebinarFormscore +  _distinctWebinarattendedscore  END AS _GatedContentscore_total,
-  CASE WHEN  _formFilled_score  >= 50 THEN 50 ELSE _formFilled_score END AS _formFilled_webinarscore_total,
-  CASE WHEN  _GatedContentscore + _formFilled_score + _distinctWebinarFormscore +  _distinctWebinarattendedscore >= 80 THEN 80 ELSE _GatedContentscore + _formFilled_score + _distinctWebinarFormscore +  _distinctWebinarattendedscore END AS _form_fill_score_total 
---EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
-FROM (
+,
+form_filled AS (
+  SELECT 
+      _domain,
+      SUM( CASE WHEN (_engagement = 'Form Filled' AND REGEXP_CONTAINS(LOWER(_contentTitle), 'contact us|try now|demo'))  THEN 1 ELSE 0 END ) AS _formFilled_contact_form, 
+     SUM( CASE WHEN (_engagement = 'Form Filled' AND  NOT  REGEXP_CONTAINS(LOWER(_contentTitle), 'contact us|try now|demo|webinar')) OR  (_engagement = 'Form Filled' AND _contentTitle = "Other Content Engagement") OR (_engagement = 'Form Filled' AND _description = "Visited booth") THEN 1 ELSE 0 END) AS _distinctGatedContent,
+      SUM( CASE WHEN _engagement = 'Form Filled' AND _description = "Registered" THEN 1 ELSE 0 END) AS _distinctWebinarForm,
+      SUM( CASE WHEN _engagement = 'Form Filled' AND _description = "Attended event" THEN 1 ELSE 0 END)  AS _distinctWebinarattended,
+     -- SUM(CASE WHEN _engagement = 'Web Visits' THEN 1 END) AS _webVisit,
+     -- EXTRACT(WEEK FROM _timestamp) AS _week, EXTRACT(YEAR FROM _timestamp) AS _year
+      
+    FROM `logicsource.db_consolidated_engagements_log`
+    WHERE
+      _engagement IN ('Form Filled')
+    --WHERE _domain = 'fedex.com'
+    GROUP BY 1
+),
+
+form_filled_total AS (
+  SELECT  
+     _domain,
+ 
+     SUM(_formFilled_contact_form)  AS _formFilled_total, 
+     SUM(_distinctGatedContent) AS _distinctGatedContenttotal, 
+     SUM(_distinctWebinarForm) AS _distinctWebinarFormtotal, 
+     SUM(_distinctWebinarattended) AS _distinctWebinarattendedtotal,
+     FROM form_filled
+
+  --WHERE _domain = 'foodtravelexperts.com'
+  GROUP BY 1
+),
+
+form_filled_score AS (
   SELECT 
   _domain,
   
@@ -769,80 +823,39 @@ FROM (
     SUM(DISTINCT(CASE WHEN _distinctWebinarFormtotal >= 1 THEN  1 * 5 ELSE 0 END)) AS _distinctWebinarFormscore,
     SUM(DISTINCT(CASE WHEN _distinctWebinarattendedtotal >= 1 THEN  1 * 15 ELSE 0 END)) AS _distinctWebinarattendedscore,
     
-    FROM
-    (
-      SELECT  
-     _domain,
- 
-     SUM(_formFilled_contact_form)  AS _formFilled_total, 
-     SUM(_distinctGatedContent) AS _distinctGatedContenttotal, 
-     SUM(_distinctWebinarForm) AS _distinctWebinarFormtotal, 
-     SUM(_distinctWebinarattended) AS _distinctWebinarattendedtotal,
-     FROM (
-      SELECT 
-      _domain,
-      SUM( CASE WHEN (_engagement = 'Form Filled' AND REGEXP_CONTAINS(LOWER(_contentTitle), 'contact us|try now|demo'))  THEN 1 ELSE 0 END ) AS _formFilled_contact_form, 
-     SUM( CASE WHEN (_engagement = 'Form Filled' AND  NOT  REGEXP_CONTAINS(LOWER(_contentTitle), 'contact us|try now|demo|webinar')) OR  (_engagement = 'Form Filled' AND _contentTitle = "Other Content Engagement") OR (_engagement = 'Form Filled' AND _description = "Visited booth") THEN 1 ELSE 0 END) AS _distinctGatedContent,
-      SUM( CASE WHEN _engagement = 'Form Filled' AND _description = "Registered" THEN 1 ELSE 0 END) AS _distinctWebinarForm,
-      SUM( CASE WHEN _engagement = 'Form Filled' AND _description = "Attended event" THEN 1 ELSE 0 END)  AS _distinctWebinarattended,
-     -- SUM(CASE WHEN _engagement = 'Web Visits' THEN 1 END) AS _webVisit,
-     -- EXTRACT(WEEK FROM _timestamp) AS _week, EXTRACT(YEAR FROM _timestamp) AS _year
-      
-    FROM ( SELECT * FROM  `logicsource.db_consolidated_engagements_log`
-    WHERE
-      _engagement IN ('Form Filled')
-    )
-    --WHERE _domain = 'fedex.com'
-    GROUP BY 1
-    
-  ) a
-
-  --WHERE _domain = 'foodtravelexperts.com'
-  GROUP BY 1
-  ORDER BY 1, 3 DESC, 2 DESC)
+    FROM form_filled_total
   GROUP BY 1,2,3,4,5
-  ORDER BY _formFilled_total DESC
-) 
-)
-, formfill_last_engagementdate AS(
-  SELECT formfilled_engagements.*,
-  CAST(_last_engagement._last_engagement_TS AS DATE) AS _last_engagement_formfilled,
-  EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _formfilled_week,
-  EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _formfilled_year
-  FROM (
-    SELECT _domain,
+),
+
+formfilled_engagements AS (
+  SELECT *,CASE WHEN   _GatedContentscore + _distinctWebinarFormscore +  _distinctWebinarattendedscore >= 30 THEN 30 ELSE _GatedContentscore + _distinctWebinarFormscore +  _distinctWebinarattendedscore  END AS _GatedContentscore_total,
+  CASE WHEN  _formFilled_score  >= 50 THEN 50 ELSE _formFilled_score END AS _formFilled_webinarscore_total,
+  CASE WHEN  _GatedContentscore + _formFilled_score + _distinctWebinarFormscore +  _distinctWebinarattendedscore >= 80 THEN 80 ELSE _GatedContentscore + _formFilled_score + _distinctWebinarFormscore +  _distinctWebinarattendedscore END AS _form_fill_score_total 
+--EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
+FROM form_filled_score
+),
+
+form_filled_last_engagements AS (
+  SELECT _domain,
       MAX(_date) OVER(PARTITION BY _domain)  AS _last_engagement_TS
       
       FROM  `logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Form Filled')
       QUALIFY ROW_NUMBER() OVER(PARTITION BY _domain  ORDER BY _date DESC) = 1
-      ) _last_engagement 
+),
+
+formfill_last_engagementdate AS(
+  SELECT formfilled_engagements.*,
+  CAST(_last_engagement._last_engagement_TS AS DATE) AS _last_engagement_formfilled,
+  EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _formfilled_week,
+  EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _formfilled_year
+  FROM form_filled_last_engagements AS _last_engagement 
       RIGHT JOIN formfilled_engagements ON  formfilled_engagements._domain = _last_engagement._domain
-) 
-,paid_sosial_engagements AS (
-  SELECT *,
-  CASE WHEN  _paidadssharescore + _paidadscommentscore + _paidadsfollowscore +  _paidadsvisitscore + _paidadsclick_likescore >= 35 THEN 35 ELSE _paidadssharescore + _paidadscommentscore + _paidadsfollowscore +  _paidadsvisitscore + _paidadsclick_likescore  END AS _paid_ads_score_total
---EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
-FROM (
-SELECT _domain,_paidadssharetotal,_paidadscommenttotal,_paidadsfollowtotal,_paidadsvisittotal,_paidadsclick_liketotal,
-    SUM(DISTINCT(CASE WHEN _paidadssharetotal >= 1 THEN 1 * 15 ELSE 0 END)) AS _paidadssharescore,
-    SUM(DISTINCT(CASE WHEN _paidadscommenttotal >= 1 THEN 1 * 10 ELSE 0 END)) AS _paidadscommentscore,
-    SUM(DISTINCT(CASE WHEN _paidadsfollowtotal >= 1 THEN 1 * 4 ELSE 0 END)) AS _paidadsfollowscore,
-    SUM(DISTINCT(CASE WHEN _paidadsvisittotal >= 1 THEN 1 * 5 ELSE 0 END)) AS _paidadsvisitscore,
-    SUM(DISTINCT(CASE WHEN _paidadsclick_liketotal >= 1 THEN 1 * 5 ELSE 0 END)) AS _paidadsclick_likescore,
-    
-    FROM
-    (
-      SELECT  
-     _domain,
-     SUM(_paidadsshare) AS _paidadssharetotal, 
-     SUM(_paidadscomment) AS _paidadscommenttotal,
-     SUM(_paidadsfollow) AS _paidadsfollowtotal,
-     SUM(_paidadsvisit) AS _paidadsvisittotal,
-     SUM(_paidadsclick_like) AS _paidadsclick_liketotal,
-  FROM (
-    SELECT  _domain,
+),
+
+paid_social AS (
+  SELECT  _domain,
     SUM( CASE WHEN _engagement = 'Paid Ads'  AND _contentTitle = 'Share' THEN 1 ELSE 0 END ) AS  _paidadsshare,  
      SUM( CASE WHEN _engagement = 'Paid Ads'  AND _contentTitle = 'Comment' THEN 1 ELSE 0 END ) AS  _paidadscomment,  
     SUM( CASE WHEN _engagement = 'Paid Ads'  AND _contentTitle = 'Follow' THEN 1 ELSE 0 END ) AS  _paidadsfollow,  
@@ -853,29 +866,49 @@ SELECT _domain,_paidadssharetotal,_paidadscommenttotal,_paidadsfollowtotal,_paid
       -- SUM(CASE WHEN _engagement = 'Web Visits' THEN 1 END) AS _webVisit,
       -- EXTRACT(WEEK FROM _timestamp) AS _week, EXTRACT(YEAR FROM _timestamp) AS _year
       
-    FROM ( SELECT *  FROM  `logicsource.db_consolidated_engagements_log`
+    FROM `logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Paid Ads') 
-    )
-  --WHERE 
     GROUP BY 1
-    
-  ) a
+),
+
+paid_social_total AS (
+  SELECT  
+     _domain,
+     SUM(_paidadsshare) AS _paidadssharetotal, 
+     SUM(_paidadscomment) AS _paidadscommenttotal,
+     SUM(_paidadsfollow) AS _paidadsfollowtotal,
+     SUM(_paidadsvisit) AS _paidadsvisittotal,
+     SUM(_paidadsclick_like) AS _paidadsclick_liketotal,
+  FROM paid_social
 
   --WHERE _domain = 'foodtravelexperts.com'
   GROUP BY 1
-  ORDER BY 1, 3 DESC, 2 DESC)
+  ORDER BY 1, 3 DESC, 2 DESC
+),
+
+paid_social_score AS (
+  SELECT _domain,_paidadssharetotal,_paidadscommenttotal,_paidadsfollowtotal,_paidadsvisittotal,_paidadsclick_liketotal,
+    SUM(DISTINCT(CASE WHEN _paidadssharetotal >= 1 THEN 1 * 15 ELSE 0 END)) AS _paidadssharescore,
+    SUM(DISTINCT(CASE WHEN _paidadscommenttotal >= 1 THEN 1 * 10 ELSE 0 END)) AS _paidadscommentscore,
+    SUM(DISTINCT(CASE WHEN _paidadsfollowtotal >= 1 THEN 1 * 4 ELSE 0 END)) AS _paidadsfollowscore,
+    SUM(DISTINCT(CASE WHEN _paidadsvisittotal >= 1 THEN 1 * 5 ELSE 0 END)) AS _paidadsvisitscore,
+    SUM(DISTINCT(CASE WHEN _paidadsclick_liketotal >= 1 THEN 1 * 5 ELSE 0 END)) AS _paidadsclick_likescore,
+    
+    FROM paid_social_total
   GROUP BY 1,2,3,4,5,6
   ORDER BY _paidadssharescore  DESC
 )
+,paid_social_engagements AS (
+  SELECT *,
+    CASE WHEN  _paidadssharescore + _paidadscommentscore + _paidadsfollowscore +  _paidadsvisitscore + _paidadsclick_likescore >= 35 THEN 35 ELSE _paidadssharescore + _paidadscommentscore + _paidadsfollowscore +  _paidadsvisitscore + _paidadsclick_likescore  END AS _paid_ads_score_total
+  --EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
+  FROM paid_social_score
 )
-, paid_social_last_engagement AS(
- SELECT paid_sosial_engagements.*,
- _last_engagement._last_engagement_TS AS _last_engagement_paid_social,
-             EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _paid_social_week,
-           EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _paid_social_year
-            FROM (
-    SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
+, 
+
+paid_social_last_engagement_dates AS (
+  SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
   WHEN _domain  IS NULL THEN _email
   ELSE CONCAT(_email, " ",_domain) END AS _id,
     MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
@@ -887,34 +920,19 @@ SELECT _domain,_paidadssharetotal,_paidadscommenttotal,_paidadsfollowtotal,_paid
         _engagement IN ("Paid Ads")
     QUALIFY ROW_NUMBER() OVER(PARTITION BY 
       _domain,_email,_id  ORDER BY _date DESC) = 1
-  ) _last_engagement 
-  RIGHT JOIN paid_sosial_engagements ON  paid_sosial_engagements._domain = _last_engagement ._domain
-)
-,organic_sosial_engagements AS (
-  SELECT *,
-  CASE WHEN  _organischarescore + _organiccommentscore + _organicfollowscore +  _organicvisitscore + _organicclick_likescore >= 35 THEN 35 ELSE _organischarescore + _organiccommentscore + _organicfollowscore +  _organicvisitscore + _organicclick_likescore  END AS _organic_ads_score_total
---EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
-FROM (
-SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_organicvisittotal,_organicclick_liketotal,
-    SUM(DISTINCT(CASE WHEN _organicsharetotal >= 1 THEN 1 * 15 ELSE 0 END)) AS _organischarescore,
-    SUM(DISTINCT(CASE WHEN _organiccommenttotal >= 1 THEN 1 * 10 ELSE 0 END)) AS _organiccommentscore,
-    SUM(DISTINCT(CASE WHEN _organicfollowtotal >= 1 THEN 1 * 4 ELSE 0 END)) AS _organicfollowscore,
-    SUM(DISTINCT(CASE WHEN _organicvisittotal >= 1 THEN 1 * 5 ELSE 0 END)) AS _organicvisitscore,
-    SUM(DISTINCT(CASE WHEN _organicclick_liketotal >= 1 THEN 1 * 5 ELSE 0 END)) AS _organicclick_likescore,
-    
-    FROM
-    (
-      SELECT  
-     _domain,
-     SUM(_organicsshare) AS _organicsharetotal, 
-    SUM(_organiccomment) AS _organiccommenttotal,
-    SUM(_organicfollow) AS _organicfollowtotal,
-    SUM(_organicvisit) AS _organicvisittotal,
-    SUM(_organicclick_like) AS _organicclick_liketotal,
+),
 
+paid_social_last_engagement AS(
+ SELECT paid_social_engagements.*,
+ _last_engagement._last_engagement_TS AS _last_engagement_paid_social,
+             EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _paid_social_week,
+           EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _paid_social_year
+            FROM paid_social_last_engagement_dates AS _last_engagement 
+  RIGHT JOIN paid_social_engagements ON  paid_social_engagements._domain = _last_engagement ._domain
+),
 
-  FROM (
-    SELECT  _domain,
+organic_social AS (
+  SELECT  _domain,
     SUM( CASE WHEN _engagement = 'Organic Social'  AND _contentTitle = 'Share' THEN 1 ELSE 0 END ) AS  _organicsshare,  
      SUM( CASE WHEN _engagement = 'Organic Social'  AND _contentTitle = 'Comment' THEN 1 ELSE 0 END ) AS  _organiccomment,  
     SUM( CASE WHEN _engagement = 'Organic Social'  AND _contentTitle = 'Follow' THEN 1 ELSE 0 END ) AS  _organicfollow,  
@@ -925,55 +943,60 @@ SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_orga
       -- SUM(CASE WHEN _engagement = 'Web Visits' THEN 1 END) AS _webVisit,
       -- EXTRACT(WEEK FROM _timestamp) AS _week, EXTRACT(YEAR FROM _timestamp) AS _year
       
-    FROM ( SELECT * FROM  `logicsource.db_consolidated_engagements_log`
+    FROM`logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Organic Social')
-    )
     --WHERE _domain = 'fedex.com'
     GROUP BY 1
-    
-  ) a
+),
+
+organic_social_total AS (
+  SELECT  
+     _domain,
+     SUM(_organicsshare) AS _organicsharetotal, 
+    SUM(_organiccomment) AS _organiccommenttotal,
+    SUM(_organicfollow) AS _organicfollowtotal,
+    SUM(_organicvisit) AS _organicvisittotal,
+    SUM(_organicclick_like) AS _organicclick_liketotal,
+
+
+  FROM organic_social
 
   --WHERE _domain = 'foodtravelexperts.com'
   GROUP BY 1
-  ORDER BY 1, 3 DESC, 2 DESC)
+  ORDER BY 1, 3 DESC, 2 DESC
+)
+,
+organic_social_score AS (
+  SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_organicvisittotal,_organicclick_liketotal,
+    SUM(DISTINCT(CASE WHEN _organicsharetotal >= 1 THEN 1 * 15 ELSE 0 END)) AS _organischarescore,
+    SUM(DISTINCT(CASE WHEN _organiccommenttotal >= 1 THEN 1 * 10 ELSE 0 END)) AS _organiccommentscore,
+    SUM(DISTINCT(CASE WHEN _organicfollowtotal >= 1 THEN 1 * 4 ELSE 0 END)) AS _organicfollowscore,
+    SUM(DISTINCT(CASE WHEN _organicvisittotal >= 1 THEN 1 * 5 ELSE 0 END)) AS _organicvisitscore,
+    SUM(DISTINCT(CASE WHEN _organicclick_liketotal >= 1 THEN 1 * 5 ELSE 0 END)) AS _organicclick_likescore,
+    
+    FROM organic_social_total
   GROUP BY 1,2,3,4,5,6
   ORDER BY _organicsharetotal  DESC
-)
+),
+
+organic_social_engagements AS (
+  SELECT *,
+  CASE WHEN  _organischarescore + _organiccommentscore + _organicfollowscore +  _organicvisitscore + _organicclick_likescore >= 35 THEN 35 ELSE _organischarescore + _organiccommentscore + _organicfollowscore +  _organicvisitscore + _organicclick_likescore  END AS _organic_ads_score_total
+--EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
+FROM organic_social_score
 )
 , organic_social_last_engagement AS(
- SELECT organic_sosial_engagements.*,
+ SELECT organic_social_engagements.*,
  _last_engagement._last_engagement_TS AS _last_engagement_organc_social,
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _organc_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _organc_social_year
-            FROM (
-    SELECT _domain,_email,CASE WHEN _email IS NULL THEN _domain
-    WHEN _domain  IS NULL THEN _email
-    ELSE CONCAT(_email, " ",_domain) END AS _id,
-      MAX(_date) OVER(PARTITION BY _domain,_email,CASE WHEN _email IS NULL THEN _domain
-    WHEN _domain  IS NULL THEN _email
-    ELSE CONCAT(_email, " ",_domain) END )  AS _last_engagement_TS     
-      FROM  `logicsource.db_consolidated_engagements_log`
-        WHERE
-          _engagement IN ("Paid Ads")
-    QUALIFY ROW_NUMBER() OVER(PARTITION BY 
-        _domain,_email,_id  ORDER BY _date DESC) = 1
-  ) _last_engagement 
-  RIGHT JOIN organic_sosial_engagements ON  organic_sosial_engagements._domain = _last_engagement ._domain
-),weekly_web_data  AS (
-  SELECT
-        _domain,
-        -- _week,
-        -- _year,
-        -- COALESCE(SUM(newsletter_subscription), 0) AS newsletter_subscription,
-        COALESCE((SUM(_website_time_spent)), 0) AS _website_time_spent,
-        COALESCE(SUM(CASE WHEN _pageName IS NOT NULL THEN 1 END), 0) AS _website_page_view,
-        COALESCE(COUNT(DISTINCT _visitorid), 0) AS _website_visitor_count,
-        COALESCE(COUNT(DISTINCT CASE WHEN _pageName LIKE "%careers%" THEN _visitorid END), 0) AS _career_page,
-        TRUE AS _visited_website,
-        -- MAX(_timestamp) AS last_engaged_date
-      FROM (
-        /* SELECT
+            FROM paid_social_last_engagement_dates AS _last_engagement 
+  RIGHT JOIN organic_social_engagements ON  organic_social_engagements._domain = _last_engagement ._domain
+),
+
+mouseflow_kickfire_timestamps AS (
+          /* SELECT
           DATE(_starttime) AS _timestamp,
           company._domain,
           SUM(CAST(_engagementtime AS INT64)) AS _website_time_spent,
@@ -1007,9 +1030,21 @@ SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_orga
           --WHERE 
             --NOT REGEXP_CONTAINS(LOWER(_source), 'linkedin|google|email') 
             --AND _webactivity IS NOT NULL
-          ORDER BY
-            _timestamp DESC
-          )
+),
+
+weekly_web_data  AS (
+  SELECT
+        _domain,
+        -- _week,
+        -- _year,
+        -- COALESCE(SUM(newsletter_subscription), 0) AS newsletter_subscription,
+        COALESCE((SUM(_website_time_spent)), 0) AS _website_time_spent,
+        COALESCE(SUM(CASE WHEN _pageName IS NOT NULL THEN 1 END), 0) AS _website_page_view,
+        COALESCE(COUNT(DISTINCT _visitorid), 0) AS _website_visitor_count,
+        COALESCE(COUNT(DISTINCT CASE WHEN _pageName LIKE "%careers%" THEN _visitorid END), 0) AS _career_page,
+        TRUE AS _visited_website,
+        -- MAX(_timestamp) AS last_engaged_date
+      FROM mouseflow_kickfire_timestamps
         WHERE
           --(_timestamp BETWEEN date_start AND date_end)
         --AND  
@@ -1018,22 +1053,10 @@ SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_orga
           1 
      )
      -- Get scores for web visits activity
-   , weekly_web_score AS (
-        SELECT
-          * EXCEPT(website_time_spent_score,
-            website_page_view_score,
-            website_visitor_count_score,
-            visited_website_score),
-            website_time_spent_score AS _website_time_spent_score,
-            website_page_view_score AS _website_page_view_score,
-            website_visitor_count_score AS _website_visitor_count_score,
-            visited_website_score AS _visited_website_score,
-            CASE
-              WHEN (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score) > 40 THEN 40
-              ELSE (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score)
-            END AS _web_score_total
-        FROM (
-          SELECT
+   , 
+   
+   weekly_web_data_score AS (
+    SELECT
             *,
             COALESCE((_website_time_spent), 0)
               AS website_time_spent_score,
@@ -1063,19 +1086,28 @@ SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_orga
               CASE WHEN _career_page > 1 THEN -5 ELSE 0 END AS career_page_score,
             5 AS visited_website_score
           FROM
-            weekly_web_data ) 
-  ), web_last_engagement AS (           
-  SELECT 
- web_data._domain,web_data.* EXCEPT (_domain),
-  _last_engagement.last_engaged_date AS _last_engagement_web,
-  EXTRACT(WEEK FROM _last_engagement.last_engaged_date) AS week_web,
-  EXTRACT(YEAR FROM _last_engagement.last_engaged_date) AS year_web
-  FROM (
+            weekly_web_data 
+   ),
+   
+   weekly_web_score AS (
+        SELECT
+          * EXCEPT(website_time_spent_score,
+            website_page_view_score,
+            website_visitor_count_score,
+            visited_website_score),
+            website_time_spent_score AS _website_time_spent_score,
+            website_page_view_score AS _website_page_view_score,
+            website_visitor_count_score AS _website_visitor_count_score,
+            visited_website_score AS _visited_website_score,
+            CASE
+              WHEN (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score) > 40 THEN 40
+              ELSE (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score)
+            END AS _web_score_total
+        FROM weekly_web_data_score
+  ), 
+  
+  web_last_engagement_dates AS (
     SELECT 
-        /* _website, */  _domain,
-        MAX(_timestamp) AS last_engaged_date
-        FROM (
-         SELECT 
                    _domain AS _domain, 
                     _visitorid,
                     DATETIME(_timestamp) AS _timestamp, 
@@ -1087,14 +1119,46 @@ SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_orga
                -- AND _webactivity IS NOT NULL
                 --AND (_domain IS NOT NULL AND _domain != '')
                 ORDER BY _timestamp DESC
-                )
+  ),
+
+  web_last_engagement_timestamps AS (
+    SELECT 
+        /* _website, */  _domain,
+        MAX(_timestamp) AS last_engaged_date
+        FROM web_last_engagement_dates
     -- WHERE REGEXP_REPLACE(RIGHT(_website,LENGTH(_website)-STRPOS(_website,'.')), '/','') = 'opcw.org'
     GROUP BY 1
-    
-    
-    ) _last_engagement
+  ),
+  
+  web_last_engagement AS (           
+  SELECT 
+ web_data._domain,web_data.* EXCEPT (_domain),
+  _last_engagement.last_engaged_date AS _last_engagement_web,
+  EXTRACT(WEEK FROM _last_engagement.last_engaged_date) AS week_web,
+  EXTRACT(YEAR FROM _last_engagement.last_engaged_date) AS year_web
+  FROM web_last_engagement_timestamps AS _last_engagement
     RIGHT JOIN weekly_web_score web_data ON   web_data._domain = _last_engagement._domain 
-), combine_all AS ( #combine all channel data and calculate into the max data. 
+), 
+
+all_last_engagements AS (
+  SELECT main.*,
+      email_engagement.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_email AS DATE), DATE('2000-01-01')) AS  _last_engagement_email_date,
+      --paid_social_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_paid_social AS DATE), DATE('2000-01-01')) AS  _last_engagement_paid_social_date,
+     -- organic_social_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_organic_social AS DATE), DATE('2000-01-01')) AS  _last_engagement_organic_social_date,
+      formfill.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_formfilled AS DATE), DATE('2000-01-01')) AS  formfilled_last_engaged_date,
+     
+      cs.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_organc_social AS DATE), DATE('2000-01-01')) AS  organic_social_last_engagement,
+      search_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_paid_social AS DATE), DATE('2000-01-01')) AS  paid_social_engaged_date,
+      web_data.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_web AS DATE), DATE('2000-01-01')) AS  engagement_web_date,
+      FROM contacts AS main
+    LEFT JOIN email_last_engagementdate  AS email_engagement ON (main._domain = email_engagement._domain )
+    LEFT JOIN formfill_last_engagementdate AS formfill ON (main._domain = formfill._domain)
+    LEFT JOIN organic_social_last_engagement AS cs ON (main._domain = cs._domain)
+    LEFT JOIN paid_social_last_engagement AS search_ads ON (main._domain = search_ads._domain) 
+    LEFT JOIN web_last_engagement AS web_data ON (main._domain = web_data._domain)
+),
+
+combine_all AS ( #combine all channel data and calculate into the max data. 
    SELECT *,(COALESCE(_GatedContentscore_total ,0) + COALESCE(_formFilled_webinarscore_total,0)  + COALESCE(_email_score,0) 
   + COALESCE(_paid_ads_score_total,0) + COALESCE(_organic_ads_score_total,0) +  COALESCE(_web_score_total,0)
    ) AS _total_score,
@@ -1151,24 +1215,7 @@ SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_orga
     ) THEN  engagement_web_date
   
     END AS _last_engagement_date
-    FROM (
-      SELECT main.*,
-      email_engagement.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_email AS DATE), DATE('2000-01-01')) AS  _last_engagement_email_date,
-      --paid_social_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_paid_social AS DATE), DATE('2000-01-01')) AS  _last_engagement_paid_social_date,
-     -- organic_social_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_organic_social AS DATE), DATE('2000-01-01')) AS  _last_engagement_organic_social_date,
-      formfill.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_formfilled AS DATE), DATE('2000-01-01')) AS  formfilled_last_engaged_date,
-     
-      cs.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_organc_social AS DATE), DATE('2000-01-01')) AS  organic_social_last_engagement,
-      search_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_paid_social AS DATE), DATE('2000-01-01')) AS  paid_social_engaged_date,
-      web_data.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_web AS DATE), DATE('2000-01-01')) AS  engagement_web_date,
-      FROM contacts AS main
-    LEFT JOIN email_last_engagementdate  AS email_engagement ON (main._domain = email_engagement._domain )
-    LEFT JOIN formfill_last_engagementdate AS formfill ON (main._domain = formfill._domain)
-    LEFT JOIN organic_social_last_engagement AS cs ON (main._domain = cs._domain)
-    LEFT JOIN paid_social_last_engagement AS search_ads ON (main._domain = search_ads._domain) 
-    LEFT JOIN web_last_engagement AS web_data ON (main._domain = web_data._domain)
-
-)
+    FROM all_last_engagements
 ), icp_score AS (
    SELECT 
  _domain AS _domain, 
@@ -1201,7 +1248,7 @@ LEFT JOIN icp_score on all_data._domain = icp_score._domain
  ;
 
  
-CREATE OR REPLACE TABLE `logicsource.contact_engagement_scoring` AS 
+-- CREATE OR REPLACE TABLE `logicsource.contact_engagement_scoring` AS 
 WITH contacts AS (
 SELECT
       CAST(vid AS STRING) AS _id,
@@ -1271,25 +1318,10 @@ dummy_dates AS ( # Each domain needs to be shown regardless if they are part of 
     UNNEST(GENERATE_DATE_ARRAY('2022-01-01', CURRENT_DATE(), INTERVAL 1 WEEK)) AS _date 
   ORDER BY 
     1 DESC
-)
-,email_engagements AS (
-  SELECT * EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score  FROM (
-    SELECT _domain,_email,_id,_emailOpentotal,_emailClickedtotal,
-    SUM(DISTINCT(CASE WHEN _emailOpentotal >= 10 THEN 1 * 10 ELSE 0 END)) AS _emailopenscore_more,
-    SUM(DISTINCT(CASE WHEN _emailOpentotal >= 5 THEN  1 * 5 ELSE 0 END)) AS _emailopenscore,
-    SUM(DISTINCT(CASE WHEN _emailClickedtotal >= 2 THEN 1 * 10 ELSE 0 END)) AS _emailclickscore_more,
-  
-  ((CASE WHEN _emailOpentotal >= 10 THEN 1 * 10 ELSE 0 END)+(CASE WHEN _emailOpentotal >= 5 THEN  1 * 5 ELSE 0 END)+(CASE WHEN _emailClickedtotal >= 2 THEN 1 * 10 ELSE 0 END) ) AS _email_score
-    FROM
-    (
-      SELECT  
-     _domain,
-     _email,
-     _id,
-     SUM(_emailOpened) AS _emailOpentotal, 
-     SUM(_emailClicked) AS _emailClickedtotal, 
-     FROM (
-      SELECT
+),
+
+email_opened_clicked AS (
+  SELECT
       _domain,
       _email,
       _id,
@@ -1297,19 +1329,41 @@ dummy_dates AS ( # Each domain needs to be shown regardless if they are part of 
       SUM( CASE WHEN _engagement = 'Email Clicked' THEN 1 ELSE 0 END) AS _emailClicked,
       -- SUM(CASE WHEN _engagement = 'Web Visits' THEN 1 END) AS _webVisit,
       -- EXTRACT(WEEK FROM _timestamp) AS _week, EXTRACT(YEAR FROM _timestamp) AS _year
-      FROM ( SELECT * FROM  `logicsource.db_consolidated_engagements_log`
+      FROM`logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Email Opened', 'Email Clicked')
-    )
     --WHERE _domain = 'fedex.com'
     GROUP BY 1,2,3
-    ) a
+),
+
+email_engagements_total AS (
+  SELECT  
+     _domain,
+     _email,
+     _id,
+     SUM(_emailOpened) AS _emailOpentotal, 
+     SUM(_emailClicked) AS _emailClickedtotal, 
+     FROM email_opened_clicked
     --WHERE _domain = 'foodtravelexperts.com'
   GROUP BY 1,2,3
-  ORDER BY 1, 3 DESC, 2 DESC)
+  ORDER BY 1, 3 DESC, 2 DESC
+),
+
+email_engagements_score AS (
+      SELECT _domain,_email,_id,_emailOpentotal,_emailClickedtotal,
+    SUM(DISTINCT(CASE WHEN _emailOpentotal >= 10 THEN 1 * 10 ELSE 0 END)) AS _emailopenscore_more,
+    SUM(DISTINCT(CASE WHEN _emailOpentotal >= 5 THEN  1 * 5 ELSE 0 END)) AS _emailopenscore,
+    SUM(DISTINCT(CASE WHEN _emailClickedtotal >= 2 THEN 1 * 10 ELSE 0 END)) AS _emailclickscore_more,
+  
+  ((CASE WHEN _emailOpentotal >= 10 THEN 1 * 10 ELSE 0 END)+(CASE WHEN _emailOpentotal >= 5 THEN  1 * 5 ELSE 0 END)+(CASE WHEN _emailClickedtotal >= 2 THEN 1 * 10 ELSE 0 END) ) AS _email_score
+    FROM email_engagements_total
   GROUP BY 1,2,3,4,5
   ORDER BY _emailOpentotal DESC
-  )
+),
+
+email_engagements AS (
+  SELECT * EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score  
+  FROM email_engagements_score
 )
 , email_last_engagementdate AS(
  SELECT email_engagements.*,
@@ -1397,7 +1451,7 @@ FROM (
       ) _last_engagement 
       RIGHT JOIN formfilled_engagements ON  formfilled_engagements._id = _last_engagement._id
 ) 
-,paid_sosial_engagements AS (
+,paid_social_engagements AS (
   SELECT *,
   CASE WHEN  _paidadssharescore + _paidadscommentscore + _paidadsfollowscore +  _paidadsvisitscore + _paidadsclick_likescore >= 35 THEN 35 ELSE _paidadssharescore + _paidadscommentscore + _paidadsfollowscore +  _paidadsvisitscore + _paidadsclick_likescore  END AS _paid_ads_score_total
 --EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
@@ -1449,7 +1503,7 @@ SELECT _domain,_email,_id,_paidadssharetotal,_paidadscommenttotal,_paidadsfollow
 )
 )
 , paid_social_last_engagement AS(
- SELECT paid_sosial_engagements.*,
+ SELECT paid_social_engagements.*,
  _last_engagement._last_engagement_TS AS _last_engagement_paid_social,
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _paid_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _paid_social_year
@@ -1467,9 +1521,9 @@ SELECT _domain,_email,_id,_paidadssharetotal,_paidadscommenttotal,_paidadsfollow
   QUALIFY ROW_NUMBER() OVER(PARTITION BY 
       _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
-  RIGHT JOIN paid_sosial_engagements ON  paid_sosial_engagements._id = _last_engagement ._id
+  RIGHT JOIN paid_social_engagements ON  paid_social_engagements._id = _last_engagement ._id
 )
-,organic_sosial_engagements AS (
+,organic_social_engagements AS (
   SELECT *,
   CASE WHEN  _organischarescore + _organiccommentscore + _organicfollowscore +  _organicvisitscore + _organicclick_likescore >= 35 THEN 35 ELSE _organischarescore + _organiccommentscore + _organicfollowscore +  _organicvisitscore + _organicclick_likescore  END AS _organic_ads_score_total
 --EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
@@ -1521,7 +1575,7 @@ SELECT _domain,_email,_id,_organicsharetotal,_organiccommenttotal,_organicfollow
 )
 )
 , organic_social_last_engagement AS(
- SELECT organic_sosial_engagements.*,
+ SELECT organic_social_engagements.*,
  _last_engagement._last_engagement_TS AS _last_engagement_organc_social,
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _organc_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _organc_social_year
@@ -1538,7 +1592,7 @@ SELECT _domain,_email,_id,_organicsharetotal,_organiccommenttotal,_organicfollow
     QUALIFY ROW_NUMBER() OVER(PARTITION BY 
     _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
-  RIGHT JOIN organic_sosial_engagements ON  organic_sosial_engagements._id = _last_engagement ._id
+  RIGHT JOIN organic_social_engagements ON  organic_social_engagements._id = _last_engagement ._id
 ), combine_all AS ( #combine all channel data and calculate into the max data. 
    SELECT *,(COALESCE(_GatedContentscore_total ,0) + COALESCE(_formFilled_webinarscore_total,0)  + COALESCE(_email_score,0) 
   + COALESCE(_paid_ads_score_total,0) + COALESCE(_organic_ads_score_total,0) 
@@ -1624,7 +1678,7 @@ WHEN COALESCE(_total_score,0)   + COALESCE(total_score_ICP,0)  >= 50  THEN 'High
 FROM all_data
 LEFT JOIN icp_score on all_data._id = icp_score._id ; 
 
-CREATE OR REPLACE TABLE `logicsource.zoominfo_account_engagement_scoring` AS 
+-- CREATE OR REPLACE TABLE `logicsource.zoominfo_account_engagement_scoring` AS 
 WITH account AS (
 SELECT * EXCEPT (_order), "Target" AS _source,
 "Hubspot" AS source_zi_intent,
@@ -1870,7 +1924,7 @@ FROM (
       ) _last_engagement 
       RIGHT JOIN formfilled_engagements ON  formfilled_engagements._domain = _last_engagement._domain
 ) 
-,paid_sosial_engagements AS (
+,paid_social_engagements AS (
   SELECT *,
   CASE WHEN  _paidadssharescore + _paidadscommentscore + _paidadsfollowscore +  _paidadsvisitscore + _paidadsclick_likescore >= 35 THEN 35 ELSE _paidadssharescore + _paidadscommentscore + _paidadsfollowscore +  _paidadsvisitscore + _paidadsclick_likescore  END AS _paid_ads_score_total
 --EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
@@ -1920,7 +1974,7 @@ SELECT _domain,_paidadssharetotal,_paidadscommenttotal,_paidadsfollowtotal,_paid
 )
 )
 , paid_social_last_engagement AS(
- SELECT paid_sosial_engagements.*,
+ SELECT paid_social_engagements.*,
  _last_engagement._last_engagement_TS AS _last_engagement_paid_social,
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _paid_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _paid_social_year
@@ -1937,9 +1991,9 @@ SELECT _domain,_paidadssharetotal,_paidadscommenttotal,_paidadsfollowtotal,_paid
   QUALIFY ROW_NUMBER() OVER(PARTITION BY 
       _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
-  RIGHT JOIN paid_sosial_engagements ON  paid_sosial_engagements._domain = _last_engagement ._domain
+  RIGHT JOIN paid_social_engagements ON  paid_social_engagements._domain = _last_engagement ._domain
 )
-,organic_sosial_engagements AS (
+,organic_social_engagements AS (
   SELECT *,
   CASE WHEN  _organischarescore + _organiccommentscore + _organicfollowscore +  _organicvisitscore + _organicclick_likescore >= 35 THEN 35 ELSE _organischarescore + _organiccommentscore + _organicfollowscore +  _organicvisitscore + _organicclick_likescore  END AS _organic_ads_score_total
 --EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
@@ -1991,7 +2045,7 @@ SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_orga
 )
 )
 , organic_social_last_engagement AS(
- SELECT organic_sosial_engagements.*,
+ SELECT organic_social_engagements.*,
  _last_engagement._last_engagement_TS AS _last_engagement_organc_social,
              EXTRACT(WEEK FROM _last_engagement._last_engagement_TS) AS _organc_social_week,
            EXTRACT(YEAR FROM _last_engagement._last_engagement_TS) AS _organc_social_year
@@ -2008,7 +2062,7 @@ SELECT _domain,_organicsharetotal,_organiccommenttotal,_organicfollowtotal,_orga
   QUALIFY ROW_NUMBER() OVER(PARTITION BY 
       _domain,_email,_id  ORDER BY _date DESC) = 1
   ) _last_engagement 
-  RIGHT JOIN organic_sosial_engagements ON  organic_sosial_engagements._domain = _last_engagement ._domain
+  RIGHT JOIN organic_social_engagements ON  organic_social_engagements._domain = _last_engagement ._domain
 ),weekly_web_data  AS (
   SELECT
         _domain,
@@ -2246,7 +2300,7 @@ WHEN COALESCE(_total_score,0)   + COALESCE(max_score,0)  >= 50  THEN 'High' ELSE
 FROM all_data
 LEFT JOIN icp_score on all_data._domain = icp_score._domain  ;
 
-CREATE OR REPLACE TABLE `logicsource.zoominfo_intent_score` AS
+-- CREATE OR REPLACE TABLE `logicsource.zoominfo_intent_score` AS
 WITH account AS (
 SELECT 
 _company, 
