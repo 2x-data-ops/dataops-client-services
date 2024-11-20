@@ -50,9 +50,9 @@ accounts_created AS (
 ),
 consolidated_engagements AS (
   SELECT DISTINCT
-        *
-      FROM `x-marketing.logicsource.db_consolidated_engagements_log`
-      --WHERE _engagement IN ('Email Clicked', 'Email Opened', 'Form Filled')
+    *
+  FROM `x-marketing.logicsource.db_consolidated_engagements_log`
+  --WHERE _engagement IN ('Email Clicked', 'Email Opened', 'Form Filled')
 ),
 consolidated_engagement_dates AS (
   SELECT
