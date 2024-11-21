@@ -24,14 +24,12 @@ def setup_logging():
                 except Exception as e:
                     print(f"Error removing log file {file}: {e}")
 
-    # Clean up old logs before creating new one
     cleanup_old_logs()
 
     # Create new log file with timestamp
     current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
     log_filename = os.path.join(log_dir, f'data_pipeline_{current_time}.log')
     
-    # Configure logging
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s | %(levelname)-8s | %(filename)s:%(lineno)d | %(funcName)s | %(message)s',

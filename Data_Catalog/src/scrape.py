@@ -118,7 +118,7 @@ class DataPipeline:
             self.logger.error(f"Error saving to CSV: {str(e)}", exc_info=True)
             raise
 
-    def process_unnest_json(self, input_path='output/sample_records.csv', output_path='output/data_baru.csv'):
+    def process_unnest_json(self, input_path='output/sample_records.csv', output_path='output/unnested_records.csv'):
         """Process and unnest JSON data."""
         self.logger.info("Starting JSON unnesting process")
         try:
