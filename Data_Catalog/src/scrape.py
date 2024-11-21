@@ -2,78 +2,19 @@ import pandas_gbq as bq
 import pydata_google_auth as gauth
 import pandas as pd
 import json
-import logging
-from datetime import datetime
-import sys
-import os
-import glob
-from logging.handlers import RotatingFileHandler
+from logging_module import setup_logging
+from auth import GoogleCloudAuth
 
-def setup_logging():
-    """Set up logging with rotation and cleanup of old logs."""
-    log_dir = 'logs'
-    os.makedirs(log_dir, exist_ok=True)
-    
-    # Clean up old logs if more than 10 exist
-    def cleanup_old_logs():
-        log_files = glob.glob(os.path.join(log_dir, 'data_pipeline_*.log'))
-        if len(log_files) > 10:
-            # Sort files by modification time (oldest first)
-            log_files.sort(key=os.path.getmtime)
-            # Remove oldest files until only 10 remain
-            for file in log_files[:-10]:
-                try:
-                    os.remove(file)
-                    print(f"Removed old log file: {file}")
-                except Exception as e:
-                    print(f"Error removing log file {file}: {e}")
-
-    # Clean up old logs before creating new one
-    cleanup_old_logs()
-
-    # Create new log file with timestamp
-    current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-    log_filename = os.path.join(log_dir, f'data_pipeline_{current_time}.log')
-    
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s | %(levelname)-8s | %(filename)s:%(lineno)d | %(funcName)s | %(message)s',
-        handlers=[
-            logging.FileHandler(log_filename),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-    
-    return logging.getLogger(__name__)
-
-SCOPES = [
-    'https://www.googleapis.com/auth/cloud-platform',
-    'https://www.googleapis.com/auth/drive',
-]
 
 class DataPipeline:
     def __init__(self):
         self.logger = setup_logging()
-        self.credentials = self.get_credentials()
+        self.auth = GoogleCloudAuth()
+        self.credentials = self.auth.get_credentials()
         self.crm_sources = [
             "salesforce", "google", "bing", "sfmc", "hubspot", 
             "mailchimp", "linkedin", "facebook", "pardot"
         ]
-
-    def get_credentials(self):
-        """Get Google Cloud credentials."""
-        self.logger.info("Attempting to authenticate with Google Cloud")
-        try:
-            credentials = gauth.get_user_credentials(
-                SCOPES,
-                auth_local_webserver=False,
-            )
-            self.logger.info("Successfully authenticated with Google Cloud")
-            return credentials
-        except Exception as e:
-            self.logger.error(f"Authentication failed: {str(e)}", exc_info=True)
-            raise
 
     def get_crm_source(self):
         """Fetch CRM source data from BigQuery."""
