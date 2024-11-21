@@ -1,8 +1,7 @@
 import pandas_gbq as bq
-import pydata_google_auth as gauth
 import pandas as pd
 import json
-from logging_module import setup_logging
+from log import setup_logging
 from auth import GoogleCloudAuth
 
 

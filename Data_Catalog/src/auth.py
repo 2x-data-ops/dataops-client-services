@@ -1,5 +1,5 @@
 import pydata_google_auth as gauth
-from logging_module import setup_logging
+from log import setup_logging
 
 class GoogleCloudAuth:
     SCOPES = [
