@@ -363,7 +363,7 @@ formfilled_engagements AS (
   CASE WHEN  _formFilled_score  >= 50 THEN 50 ELSE _formFilled_score END AS _formFilled_webinarscore_total,
   CASE WHEN  _GatedContentscore + _formFilled_score + _distinctWebinarFormscore +  _distinctWebinarattendedscore >= 80 THEN 80 ELSE _GatedContentscore + _formFilled_score + _distinctWebinarFormscore +  _distinctWebinarattendedscore END AS _form_fill_score_total 
 --EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
-FROM form_filled_score
+  FROM form_filled_score
 ),
 
 form_filled_last_engagements AS (
@@ -393,25 +393,6 @@ organic_social_last_engagement AS(
 ),
 
 mouseflow_kickfire_timestamps AS (
-          /* SELECT
-          DATE(_starttime) AS _timestamp,
-          company._domain,
-          SUM(CAST(_engagementtime AS INT64)) AS _website_time_spent,
-          COUNT(DISTINCT(_page)) AS _website_page_view,
-          COUNT(DISTINCT msflow._visitorid) AS _website_visitor_count,
-          -- newsletter_subscription in the future,
-        FROM
-          `logicsource_mysql.mouseflow_pageviews` msflow
-        LEFT JOIN (
-          SELECT
-            DISTINCT _ipaddr,
-            _website AS _domain
-          FROM
-            `webtrack_ipcompany.webtrack_ipcompany_6sense`) company
-          USING
-            (_ipaddr)
-        GROUP BY
-          1, 2  */
           SELECT 
             _domain, 
             _visitorid,
@@ -691,29 +672,10 @@ SELECT * FROM hubspot_domain
 , email_last_engagementdate AS(
   SELECT * FROM temp_email_last_engagementdate
 )
-,formfilled_engagements AS (
-  SELECT *,CASE WHEN  _GatedContentscore  >= 20 THEN 20 ELSE _GatedContentscore END AS _GatedContentscore_total,
-  CASE WHEN  _formFilled_webinarscore  >= 50 THEN 50 ELSE _formFilled_webinarscore END AS _formFilled_webinarscore_total,
-  CASE WHEN  _GatedContentscore + _formFilled_webinarscore >= 80 THEN 80 ELSE _GatedContentscore + _formFilled_webinarscore END AS _form_fill_score_total 
---EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
-FROM (
+,
+
+form_filled AS (
   SELECT 
-  _domain,
-  
-  _formFilled_webinartotal,
-  _distinctGatedContenttotal, 
-    SUM(DISTINCT(CASE WHEN _formFilled_webinartotal >= 1 THEN 1 * 50 ELSE 0 END)) AS _formFilled_webinarscore,
-    SUM(DISTINCT(CASE WHEN _distinctGatedContenttotal >= 1 THEN  1 * 20 ELSE 0 END)) AS _GatedContentscore,
-    
-    FROM
-    (
-      SELECT  
-     _domain,
- 
-     SUM(_formFilled_webinar) AS _formFilled_webinartotal, 
-     SUM(_distinctGatedContent) AS _distinctGatedContenttotal, 
-     FROM (
-      SELECT 
       _domain,
       SUM( CASE WHEN (_engagement = 'Form Filled' AND REGEXP_CONTAINS(LOWER(_contentTitle), 'contact us|try now|demo|webinar'))  THEN 1 ELSE 0 END ) AS _formFilled_webinar,  
      SUM( CASE WHEN (_engagement = 'Form Filled' AND  NOT REGEXP_CONTAINS(LOWER(_contentTitle), 'try now|demo|contact us|webinar|wbn')) OR (_engagement = 'Form Filled' AND _contentTitle = "Other Content Engagement") OR (_engagement = 'Form Filled' AND _description = "Visited booth")THEN 1 ELSE 0 END) AS _distinctGatedContent,
@@ -722,21 +684,44 @@ FROM (
      -- SUM(CASE WHEN _engagement = 'Web Visits' THEN 1 END) AS _webVisit,
      -- EXTRACT(WEEK FROM _timestamp) AS _week, EXTRACT(YEAR FROM _timestamp) AS _year
       
-    FROM ( SELECT * FROM  `logicsource.db_consolidated_engagements_log`
+    FROM `logicsource.db_consolidated_engagements_log`
     WHERE
       _engagement IN ('Form Filled')
-    )
     --WHERE _domain = 'fedex.com'
     GROUP BY 1
-    
-  ) a
+),
+
+form_filled_total AS (
+  SELECT  
+     _domain,
+ 
+     SUM(_formFilled_webinar) AS _formFilled_webinartotal, 
+     SUM(_distinctGatedContent) AS _distinctGatedContenttotal, 
+     FROM form_filled
 
   --WHERE _domain = 'foodtravelexperts.com'
   GROUP BY 1
-  ORDER BY 1, 3 DESC, 2 DESC)
+),
+
+form_filled_score AS (
+  SELECT 
+  _domain,
+  
+  _formFilled_webinartotal,
+  _distinctGatedContenttotal, 
+    SUM(DISTINCT(CASE WHEN _formFilled_webinartotal >= 1 THEN 1 * 50 ELSE 0 END)) AS _formFilled_webinarscore,
+    SUM(DISTINCT(CASE WHEN _distinctGatedContenttotal >= 1 THEN  1 * 20 ELSE 0 END)) AS _GatedContentscore,
+    
+    FROM form_filled_total
   GROUP BY 1,2,3
-  ORDER BY _formFilled_webinartotal DESC
-) 
+),
+
+formfilled_engagements AS (
+  SELECT *,CASE WHEN  _GatedContentscore  >= 20 THEN 20 ELSE _GatedContentscore END AS _GatedContentscore_total,
+  CASE WHEN  _formFilled_webinarscore  >= 50 THEN 50 ELSE _formFilled_webinarscore END AS _formFilled_webinarscore_total,
+  CASE WHEN  _GatedContentscore + _formFilled_webinarscore >= 80 THEN 80 ELSE _GatedContentscore + _formFilled_webinarscore END AS _form_fill_score_total 
+--EXCEPT (_email_score), CASE WHEN _email_score >= 15 THEN 15 ELSE _email_score END AS _email_score 
+FROM form_filled_score
 )
 , formfill_last_engagementdate AS(
   SELECT formfilled_engagements.*,
@@ -759,38 +744,9 @@ FROM (
 )
 , organic_social_last_engagement AS(
   SELECT * FROM temp_organic_social_last_engagement
-),weekly_web_data  AS (
-  SELECT
-        _domain,
-        -- _week,
-        -- _year,
-        -- COALESCE(SUM(newsletter_subscription), 0) AS newsletter_subscription,
-        COALESCE((SUM(_website_time_spent)), 0) AS _website_time_spent,
-        COALESCE(SUM(CASE WHEN _pageName IS NOT NULL THEN 1 END), 0) AS _website_page_view,
-        COALESCE(COUNT(DISTINCT _visitorid), 0) AS _website_visitor_count,
-        COALESCE(COUNT(DISTINCT CASE WHEN _pageName LIKE "%careers%" THEN _visitorid END), 0) AS _career_page,
-        TRUE AS _visited_website,
-        -- MAX(_timestamp) AS last_engaged_date
-      FROM (
-        /* SELECT
-          DATE(_starttime) AS _timestamp,
-          company._domain,
-          SUM(CAST(_engagementtime AS INT64)) AS _website_time_spent,
-          COUNT(DISTINCT(_page)) AS _website_page_view,
-          COUNT(DISTINCT msflow._visitorid) AS _website_visitor_count,
-          -- newsletter_subscription in the future,
-        FROM
-          `logicsource_mysql.mouseflow_pageviews` msflow
-        LEFT JOIN (
-          SELECT
-            DISTINCT _ipaddr,
-            _website AS _domain
-          FROM
-            `webtrack_ipcompany.webtrack_ipcompany_6sense`) company
-          USING
-            (_ipaddr)
-        GROUP BY
-          1, 2  */
+),
+
+mouseflow_kickfire_timestamps AS (
           SELECT 
             _domain, 
             _visitorid,
@@ -808,31 +764,31 @@ FROM (
             AND _webactivity IS NOT NULL
           ORDER BY
             _timestamp DESC
-          )
+),
+
+weekly_web_data  AS (
+  SELECT
+        _domain,
+        -- _week,
+        -- _year,
+        -- COALESCE(SUM(newsletter_subscription), 0) AS newsletter_subscription,
+        COALESCE((SUM(_website_time_spent)), 0) AS _website_time_spent,
+        COALESCE(SUM(CASE WHEN _pageName IS NOT NULL THEN 1 END), 0) AS _website_page_view,
+        COALESCE(COUNT(DISTINCT _visitorid), 0) AS _website_visitor_count,
+        COALESCE(COUNT(DISTINCT CASE WHEN _pageName LIKE "%careers%" THEN _visitorid END), 0) AS _career_page,
+        TRUE AS _visited_website,
+        -- MAX(_timestamp) AS last_engaged_date
+      FROM mouseflow_kickfire_timestamps
         WHERE
           --(_timestamp BETWEEN date_start AND date_end)
         --AND  
           LENGTH(_domain) > 2
         GROUP BY
           1 
-     )
-     -- Get scores for web visits activity
-   , weekly_web_score AS (
-        SELECT
-          * EXCEPT(website_time_spent_score,
-            website_page_view_score,
-            website_visitor_count_score,
-            visited_website_score),
-            website_time_spent_score AS _website_time_spent_score,
-            website_page_view_score AS _website_page_view_score,
-            website_visitor_count_score AS _website_visitor_count_score,
-            visited_website_score AS _visited_website_score,
-            CASE
-              WHEN (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score) > 40 THEN 40
-              ELSE (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score)
-            END AS _web_score_total
-        FROM (
-          SELECT
+     ),
+
+     weekly_web_data_score AS (
+      SELECT
             *,
             COALESCE((_website_time_spent), 0)
               AS website_time_spent_score,
@@ -862,19 +818,28 @@ FROM (
               CASE WHEN _career_page > 1 THEN -5 ELSE 0 END AS career_page_score,
             5 AS visited_website_score
           FROM
-            weekly_web_data ) 
-  ), web_last_engagement AS (           
-  SELECT 
- web_data._domain,web_data.* EXCEPT (_domain),
-  _last_engagement.last_engaged_date AS _last_engagement_web,
-  EXTRACT(WEEK FROM _last_engagement.last_engaged_date) AS week_web,
-  EXTRACT(YEAR FROM _last_engagement.last_engaged_date) AS year_web
-  FROM (
+            weekly_web_data 
+     )
+     -- Get scores for web visits activity
+   , weekly_web_score AS (
+        SELECT
+          * EXCEPT(website_time_spent_score,
+            website_page_view_score,
+            website_visitor_count_score,
+            visited_website_score),
+            website_time_spent_score AS _website_time_spent_score,
+            website_page_view_score AS _website_page_view_score,
+            website_visitor_count_score AS _website_visitor_count_score,
+            visited_website_score AS _visited_website_score,
+            CASE
+              WHEN (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score) > 40 THEN 40
+              ELSE (website_time_spent_score + website_page_view_score + website_visitor_count_score + visited_website_score + career_page_score)
+            END AS _web_score_total
+        FROM weekly_web_data_score
+  ), 
+
+  web_last_engagement_dates AS (
     SELECT 
-        /* _website, */  _domain,
-        MAX(_timestamp) AS last_engaged_date
-        FROM (
-         SELECT 
                    _domain AS _domain, 
                     _visitorid,
                     DATETIME(_timestamp) AS _timestamp, 
@@ -885,14 +850,46 @@ FROM (
                 AND _webactivity IS NOT NULL
                 AND (_domain IS NOT NULL AND _domain != '')
                 ORDER BY _timestamp DESC
-                )
+  ),
+  
+  web_last_engagement_timetamps AS (
+    SELECT 
+        /* _website, */  _domain,
+        MAX(_timestamp) AS last_engaged_date
+        FROM web_last_engagement_dates
     -- WHERE REGEXP_REPLACE(RIGHT(_website,LENGTH(_website)-STRPOS(_website,'.')), '/','') = 'opcw.org'
     GROUP BY 1
-    
-    
-    ) _last_engagement
+  ),
+  
+  web_last_engagement AS (           
+  SELECT 
+ web_data._domain,web_data.* EXCEPT (_domain),
+  _last_engagement.last_engaged_date AS _last_engagement_web,
+  EXTRACT(WEEK FROM _last_engagement.last_engaged_date) AS week_web,
+  EXTRACT(YEAR FROM _last_engagement.last_engaged_date) AS year_web
+  FROM web_last_engagement_timetamps AS _last_engagement
     RIGHT JOIN weekly_web_score web_data ON   web_data._domain = _last_engagement._domain 
-), combine_all AS ( #combine all channel data and calculate into the max data. 
+), 
+
+  all_last_engagements AS (
+    SELECT main.*,
+      email_engagement.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_email AS DATE), DATE('2000-01-01')) AS  _last_engagement_email_date,
+      --paid_social_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_paid_social AS DATE), DATE('2000-01-01')) AS  _last_engagement_paid_social_date,
+     -- organic_social_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_organic_social AS DATE), DATE('2000-01-01')) AS  _last_engagement_organic_social_date,
+      formfill.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_formfilled AS DATE), DATE('2000-01-01')) AS  formfilled_last_engaged_date,
+     
+      cs.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_organc_social AS DATE), DATE('2000-01-01')) AS  organic_social_last_engagement,
+      search_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_paid_social AS DATE), DATE('2000-01-01')) AS  paid_social_engaged_date,
+      web_data.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_web AS DATE), DATE('2000-01-01')) AS  engagement_web_date,
+      FROM contacts AS main
+    LEFT JOIN email_last_engagementdate  AS email_engagement ON (main._domain = email_engagement._domain )
+    LEFT JOIN formfill_last_engagementdate AS formfill ON (main._domain = formfill._domain)
+    LEFT JOIN organic_social_last_engagement AS cs ON (main._domain = cs._domain)
+    LEFT JOIN paid_social_last_engagement AS search_ads ON (main._domain = search_ads._domain) 
+    LEFT JOIN web_last_engagement AS web_data ON (main._domain = web_data._domain)
+  ),
+
+  combine_all AS ( #combine all channel data and calculate into the max data. 
    SELECT *,(COALESCE(_GatedContentscore_total ,0) + COALESCE(_formFilled_webinarscore_total,0)  + COALESCE(_email_score,0) 
   + COALESCE(_paid_ads_score_total,0) + COALESCE(_organic_ads_score_total,0) +  COALESCE(_web_score_total,0)
    ) AS _total_score,
@@ -949,24 +946,7 @@ FROM (
     ) THEN  engagement_web_date
   
     END AS _last_engagement_date
-    FROM (
-      SELECT main.*,
-      email_engagement.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_email AS DATE), DATE('2000-01-01')) AS  _last_engagement_email_date,
-      --paid_social_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_paid_social AS DATE), DATE('2000-01-01')) AS  _last_engagement_paid_social_date,
-     -- organic_social_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_organic_social AS DATE), DATE('2000-01-01')) AS  _last_engagement_organic_social_date,
-      formfill.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_formfilled AS DATE), DATE('2000-01-01')) AS  formfilled_last_engaged_date,
-     
-      cs.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_organc_social AS DATE), DATE('2000-01-01')) AS  organic_social_last_engagement,
-      search_ads.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_paid_social AS DATE), DATE('2000-01-01')) AS  paid_social_engaged_date,
-      web_data.* EXCEPT(_domain), COALESCE(CAST(_last_engagement_web AS DATE), DATE('2000-01-01')) AS  engagement_web_date,
-      FROM contacts AS main
-    LEFT JOIN email_last_engagementdate  AS email_engagement ON (main._domain = email_engagement._domain )
-    LEFT JOIN formfill_last_engagementdate AS formfill ON (main._domain = formfill._domain)
-    LEFT JOIN organic_social_last_engagement AS cs ON (main._domain = cs._domain)
-    LEFT JOIN paid_social_last_engagement AS search_ads ON (main._domain = search_ads._domain) 
-    LEFT JOIN web_last_engagement AS web_data ON (main._domain = web_data._domain)
-
-)
+    FROM all_last_engagements
 ), icp_score AS (
    SELECT 
  _domain AS _domain, 
