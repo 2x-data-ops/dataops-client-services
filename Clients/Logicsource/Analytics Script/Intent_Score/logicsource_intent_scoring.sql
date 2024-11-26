@@ -1,4 +1,54 @@
-CREATE OR REPLACE TABLE `logicsource.zoominfo_intent_score` AS
+-- CREATE OR REPLACE TABLE `logicsource.zoominfo_intent_score` AS
+TRUNCATE TABLE `x-marketing.logicsource.zoominfo_intent_score`;
+
+INSERT INTO `x-marketing.logicsource.zoominfo_intent_score` (
+  _company,
+  _domain,
+  _revenue,
+  _industry,
+  _company_segment,
+  _employee_range,
+  _employee_range_c,
+  _numberofemployees,
+  _annualrevenue,
+  _annual_revenue_range,
+  _annual_revenue_range_c,
+  _source,
+  days_since_last_engaged,
+  _score_new,
+  _last_engagement_date,
+  _total_score,
+  total_employee,
+  total_score_divide_2,
+  total_score,
+  max_score,
+  _total_score_icp_intent,
+  legend,
+  source_zi_intent,
+  _zi_intent,
+  _intent_score,
+  _topic,
+  _date,
+  _exporteddate,
+  _week,
+  _year,
+  _score,
+  _avgCompositeScore,
+  _emailOpened,
+  _emailClicked,
+  _formfilled,
+  _paidads,
+  _organicsocial,
+  _webvisit,
+  running_opened,
+  running_clicked,
+  running_formfilled,
+  running_paidads,
+  running_organicsocial,
+  running_webvisit,
+  _account_status,
+  _intent
+)
 WITH account AS (
 SELECT 
 _company, 
@@ -21,13 +71,17 @@ total_employee, total_score_divide_2, total_score, max_score, _total_score_icp_i
 FROM logicsource.zoominfo_account_engagement_scoring
 WHERE _domain IS NOT NULL
 
-)
-,dummy_date AS (
-  SELECT *, 
-  DENSE_RANK() OVER (ORDER BY _date DESC) AS dense_rank  FROM (
+),
+
+dates AS (
   SELECT DISTINCT CAST(_lastsignal AS DATE) AS _date ,CAST(_exporteddate AS DATE) AS _exporteddate,
   FROM `x-marketing.logicsource_mysql.db_zoominfo_intent`
-  )
+),
+
+dummy_date AS (
+  SELECT *, 
+  DENSE_RANK() OVER (ORDER BY _date DESC) AS dense_rank 
+  FROM dates
 )
 ,all_account AS ( 
 SELECT acc.*, report._score AS _intent_score,report._topic,
@@ -43,17 +97,16 @@ LEFT JOIN (SELECT _score,_topic,_domain , CAST(_lastsignal AS DATE) AS _date,CAS
 FROM `x-marketing.logicsource_mysql.db_zoominfo_intent` ) report ON acc._domain = report._domain
 
 GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28
-), _engagement AS (
-SELECT  
-     *,
-    SUM(_emailOpened) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_opened,
-    SUM(_emailClicked) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_clicked,
-    SUM(_formfilled) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_formfilled,
-    SUM(_paidads) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_paidads,
-    SUM(_organicsocial) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_organicsocial,
-    SUM(_webvisit) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_webvisit,
-     FROM (
-      SELECT
+),
+
+selected_engagements AS (
+SELECT * FROM  `logicsource.db_consolidated_engagements_log`
+    WHERE
+      _engagement IN ('Email Opened', 'Email Clicked','Form Filled','Paid Ads','Organic Social','Web Visit') AND EXTRACT(DATE FROM _date) BETWEEN (SELECT MIN(_date) FROM dummy_date) AND CURRENT_DATE()
+),
+
+selected_engagements_total AS (
+  SELECT
       _domain,EXTRACT(WEEK FROM _date) AS _week,  EXTRACT(YEAR FROM _date) AS _year,
       SUM(CASE WHEN _engagement = 'Email Opened' THEN 1 ELSE 0 END ) AS _emailOpened,  
       SUM( CASE WHEN _engagement = 'Email Clicked' THEN 1 ELSE 0 END) AS _emailClicked,
@@ -63,13 +116,21 @@ SELECT
       SUM( CASE WHEN _engagement = 'Web Visit' THEN 1 ELSE 0 END) AS _webvisit,
       -- SUM(CASE WHEN _engagement = 'Web Visits' THEN 1 END) AS _webVisit,
       -- EXTRACT(WEEK FROM _timestamp) AS _week, EXTRACT(YEAR FROM _timestamp) AS _year
-      FROM ( SELECT * FROM  `logicsource.db_consolidated_engagements_log`
-    WHERE
-      _engagement IN ('Email Opened', 'Email Clicked','Form Filled','Paid Ads','Organic Social','Web Visit') AND EXTRACT(DATE FROM _date) BETWEEN (SELECT MIN(_date) FROM dummy_date) AND CURRENT_DATE()
-    )
+      FROM selected_engagements
     --WHERE _domain = 'fedex.com'
     GROUP BY 1,2,3
-    ) a
+),
+
+_engagement AS (
+SELECT  
+     *,
+    SUM(_emailOpened) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_opened,
+    SUM(_emailClicked) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_clicked,
+    SUM(_formfilled) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_formfilled,
+    SUM(_paidads) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_paidads,
+    SUM(_organicsocial) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_organicsocial,
+    SUM(_webvisit) OVER(PARTITION BY _domain ORDER BY _week, _year) AS running_webvisit,
+     FROM selected_engagements_total
     --WHERE _domain = 'foodtravelexperts.com'
    ORDER BY 1, 3 DESC, 2 DESC
 ) SELECT all_account.*, 
