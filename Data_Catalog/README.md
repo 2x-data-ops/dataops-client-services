@@ -29,3 +29,4 @@
 
 ## Pipeline Overview & Flow
 
+![alt text](images/pipeline_flow.png)
