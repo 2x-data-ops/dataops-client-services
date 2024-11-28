@@ -19,13 +19,13 @@ class DataPipeline:
     def get_data_from_bigquery(self):
         """Fetch raw data from SQL query."""
         query = """
-            WITH column_name AS (
-                SELECT 
-                    table_schema AS _raw_dataset,
-                    table_name AS _table,
-                    field_path AS _field,
-                    CASE
-                        WHEN table_schema LIKE '%_hubspot' THEN 'hubspot' 
+                WITH column_name AS (
+                    SELECT
+                        table_schema AS _raw_dataset,
+                        table_name AS _table,
+                        field_path AS _field,
+                        CASE
+                        WHEN table_schema LIKE '%_hubspot' THEN 'hubspot'
                         WHEN table_schema LIKE '%_salesforce' THEN 'salesforce'
                         WHEN table_schema LIKE '%linkedin%' THEN 'linkedin'
                         WHEN table_schema LIKE '%google%' THEN 'google'
@@ -36,23 +36,42 @@ class DataPipeline:
                         WHEN table_schema LIKE '%sfmc%' THEN 'sfmc'
                         WHEN table_schema LIKE '%mailchimp%' THEN 'mailchimp'
                         ELSE table_schema
-                    END AS _crm_source,
-                    data_type AS _data_type
-                FROM `x-marketing.region-us.INFORMATION_SCHEMA.COLUMN_FIELD_PATHS`
-                WHERE data_type NOT LIKE 'STRUCT%'
-                    AND data_type NOT LIKE '%ARRAY%'
-                    AND field_path NOT LIKE '%sdc%'
-                    AND table_schema NOT LIKE '%_mysql'
-                    AND table_schema NOT LIKE 'analytic%'
-                    AND table_name NOT LIKE '_sdc_%'
-                    AND table_schema NOT LIKE '%_sheet%'
-            )
-            SELECT *
-            FROM column_name
-            WHERE _crm_source IN ('hubspot', 'salesforce', 'linkedin', 'google', 'pardot', 'marketo', 'bing', 'facebook', 'sfmc', 'mailchimp')
-        """
+                        END AS _crm_source,
+                        data_type AS _data_type
+                    FROM `x-marketing.region-us.INFORMATION_SCHEMA.COLUMN_FIELD_PATHS`
+                    WHERE data_type NOT LIKE 'STRUCT%'
+                        AND data_type NOT LIKE '%ARRAY%'
+                        AND field_path NOT LIKE '%sdc%'
+                        AND table_schema NOT LIKE '%_mysql'
+                        AND table_schema NOT LIKE 'analytic%'
+                        AND table_name NOT LIKE '_sdc_%'
+                        AND table_schema NOT LIKE '%_sheet%'
+                    ),
+                    table_created_time AS (
+                        SELECT DISTINCT
+                            table_schema,
+                            table_name,
+                            TIMESTAMP(creation_time) AS table_created
+                        FROM `x-marketing.region-us.INFORMATION_SCHEMA.TABLES`
+                    ),
+                    main_data AS (
+                        SELECT
+                            column_name.*,
+                            table_created_time.table_created
+                        FROM column_name
+                        LEFT JOIN table_created_time
+                            ON column_name._raw_dataset = table_created_time.table_schema
+                            AND column_name._table = table_created_time.table_name
+                    )
+                    SELECT 
+                        *,
+                    SPLIT(_raw_dataset, '_')[OFFSET(0)] AS _client_name
+                    FROM main_data
+                    WHERE _crm_source IN ('hubspot', 'salesforce', 'linkedin', 'google', 'pardot', 'marketo', 'bing', 'facebook', 'sfmc', 'mailchimp')
+                """
         try:
             df = bq.read_gbq(query, project_id='x-marketing', credentials=self.credentials)
+            df.to_csv('output/1_main_data.csv', index=False)
             self.logger.info(f"Retrieved records from SQL query")
             return df
         except Exception as e:
@@ -172,52 +191,79 @@ class DataPipeline:
 
     def process_unnest_json(self, input_path='output/sample_records.csv', output_path='output/unnested_records.csv'):
         """Process and unnest JSON data."""
+        self.logger.info("Starting JSON unnesting process")
         try:
             data = pd.read_csv(input_path)
+            self.logger.info(f"Loaded {len(data)} records from {input_path}")
+            
             final_data = pd.DataFrame(columns=["dataset", "table", "column", "sample_record"])
-            processed_count = error_count = 0
+            processed_count = 0
+            error_count = 0
             
             for index, row in data.iterrows():
+                dataset = row['dataset']
+                table = row['table']
                 try:
                     json_data = json.loads(row['sample_records'])
-                    flattened_data = {}
-                    
-                    def flatten_json(d, parent_key=''):
-                        for k, v in d.items():
-                            new_key = f"{parent_key}.{k}" if parent_key else k
-                            if isinstance(v, dict):
-                                flatten_json(v, new_key)
-                            elif isinstance(v, str) and (v.startswith('{') or v.startswith("'{")):
-                                try:
-                                    parsed = json.loads(v.replace("'", '"'))
-                                    flatten_json(parsed, new_key)
-                                except:
-                                    flattened_data[new_key] = v
-                            else:
-                                flattened_data[new_key] = v
-
-                    flatten_json(json_data)
-                    
                     temp_df = pd.DataFrame({
-                        "dataset": [row['dataset']] * len(flattened_data),
-                        "table": [row['table']] * len(flattened_data),
-                        "column": flattened_data.keys(),
-                        "sample_record": [str(v) if v is not None else '' for v in flattened_data.values()]
+                        "dataset": [dataset] * len(json_data),
+                        "table": [table] * len(json_data),
+                        "column": json_data.keys(),
+                        "sample_record": json_data.values()
                     })
                     final_data = pd.concat([final_data, temp_df], ignore_index=True)
                     processed_count += 1
+                    self.logger.debug(f"Successfully processed record {index} from {dataset}.{table}")
                     
-                except Exception as e:
-                    self.logger.error(f"Error processing record {index}: {str(e)}")
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"JSON decode error for {dataset}.{table}: {str(e)}")
                     error_count += 1
                     continue
-
+                    
+                except Exception as e:
+                    self.logger.error(f"Unexpected error processing {dataset}.{table}: {str(e)}", exc_info=True)
+                    error_count += 1
+                    continue
+            
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
             final_data.to_csv(output_path, index=False)
-            return final_data
+            self.logger.info(f"Completed JSON processing. Processed: {processed_count}, Errors: {error_count}")
+            self.logger.info(f"Saved unnested data to {output_path}")
             
         except Exception as e:
-            self.logger.error(f"Fatal error: {str(e)}")
+            self.logger.error(f"Fatal error in process_unnest_json: {str(e)}", exc_info=True)
             raise
+
+    def get_additional_column(self):
+        """Get the datatype of the column from original source."""
+        self.logger.info("Starting to get data types from original source")
+        try:
+            # Read the source data and unnested data
+            source_df = pd.read_csv('output/1_main_data.csv')  # original data with correct types
+            unnested_df = pd.read_csv('output/unnested_records.csv')
+            
+            # Join the dataframes to get correct data types
+            merged_df = unnested_df.merge(
+                source_df[['_raw_dataset', '_table', '_field', '_data_type', 'table_created', '_client_name']], 
+                left_on=['dataset', 'table', 'column'],
+                right_on=['_raw_dataset', '_table', '_field'],
+                how='left'
+            )
+            
+            # Update the data_type column with correct values
+            merged_df['data_type'] = merged_df['_data_type']
+            
+            # Keep only the columns we need
+            final_df = merged_df[['dataset', 'table', 'column', 'data_type', 'sample_record', 'table_created', '_client_name']]
+            
+            # Save back to the same file
+            final_df.to_csv('output/4_final_output.csv', index=False)
+            self.logger.info("Joined datatype column with main table")
+            
+        except Exception as e:
+            self.logger.error(f"Error getting data types: {str(e)}", exc_info=True)
+            raise
+
     def remove_unwanted_records(self):
         """Remove unwanted records from the dataset."""
         self.logger.info("Starting removal of unwanted records")
@@ -228,26 +274,10 @@ class DataPipeline:
     def insert_to_bigquery(self):
         """Inserting data to BigQuery"""
         self.logger.info("Starting to insert data to BigQuery")
-        df = pd.read_csv('output/unnested_records.csv')
+        df = pd.read_csv('output/4_final_output.csv')
         project_id = 'x-marketing'
         bq.to_gbq(df, 'data_catalog.sample_records', project_id, if_exists='replace', credentials=self.credentials)
 
-    # def join_with_data_catalog(self):
-    #     """Joining records to data_catalog"""
-    #     self.logger.info("Starting to join records to data_catalog table") 
-    #     query =  """
-    #                 SELECT
-    #                     main.*,
-    #                     side.sample_record AS _sample_record
-    #                 FROM `x-marketing.data_catalog.data_catalog` main
-    #                 LEFT JOIN `x-marketing.data_catalog.test` side
-    #                     ON main._raw_dataset = side.dataset
-    #                     AND main._table = side.table
-    #                     AND main._field = side.column
-    #             """
-
-    #     project_id = 'x-marketing'
-    #     bq.read_gbq(query, 'data_catalog.test', project_id, credentials=self.credentials)
     def run(self):
         """Execute the complete pipeline."""
         self.logger.info("Starting data pipeline execution")
@@ -257,8 +287,9 @@ class DataPipeline:
             data2 = self.tabulate_sample_records(data)
             self.process_to_csv(data2)
             self.process_unnest_json()
+            self.get_additional_column()
             self.remove_unwanted_records()
-            # self.insert_to_bigquery()
+            self.insert_to_bigquery()
             self.logger.info("Data pipeline completed successfully")
             
         except Exception as e:
