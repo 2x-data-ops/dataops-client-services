@@ -17,7 +17,7 @@ class GoogleCloudAuth:
         try:
             self.credentials = gauth.get_user_credentials(
                 self.SCOPES,
-                auth_local_webserver=False,
+                auth_local_webserver=True,
             )
             self.logger.info("Successfully authenticated with Google Cloud")
             return self.credentials
