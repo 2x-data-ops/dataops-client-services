@@ -2,19 +2,25 @@ import streamlit as st
 from scrape import DataPipeline
 import pandas as pd
 import logging
+from collections import deque
 
 class StreamlitHandler(logging.Handler):
-    def __init__(self, placeholder):
+    def __init__(self, placeholder, max_lines=1000):
         super().__init__()
         self.placeholder = placeholder
-        self.log_text = ""
+        self.max_lines = max_lines
+        self.log_lines = deque(maxlen=max_lines)  # Use deque to automatically limit lines
 
     def emit(self, record):
-        # Format the log message
+        # Format and add the new log entry
         log_entry = self.format(record)
-        self.log_text += log_entry + "\n"
-        # Update the streamlit component with all logs
-        self.placeholder.text_area("Logs:", self.log_text, height=400)
+        self.log_lines.append(log_entry)
+        
+        # Join the most recent logs and update display
+        log_text = '\n'.join(self.log_lines)
+        # Use empty() to avoid flickering and clear previous content
+        self.placeholder.empty()
+        self.placeholder.code(log_text, language='plaintext')
 
 def main():
     st.title("Data Catalog Pipeline Automation")
@@ -23,7 +29,8 @@ def main():
     pipeline = DataPipeline()
     
     # Create a placeholder for logs
-    log_placeholder = st.empty()
+    log_container = st.container()
+    log_placeholder = log_container.empty()
     
     # Add custom streamlit handler to the logger
     streamlit_handler = StreamlitHandler(log_placeholder)
