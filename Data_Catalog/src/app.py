@@ -17,7 +17,7 @@ class StreamlitHandler(logging.Handler):
         self.placeholder.text_area("Logs:", self.log_text, height=400)
 
 def main():
-    st.title("Data Pipeline Automation")
+    st.title("Data Catalog Pipeline Automation")
     
     # Create pipeline instance
     pipeline = DataPipeline()
@@ -31,7 +31,7 @@ def main():
     pipeline.logger.addHandler(streamlit_handler)
     
     # Create run button
-    if st.button("Run Complete Pipeline"):
+    if st.button("Run Pipeline"):
         try:
             with st.spinner('Running pipeline...'):
                 pipeline.run()
