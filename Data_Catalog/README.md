@@ -1,10 +1,22 @@
-Initial instruction before starting
+# :snake: Python DATA CATALOG Pipeline
 
-- get latest changes of dataops using git fetch
+- After fetching you need create python environment 
 
-- checkout data dictionary branch using command line "git checkout 2X-43096-data_dictionary"
-- you will be working on this branch for data dictionary development (this branch will be the main)
+    ```python
+        python -m venv .venv
+    ```
+- Activate python environment in <code>.venv</code> directory
 
-- create your branches to add more things, 
+    ```python
+        .venv/Scripts/activate
+    ```
+- Install requirements dependencies
 
-- add/tag me (aiem2x) for pr review, happy to check your work =)
+    ```python
+        pip install -r requirements.txt
+    ```
+- To run the the pipeline, run this command
+
+    ```python
+        python .\src\scrape.py 
+    ```
