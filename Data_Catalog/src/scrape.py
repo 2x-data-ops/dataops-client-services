@@ -239,14 +239,22 @@ class DataPipeline:
         self.logger.info("Starting to get data types from original source")
         try:
             # Read the source data and unnested data
-            source_df = pd.read_csv('output/1_main_data.csv')  # original data with correct types
+            source_df = pd.read_csv('output/1_main_data.csv')
             unnested_df = pd.read_csv('output/unnested_records.csv')
             
-            # Join the dataframes to get correct data types
+            # First merge for data_type using all three columns
             merged_df = unnested_df.merge(
-                source_df[['_raw_dataset', '_table', '_field', '_data_type', 'table_created', '_client_name']], 
+                source_df[['_raw_dataset', '_table', '_field', '_data_type']], 
                 left_on=['dataset', 'table', 'column'],
                 right_on=['_raw_dataset', '_table', '_field'],
+                how='left'
+            )
+            
+            # Second merge for table_created and client_name using just dataset and table
+            merged_df = merged_df.merge(
+                source_df[['_raw_dataset', '_table', 'table_created', '_client_name']].drop_duplicates(),
+                left_on=['dataset', 'table'],
+                right_on=['_raw_dataset', '_table'],
                 how='left'
             )
             
@@ -274,9 +282,35 @@ class DataPipeline:
     def insert_to_bigquery(self):
         """Inserting data to BigQuery"""
         self.logger.info("Starting to insert data to BigQuery")
-        df = pd.read_csv('output/4_final_output.csv')
-        project_id = 'x-marketing'
-        bq.to_gbq(df, 'data_catalog.sample_records', project_id, if_exists='replace', credentials=self.credentials)
+        try:
+            # Read CSV and ensure column names are correct
+            df = pd.read_csv('output/4_final_output.csv')
+            
+            # Rename any problematic column if needed
+            if '_client_name' in df.columns:
+                df = df.rename(columns={'_client_name': 'client_name'})
+            
+            project_id = 'x-marketing'
+            bq.to_gbq(
+                df, 
+                'data_catalog.data_catalog',
+                project_id, 
+                if_exists='replace', 
+                credentials=self.credentials,
+                table_schema=[
+                    {'name': 'dataset', 'type': 'STRING'},
+                    {'name': 'table', 'type': 'STRING'},
+                    {'name': 'column', 'type': 'STRING'},
+                    {'name': 'data_type', 'type': 'STRING'},
+                    {'name': 'sample_record', 'type': 'STRING'},
+                    {'name': 'table_created', 'type': 'STRING'},
+                    {'name': 'client_name', 'type': 'STRING'}  # Make sure this matches exactly
+                ]
+            )
+            self.logger.info("Successfully uploaded to BigQuery")
+        except Exception as e:
+            self.logger.error(f"Error in insert_to_bigquery: {str(e)}")
+            raise
 
     def run(self):
         """Execute the complete pipeline."""
