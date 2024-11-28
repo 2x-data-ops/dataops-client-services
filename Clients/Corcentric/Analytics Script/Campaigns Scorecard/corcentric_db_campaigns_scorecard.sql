@@ -401,7 +401,7 @@ qp_last_touch AS (
     _leadid,
     _link,
     _device
-  FROM activity_log_list a
+  FROM activity_log_list AS a
   JOIN prospect_info
     ON a._leadid = prospect_info._id
   WHERE _last_qp_date IS NOT NULL 
@@ -543,7 +543,7 @@ SELECT
   _assettitle,
   _segment,
   IF(airtable_info._campaign_name IS NOT NULL, TRUE, FALSE) AS _2x_campaigns
-FROM engagements_combined_conversions engagements
+FROM engagements_combined_conversions AS engagements
 LEFT JOIN airtable_info
   ON engagements._campaign_name = airtable_info._campaign_name;
 
@@ -639,7 +639,7 @@ adjusted_metrics AS (
   FROM `x-marketing.corcentric_google_ads.ad_group_performance_report` report
   JOIN `x-marketing.corcentric_google_ads.ads` ad 
     ON ad.ad_group_id = report.ad_group_id
-  JOIN ad_counts c 
+  JOIN ad_counts AS c 
     ON ad.ad_group_id = c.ad_group_id 
     AND report.date = c.date
   WHERE ad.name IS NOT NULL
@@ -948,6 +948,6 @@ SELECT
       TRUE, 
       FALSE
   ) AS marketing_sourced_lost_opps
-FROM consolidate_qp_opps c
+FROM consolidate_qp_opps AS c
 WHERE region IN ('Southern Europe','North America','Northern Europe');
   --and opportunity_id LIKE '006RQ000003EzEq%'
