@@ -1,5 +1,11 @@
 # :snake: Python DATA CATALOG Pipeline
 
+## User Interface Overview
+
+![alt text](/images/image.png)
+
+## Instruction
+
 - After fetching you need create python environment 
 
     ```python
@@ -18,5 +24,8 @@
 - To run the the pipeline, run this command
 
     ```python
-        python .\src\scrape.py 
+        python .\src\streamlit run app.py
     ```
+
+## Pipeline Overview & Flow
+
