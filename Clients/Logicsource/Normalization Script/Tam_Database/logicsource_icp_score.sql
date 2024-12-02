@@ -1,4 +1,29 @@
- CREATE OR REPLACE TABLE `x-marketing.logicsource.contact_icp_score` AS
+ --CREATE OR REPLACE TABLE `x-marketing.logicsource.contact_icp_score` AS
+ TRUNCATE TABLE `x-marketing.logicsource.contact_icp_score`;
+
+INSERT INTO `x-marketing.logicsource.contact_icp_score` (
+  _prospectid,
+  _email,
+  _name,
+  _domain,
+  jobtitle,
+  _function,
+  _company,
+  company_id,
+  hubspot_score,
+  _jobrole_organic,
+  score_job_role_organic,
+  _management_level_organic,
+  score_management_level_organic,
+  _jobrole,
+  score_job_role,
+  _management_level,
+  score_management_level,
+  _annualrevenue,
+  anualrevenue_range,
+  anualrevenue_range_score,
+  total_score_ICP
+)
  WITH contact AS (
  SELECT
      CAST(vid AS STRING) AS _prospectid,
@@ -53,7 +78,16 @@ ELSE 10 END anualrevenue_range_score,
  FROM contact
  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20;
  
- CREATE OR REPLACE TABLE `x-marketing.logicsource.account_icp_score` AS
+--  CREATE OR REPLACE TABLE `x-marketing.logicsource.account_icp_score` AS
+TRUNCATE TABLE `x-marketing.logicsource.account_icp_score`;
+
+INSERT INTO `x-marketing.logicsource.account_icp_score` (
+  _domain,
+  total_employee,
+  total_score_divide_2,
+  total_score,
+  max_score
+)
 SELECT _domain,  COALESCE(COUNT(DISTINCT _prospectid),0) AS total_employee,
  COALESCE(SUM(total_score_ICP)/2,0) AS total_score_divide_2, 
  COALESCE(SUM(total_score_ICP),0) total_score,MAX(total_score_ICP) AS max_score

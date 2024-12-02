@@ -1,4 +1,32 @@
-CREATE OR REPLACE TABLE `x-marketing.logicsource.engagement_opportunity` AS
+-- CREATE OR REPLACE TABLE `x-marketing.logicsource.engagement_opportunity` AS
+TRUNCATE TABLE `x-marketing.logicsource.engagement_opportunity`;
+
+INSERT INTO `x-marketing.logicsource.engagement_opportunity` (
+  _opportunityID,
+  _accountid,
+  _accountname,
+  _opportunityName,
+  _currentStage,
+  _createTS,
+  _createTS_date,
+  _closeTS,
+  _amount,
+  _acv,
+  _type,
+  _reason,
+  _oppLastChangeinStage,
+  campaignid,
+  campaign_name,
+  domain__c,
+  annualrevenue,
+  industry,
+  arr_status__c,
+  account_status__c,
+  customer_status__c,
+  contactname,
+  firstname,
+  lastname
+)
 with campaign AS (
   SELECT id, 
   name FROM `x-marketing.logicsource_salesforce.Campaign` 
@@ -71,7 +99,34 @@ Script to run the pipeline related data for the intent-driven marketing dashboar
 
 --CREATE OR REPLACE TABLE `x-marketing.logicsource.dashboard_engagement_opportunity` AS
 TRUNCATE TABLE `logicsource.dashboard_engagement_opportunity`;
-INSERT INTO `logicsource.dashboard_engagement_opportunity`
+INSERT INTO `logicsource.dashboard_engagement_opportunity` (
+  _opportunityid,
+  _accountid,
+  rownum,
+  _domain,
+  _opportunityName,
+  _engagementID,
+  _opportunityCreated,
+  _opportunityWon,
+  _opportunityLost,
+  _opportunityValue,
+  _currentstage,
+  _previousStage,
+  _stageMovement,
+  _oppLastChangeinStage,
+  _engagementDate,
+  _email,
+  _jobtitle,
+  _accountname,
+  _engagement,
+  _engagement_activities,
+  _description,
+  _t90_days_score,
+  _type,
+  _isInfluence,
+  _isAccelerate,
+  _uniqueID
+)
 WITH account_info AS (
   SELECT
     DISTINCT main.id as accountid,
@@ -91,6 +146,9 @@ account_score AS (
   FROM
     `logicsource.account_90days_score` scores 
 ),
+engagements AS (
+  SELECT DISTINCT * FROM `x-marketing.logicsource.db_consolidated_engagements_log` WHERE _engagement NOT IN ('Opportunity Created', 'Opportunity Stage Change') AND _engagement IS NOT NULL
+),
 account_engagement AS (
   SELECT 
     DISTINCT eng._domain, 
@@ -107,8 +165,7 @@ account_engagement AS (
     -- _ytd_first_party_score,
     -- Updated to use the new T90 Day window scoring.
     MD5(CONCAT(eng._domain, _engagement,_date, _contentTitle, _email)) AS _engagementID
-  FROM 
-    (SELECT DISTINCT * FROM `x-marketing.logicsource.db_consolidated_engagements_log` WHERE _engagement NOT IN ('Opportunity Created', 'Opportunity Stage Change') AND _engagement IS NOT NULL) eng
+  FROM engagements AS eng
   ORDER BY
     _date DESC
 ),
@@ -139,12 +196,8 @@ opps_created AS (
     AND LOWER(accountname) NOT LIKE '%logicsource%'
     AND EXTRACT(YEAR FROM main.createddate ) IN (2022, 2023)
 ),
-opp_hist AS(
+opp_hist_source AS (
   SELECT
-    *
-  FROM
-  (
-    SELECT
       DISTINCT opportunityid AS _opportunityid,
       -- createddate AS _oppLastChangeinStage,
       oldvalue AS _previousstage,
@@ -156,17 +209,18 @@ opp_hist AS(
       field = 'StageName'
    /*  ORDER BY
       _oppLastChangeinStage DESC */
-  )
+),
+opp_hist AS(
+  SELECT
+    *
+  FROM opp_hist_source
   RIGHT JOIN  
     opps_created USING(_opportunityid)
   WHERE
     _order = 1
 ),
-combined_data AS (
+combined_data_prev AS (
   SELECT
-    *
-  FROM (
-    SELECT
       DISTINCT opp_hist._opportunityID,
       opp_hist._accountid,
       account_engagement._domain,
@@ -205,7 +259,11 @@ combined_data AS (
         ON (EXTRACT(WEEK FROM opp_hist._createTS) = account_score._week AND EXTRACT(YEAR FROM opp_hist._createTS) = account_score._year) AND opp_hist._domain = account_score._domain
     WHERE
       LOWER(_accountname) NOT LIKE '%logicsource%'
-  )
+),
+combined_data AS (
+  SELECT
+    *
+  FROM combined_data_prev
   ORDER BY _isInfluence DESC
 ),
 get_accelerated AS (
@@ -225,14 +283,9 @@ get_accelerated AS (
       combined_data
   ORDER BY 
     _isAccelerate DESC, _opportunityName
-), 
-opp_influenced AS (
-  SELECT
-    *
-  FROM 
-    get_accelerated
-  JOIN
-    ( SELECT 
+),
+get_accelerated_is_influenced AS (
+  SELECT 
         DISTINCT _opportunityID, 
         _accountid, 
         MIN(rownum) AS rownum 
@@ -241,17 +294,19 @@ opp_influenced AS (
       WHERE 
         (_isInfluence = 1 ) 
       GROUP BY 1, 2
-    ) USING(_opportunityid, _accountid, rownum)
-  WHERE 
-    (_isInfluence = 1)
 ),
-opp_accelerated AS (
+opp_influenced AS (
   SELECT
     *
   FROM 
     get_accelerated
-  JOIN
-    ( SELECT 
+  JOIN get_accelerated_is_influenced
+    USING(_opportunityid, _accountid, rownum)
+  WHERE 
+    (_isInfluence = 1)
+),
+get_accelerated_is_accelerrated AS (
+  SELECT 
         DISTINCT _opportunityID, 
         _accountid, 
         MIN(rownum) AS rownum 
@@ -260,19 +315,21 @@ opp_accelerated AS (
       WHERE 
         (_isAccelerate = 1 ) 
       GROUP BY 1, 2
-    ) USING(_opportunityid, _accountid, rownum)
+),
+opp_accelerated AS (
+  SELECT
+    *
+  FROM 
+    get_accelerated
+  JOIN get_accelerated_is_accelerrated
+    USING(_opportunityid, _accountid, rownum)
   WHERE 
     (_isAccelerate = 1) 
     AND _opportunityID NOT IN (SELECT DISTINCT _opportunityID FROM opp_influenced)
 )
-SELECT 
-  *
-FROM 
-  (
-    SELECT * FROM opp_influenced
-    UNION DISTINCT
-    SELECT * FROM opp_accelerated
-)
+SELECT * FROM opp_influenced
+UNION DISTINCT
+SELECT * FROM opp_accelerated
 ;
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -281,7 +338,59 @@ FROM
 
 --CREATE OR REPLACE TABLE `x-marketing.logicsource.dashboard_account_opportunity` AS
 TRUNCATE TABLE `x-marketing.logicsource.dashboard_account_opportunity`;
-INSERT INTO `x-marketing.logicsource.dashboard_account_opportunity`
+INSERT INTO `x-marketing.logicsource.dashboard_account_opportunity` (
+  _domain,
+  _distinctOpen,
+  _distinctClick,
+  _distinctContactUsForm,
+  _distinctWebinarForm,
+  _distinctWebinarattended,
+  _distinctGatedContent,
+  _distinctcontentsync,
+  _distinctpaidadsshare,
+  _distinctpaidadscomment,
+  _distinctpaidadsfollow,
+  _distinctpaidadsvisit,
+  _distinctpaidadsclick_like,
+  _distinctorganicadscomment,
+  _distinctorganicadsfollow,
+  _distinctorganicadsvisit,
+  _distinctorganicadsclick_like,
+  _email_score,
+  _content_synd_score,
+  _organic_social_score,
+  _contact_us_form_score,
+  _other_form_fill_score,
+  _paid_ads_score,
+  _quarterly_email_score,
+  _quarterly_content_synd_score,
+  _quarterly_paid_ads_score,
+  _quarterly_form_fill_score,
+  _quarterly_organic_social_score,
+  _website_time_spent,
+  _website_page_view,
+  _website_visitor_count,
+  _career_page_count,
+  _visited_website,
+  _website_time_spent_score,
+  _website_page_view_score,
+  _website_visitor_count_score,
+  _career_page_score,
+  _visited_website_score,
+  _quarterly_web_score,
+  _extract_date,
+  _Tminus90_date,
+  _engagement_score,
+  _quarterly_engagement_cluster,
+  _target_account,
+  _accountid,
+  _opps_created,
+  _total_opps_value,
+  _total_active_opps,
+  _total_active_influenced_opps,
+  _total_closed_opps,
+  _total_closed_influenced_opps
+)
 WITH account_info AS (
   SELECT
     DISTINCT main.id as accountid,
@@ -294,6 +403,13 @@ WITH account_info AS (
     `logicsource_salesforce.Contact` supp ON main.id = supp.accountid
   
 ),
+score AS (
+ SELECT 
+        DISTINCT *, 
+       (COALESCE(_quarterly_email_score, 0) + COALESCE(_quarterly_content_synd_score , 0)+ COALESCE(_quarterly_organic_social_score , 0)+ COALESCE(_quarterly_form_fill_score , 0)+ COALESCE(_quarterly_paid_ads_score , 0)+ COALESCE(_quarterly_web_score, 0)+ COALESCE(_quarterly_organic_social_score, 0)) AS _engagement_score 
+      FROM 
+        `logicsource.account_90days_score`
+),
 pivot_engagement AS (
   SELECT 
     DISTINCT score.*,
@@ -302,13 +418,7 @@ pivot_engagement AS (
           'No') ) AS _quarterly_engagement_cluster,
     IF(target_account__c = true, 1, 0) AS _target_account,
     ROW_NUMBER() OVER(PARTITION BY _domain ORDER BY _extract_date DESC) AS _order
-  FROM
-    ( 
-      SELECT 
-        DISTINCT *, 
-       (COALESCE(_quarterly_email_score, 0) + COALESCE(_quarterly_content_synd_score , 0)+ COALESCE(_quarterly_organic_social_score , 0)+ COALESCE(_quarterly_form_fill_score , 0)+ COALESCE(_quarterly_paid_ads_score , 0)+ COALESCE(_quarterly_web_score, 0)+ COALESCE(_quarterly_organic_social_score, 0)) AS _engagement_score 
-      FROM 
-        `logicsource.account_90days_score` ) score
+  FROM score
   LEFT JOIN
     account_info USING(_domain)
 ),
