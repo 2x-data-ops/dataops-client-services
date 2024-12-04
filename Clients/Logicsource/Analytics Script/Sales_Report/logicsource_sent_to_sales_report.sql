@@ -149,5 +149,5 @@ LEFT JOIN contact_engagement
   bTopics USING(_domain, _week, _year) */
 LEFT JOIN first_party_score
   USING (_domain, _week, _year)
-WHERE EXTRACT(YEAR FROM _leadcreated) IN (2022, 2023)
+WHERE EXTRACT(YEAR FROM _leadcreated) > = 2022
   AND rownum = 1;

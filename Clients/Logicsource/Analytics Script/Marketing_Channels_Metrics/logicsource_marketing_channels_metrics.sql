@@ -66,4 +66,4 @@ combine_all AS (
 SELECT
   *
 FROM combine_all
-WHERE EXTRACT(YEAR FROM _sent_timestamp) IN (2022, 2023);
+WHERE EXTRACT(YEAR FROM _sent_timestamp) >= 2022;
