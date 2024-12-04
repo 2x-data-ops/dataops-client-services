@@ -3,14 +3,15 @@ This script runs for the Success Metric scorecards in the intent-drive marketing
 */
 
 TRUNCATE TABLE `logicsource.dashboard_marketing_channels_metrics`;
-INSERT INTO `logicsource.dashboard_marketing_channels_metrics`
-WITH campaigns AS (
+INSERT INTO `logicsource.dashboard_marketing_channels_metrics` (
+  _campaignID,
+  _campaign,
+  _sent_timestamp,
+  _channel,
+  _2x_campaign
+)
+WITH activity AS (
   SELECT
-    *,
-    "Email" AS _channel,
-    "2X" _2x_campaign
-  FROM (
-    SELECT
       activity.emailcampaignid AS _campaignID,
       campaign.name AS _campaign,
       MIN(activity.created) AS _sent_timestamp
@@ -26,7 +27,13 @@ WITH campaigns AS (
       AND campaign.name IS NOT NULL 
     GROUP BY
       1, 2
-  )
+),
+campaigns AS (
+  SELECT
+    *,
+    "Email" AS _channel,
+    "2X" _2x_campaign
+  FROM activity
 ),
 ads AS (
   SELECT
@@ -48,12 +55,13 @@ contents AS (
     "2X"
   FROM 
     `logicsource_mysql.content_wise_mapping`
-)
-SELECT * FROM (
+),
+combine_all AS (
   SELECT * FROM campaigns UNION ALL
  SELECT * FROM ads UNION ALL
   SELECT * FROM contents
 )
+SELECT * FROM combine_all
 WHERE
     EXTRACT(YEAR FROM _sent_timestamp) IN (2022, 2023)
 ;
