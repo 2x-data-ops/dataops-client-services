@@ -5,27 +5,27 @@ TRUNCATE TABLE `x-marketing.gibraltar.ate_2025_contact_detail`;
 -- AS
 
 INSERT INTO `x-marketing.gibraltar.ate_2025_contact_detail` (
-_hotel,
-_seminar_registered,
-_first_name,
-_last_name,
-_company_name,
-_i_am_a,
-_address,
-_state,
-_city,
-_zipcode,
-_timestamp,
-_campaign_id,
-_email,
-_form_title,
-_form_id,
-_function,
-_job_title,
-_name,
-_page_url,
-_phone,
-_seniority
+  _hotel,
+  _seminar_registered,
+  _first_name,
+  _last_name,
+  _company_name,
+  _i_am_a,
+  _address,
+  _state,
+  _city,
+  _zipcode,
+  _timestamp,
+  _campaign_id,
+  _email,
+  _form_title,
+  _form_id,
+  _function,
+  _job_title,
+  _name,
+  _page_url,
+  _phone,
+  _seniority
 )
 
 WITH main_data AS (
