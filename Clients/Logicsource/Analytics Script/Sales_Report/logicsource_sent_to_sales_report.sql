@@ -141,7 +141,6 @@ SELECT DISTINCT
     WHEN _t90_days_score BETWEEN 1 AND 14 THEN 'Low'
     ELSE 'No'
   END AS _t90days_intent
-
 FROM leads_contacts
 LEFT JOIN contact_engagement
   USING (_domain, _email, _week, _year)
@@ -149,5 +148,5 @@ LEFT JOIN contact_engagement
   bTopics USING(_domain, _week, _year) */
 LEFT JOIN first_party_score
   USING (_domain, _week, _year)
-WHERE EXTRACT(YEAR FROM _leadcreated) > = 2022
+WHERE EXTRACT(YEAR FROM _leadcreated) >= 2022
   AND rownum = 1;
