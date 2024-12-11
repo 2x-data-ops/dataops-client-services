@@ -89,7 +89,7 @@ unique_rows_campaign_level AS (
     conversions,
     INITCAP(campaign_status) AS campaign_status
   FROM `x-marketing.emburse_google_ads.campaign_performance_report` ads
-  WHERE campaign_id IN (21672109159,20541949184,19976833107)
+  WHERE campaign_id IN (21672109159,20541949184,19976833107,20998416897)
   QUALIFY RANK() OVER (
     PARTITION BY date, campaign_id
     ORDER BY ads._sdc_received_at DESC) = 1
@@ -113,7 +113,7 @@ google_campaign_level AS (
   FROM unique_rows_campaign_level
   GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
 ),
-
+--Google Display
 ad_counts_display AS (
   SELECT
     ad.ad_group_id,
@@ -979,6 +979,7 @@ INSERT INTO `x-marketing.emburse.bing_campaign_performance` (
   clicks,	
   AbsoluteTopImpressionRatePercent,	
   conversions,	
+  campaign_status,
   dailybudget
 )
 WITH campaign AS (
@@ -999,11 +1000,12 @@ WITH campaign AS (
     campaign.campaignid, 
     addistribution,
     campaign.currencycode, 
-    campaign.spend AS cost, 
-    campaign.impressions , 
-    campaign.clicks, 
+    campaign.spend AS cost,
+    campaign.impressions,
+    campaign.clicks,
     CAST(REPLACE(campaign.AbsoluteTopImpressionRatePercent, "%","") AS FLOAT64) AS AbsoluteTopImpressionRatePercent, 
-    campaign.conversions
+    campaign.conversions,
+    campaign.campaignstatus AS campaign_status
   FROM `x-marketing.emburse_bing_ads.campaign_performance_report` campaign
   QUALIFY RANK() OVER (
     PARTITION BY campaign.timeperiod, campaign.campaignid
