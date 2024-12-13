@@ -32,12 +32,30 @@ reached_accounts_data AS (
     FROM 
         `smartcommnam_mysql.smartcommnam_db_6sense_reached_accounts_nam` main  
     JOIN (
-        SELECT DISTINCT 
-            _campaignid, 
-            _campaignname,  
-            -- _campaigntype       
-        FROM
+        WITH sixsense_airtable AS (
+            SELECT DISTINCT 
+                _campaignid, 
+                _campaignname,  
+                -- _campaigntype       
+            FROM
             `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense`
+            WHERE _campaignid != ''
+        ),
+        linkedin_airtable AS (
+            SELECT DISTINCT 
+                CASE
+                    WHEN _campaignid = '314779896' THEN '201848'
+                    WHEN _campaignid = '314830366' THEN '201847'
+                END AS _campaignid,
+                _campaignname,  
+                -- _campaigntype       
+            FROM
+            `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_linkedin`
+            WHERE _campaignid != ''
+        )
+        SELECT * FROM sixsense_airtable
+        UNION ALL
+        SELECT * FROM linkedin_airtable
     ) side
     USING(_campaignid)
 ),
@@ -62,8 +80,30 @@ sixsense_campaign_reached AS (
         CAST(NULL AS STRING) AS _email,
     FROM
         reached_accounts_data
-    -- WHERE
-    --     _campaigntype = '6sense Advertising'
+    WHERE
+       _campaignname LIKE '%6S%'
+),
+
+linkedin_campaign_reached AS (
+    SELECT DISTINCT 
+      -- CAST(NULL AS STRING) AS _email, 
+      _country_account, 
+      -- CAST(NULL AS STRING) AS _city,
+      -- CAST(NULL AS STRING) AS _state,
+      MIN(_latestimpression) OVER(
+          PARTITION BY _country_account, _campaignname
+          ORDER BY _latestimpression
+      ) 
+      AS _timestamp,
+      'LinkedIn Campaign Reached' AS _engagement,
+      'LinkedIn' AS _engagement_data_source, 
+      _campaignname AS _description, 
+      1 AS _notes,
+      CAST(NULL AS STRING) AS _email,
+    FROM
+        reached_accounts_data
+    WHERE
+        _campaignname LIKE '%LI%'
 ),
 
 -- Get ad clicks engagement for 6sense
@@ -93,8 +133,41 @@ sixsense_ad_clicks AS (
             reached_accounts_data 
         WHERE
             _clicks >= 1
-        -- AND
-        --     _campaigntype = '6sense Advertising'
+        AND
+            _campaignname LIKE '%6S%'
+    )
+    -- Get those who have increased in numbers from the last period
+    WHERE 
+        (_notes - COALESCE(_old_notes, 0)) >= 1
+),
+
+linkedin_ad_clicks AS (
+    SELECT
+        * EXCEPT(_old_notes)
+    FROM (
+        SELECT DISTINCT 
+            -- CAST(NULL AS STRING) AS _email, 
+            _country_account, 
+            -- CAST(NULL AS STRING) AS _city,
+            -- CAST(NULL AS STRING) AS _state,
+            _activities_on AS _timestamp,
+            'LinkedIn Ad Clicks' AS _engagement, 
+            'LinkedIn' AS _engagement_data_source,
+            _campaignname AS _description,  
+            _clicks AS _notes,
+            CAST(NULL AS STRING) AS _email,
+            -- Get last period's clicks to compare
+            LAG(_clicks) OVER(
+                PARTITION BY _country_account, _campaignname
+                ORDER BY _activities_on
+            )
+            AS _old_notes
+        FROM
+            reached_accounts_data 
+        WHERE
+            _clicks >= 1
+        AND
+            _campaignname LIKE '%LI%'
     )
     -- Get those who have increased in numbers from the last period
     WHERE 
@@ -129,8 +202,8 @@ sixsense_form_fills AS (
             reached_accounts_data 
         WHERE
             _influencedformfills >= 1
-        -- AND
-        --     _campaigntype = '6sense Advertising'
+        AND
+            _campaignname LIKE '%6S%'
     )
     -- Get those who have increased in numbers from the last period
     WHERE 
@@ -148,8 +221,19 @@ marketo_email_engagements AS (
         -- CAST(NULL AS STRING) AS _state,
         DATE(marketo._timestamp) AS _timestamp,
         CONCAT('Email', ' ', marketo._engagement) AS _engagement,
-        'Marketo' AS _engagement_data_source, 
-        _campaign AS _description,
+        'Marketo' AS _engagement_data_source,
+        _campaign AS _description, 
+        -- CASE
+        --     WHEN _campaign = 'NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage.EM-04-NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage'
+        --         THEN 'EM-04-NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage'
+        --     WHEN _campaign = 'NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage.EM-03-NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage'
+        --         THEN 'EM-03-NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage'
+        --     WHEN _campaign = 'NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage.EM-02-NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage'
+        --         THEN 'EM-02-NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage'
+        --     WHEN _campaign = 'NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage.EM-01-NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage'
+        --         THEN 'EM-01-NUR-NAM-2X-2024-07-Open-Pipeline-Medicare-Advantage'
+        --     ELSE _campaign
+        -- END AS _campaign,
         1 AS _notes,
         marketo._email
   FROM `smartcommnam.db_6sense_account_current_state` sixsense
@@ -235,7 +319,11 @@ combined_data AS (
     FROM (
         SELECT * FROM sixsense_campaign_reached 
         UNION DISTINCT
+        SELECT * FROM linkedin_campaign_reached
+        UNION DISTINCT
         SELECT * FROM sixsense_ad_clicks 
+        UNION DISTINCT
+        SELECT * FROM linkedin_ad_clicks
         UNION DISTINCT
         SELECT * FROM sixsense_form_fills
         UNION DISTINCT
@@ -259,8 +347,8 @@ accumulated_engagement_values AS (
         SUM(CASE WHEN _engagement = '6sense Campaign Reached' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6sense_campaign_reached,
         SUM(CASE WHEN _engagement = '6sense Ad Clicks' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6sense_ad_clicks,
         SUM(CASE WHEN _engagement = '6sense Influenced Form Fill' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_6sense_form_fills,
-        -- SUM(CASE WHEN _engagement = 'LinkedIn Campaign Reached' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_campaign_reached,
-        -- SUM(CASE WHEN _engagement = 'LinkedIn Ad Clicks' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_ad_clicks,
+        SUM(CASE WHEN _engagement = 'LinkedIn Campaign Reached' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_campaign_reached,
+        SUM(CASE WHEN _engagement = 'LinkedIn Ad Clicks' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_ad_clicks,
         -- SUM(CASE WHEN _engagement = 'LinkedIn Influenced Form Fill' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_li_form_fills,
         -- SUM(CASE WHEN _engagement = 'SEM Engagement' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_sem_engagements,
         SUM(CASE WHEN _engagement = 'Website Visit' THEN _notes ELSE 0 END) OVER(PARTITION BY _country_account) AS _total_webpage_visits,
