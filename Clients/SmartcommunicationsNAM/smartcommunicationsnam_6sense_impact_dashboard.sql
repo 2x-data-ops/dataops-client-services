@@ -150,7 +150,7 @@ WITH target_accounts AS (
         FROM `smartcommnam_mysql.smartcommnam_db_6sense_reached_accounts_nam`
         WHERE _campaignid IN (  SELECT DISTINCT 
                                     _campaignid
-                                FROM `smartcomm_mysql.smartcommunications_optimization_airtable_ads_6sense`
+                                FROM `smartcommnam_mysql.smartcommnam_optimization_airtable_ads_6sense`
                                 WHERE _campaignid != '')
         QUALIFY ROW_NUMBER() OVER (PARTITION BY CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) ORDER BY CASE
             WHEN _extractdate LIKE '%/%' AND _latestimpression LIKE '%/%'
@@ -850,112 +850,129 @@ WITH target_account_engagements AS (
     --   WHERE _created_date >= '2023-01-01'
     ),
 
-    -- Get all historical stages of opp
-    -- Perform necessary cleaning of the data
-    opps_historical_stage AS (
-    SELECT
-        main.*,
-        side._previous_stage_prob,
-        side._next_stage_prob
-    FROM (
-        SELECT DISTINCT 
-            opportunityid AS _opp_id,
-            createddate AS _historical_stage_change_timestamp,
-            DATE(createddate) AS _historical_stage_change_date,
-            oldvalue AS _previous_stage,
-            newvalue AS _next_stage
-        FROM `smartcomm_salesforce.OpportunityFieldHistory` 
-        WHERE field = 'StageName'
+    stage_history AS (
+    SELECT 
+        opportunityid AS _opp_id,
+        createddate AS stage_change_timestamp,
+        oldvalue AS _previous_stage,
+        newvalue AS next_stage,
+        ROW_NUMBER() OVER(
+            PARTITION BY opportunityid 
+            ORDER BY createddate DESC
+        ) AS stage_sequence
+    FROM `smartcomm_salesforce.OpportunityFieldHistory`
+    WHERE field = 'StageName'
         AND isdeleted = false
-    ) main
-    JOIN (
-        SELECT DISTINCT 
-            opportunityid AS _opp_id,
-            createddate AS _historical_stage_change_timestamp,
-            oldvalue__fl AS _previous_stage_prob,
-            newvalue__fl AS _next_stage_prob,
-        FROM `smartcomm_salesforce.OpportunityFieldHistory`
-        WHERE field = 'ForecastProbability__c'
-        AND isdeleted = false
-    ) side
-    USING (_opp_id, _historical_stage_change_timestamp)
-    ),
-
-    -- There are several stages that can occur on the same day
-    -- Get unique stage on each day 
-    unique_opps_historical_stage AS (
-        SELECT
-            * EXCEPT(_rownum),
-            -- Setting the rank of the historical stage based on stage change date
-            ROW_NUMBER() OVER(PARTITION BY _opp_id ORDER BY _historical_stage_change_date DESC) AS _stage_rank
-        FROM (
-            SELECT
-                *, 
-                -- Those on same day are differentiated by timestamp
-                ROW_NUMBER() OVER (PARTITION BY _opp_id, _historical_stage_change_date ORDER BY _historical_stage_change_timestamp DESC) AS _rownum
-            FROM opps_historical_stage
-        )
-        WHERE _rownum = 1
-    ),
-
-    -- Generate a log to store stage history from latest to earliest
-    get_aggregated_stage_history_text AS (
-        SELECT
-            *,
-            STRING_AGG( 
-                CONCAT(
-                    '[ ', _historical_stage_change_date, ' ]',
-                    ' : ', _next_stage),'; ') 
-            OVER (PARTITION BY _opp_id ORDER BY _stage_rank) AS _stage_history
-        FROM unique_opps_historical_stage
-    ),
-
-    -- Obtain the current stage and the stage date in this CTE 
-    get_current_stage_and_date AS (
-        SELECT
-            *,
-            CASE 
-                WHEN _stage_rank = 1 THEN _historical_stage_change_date
-            END AS _stage_change_date,
-            CASE 
-                WHEN _stage_rank = 1 THEN _next_stage
-            END AS _current_stage
-        FROM get_aggregated_stage_history_text
-    ),
-
-    -- Add the stage related fields to the opps data
-    opps_history AS (
-        SELECT
-            -- Remove the current stage from the opp created CTE
-            main.* EXCEPT(_current_stage, _stage_change_date),
-            -- Fill the current stage and date for an opp
-            -- Will be the same in each row of an opp
-            -- If no stage and date, get the stage and date from the opp created CTE
-            COALESCE(
-                main._stage_change_date,
-                MAX(side._stage_change_date) OVER (PARTITION BY side._opp_id),
-                main._created_date) AS _stage_change_date,
-            COALESCE(
-                MAX(side._current_stage) OVER (PARTITION BY side._opp_id),
-                main._current_stage) AS _current_stage,
-
-            -- Set the stage history to aid crosscheck
-            MAX(side._stage_history) OVER (PARTITION BY side._opp_id) AS _stage_history,
-
-            -- The stage and date fields here represent those of each historical stage
-            -- Will be different in each row of an opp
-            side._historical_stage_change_date,
-            side._next_stage AS _historical_stage,
-
-            -- Set the stage movement 
-            CASE
-                WHEN side._previous_stage_prob > side._next_stage_prob THEN 'Downward' 
-                ELSE 'Upward'
-            END AS _stage_movement
-        FROM opps_created main
-        LEFT JOIN get_current_stage_and_date side
+),
+latest_previous_stage AS (
+    SELECT 
+        _opp_id,
+        _previous_stage as last_previous_stage
+    FROM stage_history
+    WHERE stage_sequence = 1
+),
+stage_number_mapping AS (
+    SELECT 
+        _opp_id,
+        stage_change_timestamp,
+        _previous_stage,
+        next_stage,
+        stage_sequence,
+        CASE 
+            WHEN _previous_stage = 'Evaluating' THEN 1
+            WHEN _previous_stage = 'Qualification' THEN 2
+            WHEN _previous_stage = 'Discovery' THEN 3
+            WHEN _previous_stage = 'Solution' THEN 4
+            WHEN _previous_stage = 'Decision' THEN 5
+            WHEN _previous_stage = 'Negotiation' THEN 6
+            WHEN _previous_stage IN ('Closed Won', 'Closed Lost') THEN 7
+            ELSE 0
+        END as _previous_stage_number,
+        CASE 
+            WHEN next_stage = 'Evaluating' THEN 1
+            WHEN next_stage = 'Qualification' THEN 2
+            WHEN next_stage = 'Discovery' THEN 3
+            WHEN next_stage = 'Solution' THEN 4
+            WHEN next_stage = 'Decision' THEN 5
+            WHEN next_stage = 'Negotiation' THEN 6
+            WHEN next_stage IN ('Closed Won', 'Closed Lost') THEN 7
+            ELSE 0
+        END as next_stage_number
+    FROM stage_history
+),
+stage_transitions AS (
+    SELECT 
+        _opp_id,
+        stage_change_timestamp,
+        next_stage as stage,
+        stage_sequence,
+        next_stage_number as stage_number,
+        CASE 
+            WHEN next_stage IN ('Closed Won', 'Closed Lost') THEN 'Upward'
+            WHEN next_stage_number = _previous_stage_number THEN 'No Changes'
+            WHEN next_stage_number > _previous_stage_number THEN 'Upward'
+            WHEN next_stage_number < _previous_stage_number THEN 'Downward'
+            ELSE 'Unknown'
+        END as _stage_movement
+    FROM stage_number_mapping
+),
+unique_stage_timestamps AS (
+    SELECT 
+        _opp_id,
+        stage,
+        stage_number,
+        MIN(stage_change_timestamp) as stage_timestamp,
+        MIN(stage_sequence) as sequence_order,
+        MAX(_stage_movement) as _stage_movement
+    FROM stage_transitions
+    GROUP BY _opp_id, stage, stage_number
+),
+stage_arrays AS (
+    SELECT 
+        _opp_id,
+        ARRAY_AGG(
+            STRUCT(
+                stage as _current_stage, 
+                stage_timestamp as timestamp
+                -- stage_number as number,
+                -- _stage_movement
+            ) 
+            ORDER BY stage_timestamp DESC
+        ) as stage_array,
+        MAX(_stage_movement) AS _stage_movement
+    FROM unique_stage_timestamps
+    GROUP BY _opp_id
+),
+movement_analysis AS (
+    SELECT 
+        sa._opp_id,
+        sa.stage_array[OFFSET(0)]._current_stage as _current_stage,
+        lps.last_previous_stage as _previous_stage,
+        -- useful to sort which id has the highest stage count
+        -- ARRAY_LENGTH(sa.stage_array) as stage_count,
+        (SELECT STRING_AGG(
+            CONCAT('[ ', FORMAT_TIMESTAMP('%Y-%m-%d', timestamp), ' ] : ', _current_stage),
+            '; '
+            ORDER BY timestamp DESC)
+         FROM UNNEST(sa.stage_array)) as _stage_history,
+        sa._stage_movement,
+        DATE(sa.stage_array[OFFSET(0)].timestamp) as _stage_change_date
+        
+    FROM stage_arrays sa
+    LEFT JOIN latest_previous_stage lps ON sa._opp_id = lps._opp_id
+),
+opps_history AS (
+  SELECT main.* EXCEPT(_current_stage, _stage_change_date),
+  -- main._stage_change_date,
+  COALESCE(side._stage_change_date, main._stage_change_date) AS _stage_change_date,
+  COALESCE(side._current_stage, main._current_stage) AS _current_stage,
+  side._stage_history,
+  side._stage_movement
+   FROM opps_created main
+   LEFT JOIN movement_analysis side
             ON main._opp_id = side._opp_id
-    ),
+),
+
 
     -- Tie opportunities with stage history and account engagements
     combined_data AS (
@@ -1008,7 +1025,7 @@ WITH target_account_engagements AS (
         SELECT 
             *,
             CASE 
-                WHEN _is_influenced_opp IS NULL AND _eng_timestamp > _created_date AND _eng_timestamp <= _historical_stage_change_date AND _stage_movement = 'Upward'
+                WHEN _is_influenced_opp IS NULL AND _eng_timestamp > _created_date AND _eng_timestamp <= _stage_change_date AND _stage_movement = 'Upward'
                 -- AND 
                 --     REGEXP_CONTAINS(
                 --         _engagement, 
@@ -1035,7 +1052,7 @@ WITH target_account_engagements AS (
         SELECT 
             *,
             CASE 
-                WHEN _is_influenced_opp IS NOT NULL AND _eng_timestamp > _created_date AND _eng_timestamp <= _historical_stage_change_date AND _stage_movement = 'Upward'
+                WHEN _is_influenced_opp IS NOT NULL AND _eng_timestamp > _created_date AND _eng_timestamp <= _stage_change_date AND _stage_movement = 'Upward'
                 -- AND 
                 --     REGEXP_CONTAINS(
                 --         _engagement, 
@@ -1076,7 +1093,7 @@ WITH target_account_engagements AS (
     latest_stage_opportunity_only AS (
         SELECT DISTINCT
             -- Remove fields that are unique for each historical stage of opp
-            * EXCEPT(_historical_stage_change_date, _historical_stage, _stage_movement),
+            * EXCEPT(_stage_movement),
             -- For removing those with values in the activity boolean fields
             -- Different historical stages may have caused the influencing or accelerating
             -- This is unlike the opportunity boolean that is uniform among the all historical stage of opp 
