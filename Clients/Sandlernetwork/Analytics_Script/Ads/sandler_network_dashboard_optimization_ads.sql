@@ -109,9 +109,7 @@ SELECT *,
   EXTRACT(MONTH FROM _date) AS month,
   EXTRACT(QUARTER FROM _date) AS quarter,
   CONCAT('Q',EXTRACT(YEAR FROM _date),'-',EXTRACT(QUARTER FROM _date)) AS quarteryear
-FROM (
-      SELECT * FROM linkedin_combined
-  )
+FROM linkedin_combined
 )
 SELECT _all.*,
     --quarter partition (latest vs previous)
