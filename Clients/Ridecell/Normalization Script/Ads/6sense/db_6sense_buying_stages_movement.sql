@@ -1,17 +1,17 @@
 TRUNCATE TABLE `x-marketing.ridecell.db_6sense_buying_stages_movement`;
 
 INSERT INTO `x-marketing.ridecell.db_6sense_buying_stages_movement` (
-_activities_on,
-_6sensecompanyname,
-_6sensecountry,
-_6sensedomain,
-_country_account,
-_data_source,
-_previous_stage,
-_current_stage,
-_previous_stage_order,
-_current_stage_order,
-_movement
+    _activities_on,
+    _6sensecompanyname,
+    _6sensecountry,
+    _6sensedomain,
+    _country_account,
+    _data_source,
+    _previous_stage,
+    _current_stage,
+    _previous_stage_order,
+    _current_stage_order,
+    _movement
 )
 
 WITH sixsense_stage_order AS (
