@@ -82,11 +82,7 @@ linkedin_airtable AS (
     _screenshot
   FROM `x-marketing.sandlernetwork_mysql_2.sandlernetwork_optimization_airtable_ads_linkedin`
   WHERE LENGTH(_adid) > 2 /*_sdc_deleted_at IS NULL*/
-  GROUP BY
-    _adid, _adname, _campaignid, _campaignname, _adgroup, _adcopy,
-    _ctacopy, _designtemplate, _size, _platform, _segment, _designcolor,
-    _designimages, _designblurp, _logos, _copymessaging, _copyassettype, _copytone,
-    _copyproductcompanyname, _copystatisticproofpoint, _ctacopysofthard, _screenshot
+  GROUP BY ALL
 ),
 linkedin_combined AS (
   SELECT
@@ -108,6 +104,7 @@ _all AS (
     EXTRACT(QUARTER FROM _date) AS quarter,
     CONCAT('Q',EXTRACT(YEAR FROM _date),'-',EXTRACT(QUARTER FROM _date)) AS quarteryear
   FROM linkedin_combined
+  GROUP BY ALL
 )
 SELECT
   _all.*,
@@ -136,8 +133,4 @@ SELECT
       END
     )
   END AS _quarterpartition,
-FROM _all
-GROUP BY
-  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-  11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-  21, 22, 23, 24, 25, 26, 27, 28, 29, 30;
+FROM _all;
