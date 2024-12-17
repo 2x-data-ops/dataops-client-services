@@ -104,7 +104,8 @@ prospect_info AS (
   SELECT * 
   FROM prospect
   WHERE _email NOT IN ('skylarulry@yahoo.com', 'sonam.gupta@capgemini.com')
-  AND NOT REGEXP_CONTAINS(_email, r'(@2x\.marketing|2X|test)')
+    AND NOT REGEXP_CONTAINS(_email, r'(@2x\.marketing|2X|test)')
+    AND LOWER(_email) NOT IN ( SELECT LOWER(_email) FROM `x-marketing.epam.db_email_tester_list`)
 ),
 sent_email AS (
   SELECT
