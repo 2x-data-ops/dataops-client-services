@@ -36,6 +36,12 @@ INSERT INTO `x-marketing.corcentric.db_email_activity_log` (
   _last_sal_date,
   _last_sql_date,
   _last_opportunity_date,
+  _zoominfo_management_level,
+  _job_function,
+  _zoominfo_job_function,
+  _annual_revenue_ranges_segment,
+  _industry_segment,
+  _job_function_segment,
   _email,	
   _assettitle,	
   _segment,	
@@ -66,12 +72,26 @@ WITH prospect_info AS (
     ds_05_last_mql AS _last_mql_date,
     ds_06_last_sal AS _last_sal_date,
     ds_07_last_sql AS _last_sql_date,	
-    ds_08_last_opportunity AS _last_opportunity_date
+    ds_08_last_opportunity AS _last_opportunity_date,
+    marketo.zoominfo_management_level__c AS _zoominfo_management_level,
+    dscorgpkg__job_function__c AS _job_function,
+    marketo.zoominfo_job_function__c AS _zoominfo_job_function,
+    CASE
+      WHEN annualrevenue > 999999999.99 THEN 'High - $1B+'
+      WHEN annualrevenue BETWEEN 499999999.99 AND 999999999.99 THEN 'Medium - $500M - $1B'
+      WHEN annualrevenue BETWEEN 249999999.99 AND 499999999.99 THEN 'Low - $250M - $500M'
+      WHEN annualrevenue BETWEEN 25000000.00 AND 249999999.99 THEN 'Below ICP - $25M - $250M'
+      ELSE NULL
+    END AS _annual_revenue_ranges_segment,
+    _industry_segment,
+    _job_function_segment
   FROM `x-marketing.corcentric_marketo.leads` marketo
   LEFT JOIN `x-marketing.corcentric.salesforce_qp_and_mql` qp
     ON qp.email = marketo.email
   LEFT JOIN `x-marketing.corcentric_salesforce.Contact` contact
     ON contact.email = marketo.email
+  LEFT JOIN `x-marketing.corcentric.db_industry_segment` segment
+    ON segment._id = marketo.id
   WHERE marketo.email IS NOT NULL
     AND marketo.email NOT LIKE '%2x.marketing%'
     AND marketo.email NOT LIKE '%corcentric.com%'
@@ -96,7 +116,8 @@ email_sent AS (
     '' AS _link,
     '' AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_send_email` activity
-  WHERE CAST(activitydate AS DATE) >= '2024-01-01' 
+  WHERE CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%' 
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -118,6 +139,7 @@ email_delivered AS (
     '' AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_email_delivered` activity
   WHERE CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1 
@@ -139,6 +161,7 @@ email_open AS (
     device AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_open_email` activity
   WHERE CAST(activitydate AS DATE) >= '2024-01-01' --AND leadid = 3277762
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -160,6 +183,7 @@ email_click AS (
     '' AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_click_email` activity
   WHERE CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -225,6 +249,7 @@ email_hard_bounce AS (
     '' AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_email_bounced` activity
   WHERE CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -246,6 +271,7 @@ email_soft_bounce AS (
     '' AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_email_bounced_soft` activity
   WHERE CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -269,6 +295,7 @@ email_download AS (
   WHERE primary_attribute_value NOT LIKE '%TEST 2X%'
     AND primary_attribute_value NOT LIKE '%Email Unsubscribe Form%'
     AND CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
