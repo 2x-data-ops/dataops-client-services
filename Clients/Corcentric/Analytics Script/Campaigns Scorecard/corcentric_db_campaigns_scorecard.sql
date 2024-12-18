@@ -817,7 +817,7 @@ opps AS (
   FROM `x-marketing.corcentric_salesforce.Opportunity` opp
   LEFT JOIN `x-marketing.corcentric_salesforce.RecordType` r
     ON r.id = opp.recordtypeid
-  --WHERE opp.id LIKE '006RQ000003EzEq%'
+  -- WHERE opp.id LIKE '006RQ00000H9ePU%'
 ), 
 contact AS (
   SELECT 
@@ -949,9 +949,9 @@ SELECT
   IF(
       type = 'Inbound' 
       AND opp_record_type = 'New - Direct' 
-      AND opportunity_source IN ('Marketing Generated (BDR)', 'Marketing Generated (Non-BDR)', 'BDR Generated') 
       AND (leadsource NOT IN ('Partner', 'Sales Generated') OR leadsource IS NULL) 
-      AND stagename = 'Closed Won', 
+      AND stagename = 'Closed Won'
+      AND owner_name NOT LIKE '%Cochran%', 
       TRUE, 
       FALSE
   ) AS marketing_source_won_opps,
@@ -977,4 +977,4 @@ SELECT
   ) AS marketing_sourced_lost_opps
 FROM consolidate_qp_opps AS c
 WHERE region IN ('Southern Europe','North America','Northern Europe');
-  --and opportunity_id LIKE '006RQ000003EzEq%'
+  -- and opportunity_id LIKE '006RQ00000H9ePU%'
