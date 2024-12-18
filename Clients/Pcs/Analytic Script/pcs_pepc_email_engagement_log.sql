@@ -826,52 +826,45 @@ WHERE rownum = 1
 )
 , 
 email_campaign AS (
-  SELECT * EXCEPT (rownum)
-  FROM (
-    SELECT 
-      *,  
-      ROW_NUMBER() OVER(
-          PARTITION BY id,_code 
-          ORDER BY _livedate DESC
-      ) AS rownum
-    FROM (
-      SELECT DISTINCT 
-        _notes, 
-        _status, 
-        _trimcode, 
-        _screenshot, 
-        _assettitle, 
-        _subject, 
-        _whatwedo, 
-        _campaignid AS id, 
-        _utm_campaign, 
-        _preview, 
-        _code, 
-        _journeyname,
-        _campaignname, 
-        _formsubmission, 
-        _id, 
-        _livedate, 
-        _utm_source, 
-        _emailname, 
-        _assignee, 
-        _utm_medium, 
-        _landingpage,
-         CASE WHEN _emailsequence LIKE "%PEPC 2022 Email 10 %" THEN "PEPC 2022 Email 10"
-        WHEN _emailsequence LIKE "%PEPC3 EM1 (Early)%" THEN "PEPC3Early 2023 Email 11"
-        WHEN _emailsequence LIKE "%PEPC3 EM1 (End)%" THEN "PEPC3End 2023 Email 12"
-        WHEN _emailsequence LIKE "%PEPC3 EM1 (Mid)%" THEN "PEPC3Mid 2023 Email 13" ELSE _emailsequence END AS _segment,
-        _link,
-        _rootcampaign,
-        _emailsegment
-      FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
-      WHERE _rootcampaign = 'Participant Engagement' AND _sdc_deleted_at IS NULL
-      ORDER BY _code DESC
-      )
-  ) 
-  WHERE rownum = 1 
-  AND id != ''
-  AND id IS NOT NULL
+  SELECT
+  DISTINCT _preview AS _notes,
+  _status AS _status,
+  _campaign_code AS _trimcode,
+  _ad_visual AS _screenshot,
+  _form_submission AS _assettitle,
+  _subject_line AS _subject,
+  _email_name AS _whatwedo,
+  _campaign_id AS _campaignid,
+  _campaign_name AS _utm_campaign,
+  _preview,
+  _campaign_code AS _code,
+  _campaign AS _journeyname,
+  _email_segment AS _campaignname,
+  _form_submission AS _formsubmission,
+  _email_id AS _id,
+  PARSE_TIMESTAMP('%m/%d/%Y', _live_date) AS _livedate,
+  "" AS _utm_source,
+  _email_name AS _emailname,
+  '' AS _assignee,
+  '' AS _utm_medium,
+  _landing_page_url AS _landingpage,
+  CASE
+    WHEN _email_segment LIKE "%PEPC 2022 Email 10 %" THEN "PEPC 2022 Email 10"
+    WHEN _email_segment LIKE "%PEPC3 EM1 (Early)%" THEN "PEPC3Early 2023 Email 11"
+    WHEN _email_segment LIKE "%PEPC3 EM1 (End)%" THEN "PEPC3End 2023 Email 12"
+    WHEN _email_segment LIKE "%PEPC3 EM1 (Mid)%" THEN "PEPC3Mid 2023 Email 13"
+    ELSE _email_segment
+END
+  AS _segment,
+  _asset_url AS _link,
+  _campaign AS _rootcampaign,
+  _email_segment AS _emailsegment
+FROM
+  `x-marketing.pcs_retirement_google_sheets.db_email_campaign`
+WHERE
+  _campaign = 'Participant Engagement' 
+QUALIFY
+  ROW_NUMBER() OVER(PARTITION BY _campaign_id, _code ORDER BY _livedate DESC) = 1
 ),
 airtable AS (
   SELECT 
@@ -898,7 +891,7 @@ airtable AS (
         -- _preview AS _whatwedo, 
         -- _campaignname AS campaignName, 
         -- _id, 
-        safe.timestamp(_livedate) AS _livedate, 
+        _livedate AS _livedate, 
         _utm_source, 
         _utm_medium, 
         _landingpage,
@@ -932,7 +925,7 @@ airtable AS (
             ORDER BY senddate DESC
         ) AS rownum
     FROM `x-marketing.pcs_sfmc.send` airtable, unnest (partnerproperties) name
-    LEFT JOIN  email_campaign ON airtable.id  = CAST(email_campaign.id AS INT)
+    LEFT JOIN  email_campaign ON airtable.id  = CAST(email_campaign._campaignid AS INT)
   )
   WHERE rownum = 1
   AND _code IS NOT NULL
@@ -1071,52 +1064,46 @@ FROM `x-marketing.pcs_salesforce.NEW_Financial_Account__c` fin
 LEFT JOIN `x-marketing.pcs_salesforce.Contact` acc ON fin.account_holder__c = acc.id
 ), google_Sheet_fin_account AS (
   WITH email_campaign AS (
-  SELECT * EXCEPT (rownum)
-  FROM (
-    SELECT 
-      *,  
-      ROW_NUMBER() OVER(
-          PARTITION BY id,_code 
-          ORDER BY _livedate DESC
-      ) AS rownum
-    FROM (
-      SELECT DISTINCT 
-        _notes, 
-        _status, 
-        _trimcode, 
-        _screenshot, 
-        _assettitle, 
-        _subject, 
-        _whatwedo, 
-        CAST(_campaignid AS STRING) AS id, 
-        _utm_campaign, 
-        _preview, 
-        _code, 
-        _journeyname,
-        _campaignname, 
-        _formsubmission, 
-        _id, 
-        safe.timestamp(_livedate) AS _livedate, 
-        _utm_source, 
-        _emailname, 
-        _assignee, 
-        _utm_medium, 
-        _landingpage,
-        -- CASE WHEN _emailsequence LIKE "%PEPC 2022 Email 10 %" THEN "PEPC 2022 Email 10"
-        -- WHEN _emailsequence LIKE "%PEPC3 EM1 (Early)%" THEN "PEPC3Early 2023 Email 11"
-        -- WHEN _emailsequence LIKE "%PEPC3 EM1 (End)%" THEN "PEPC3End 2023 Email 12"
-        -- WHEN _emailsequence LIKE "%PEPC3 EM1 (Mid)%" THEN "PEPC3Mid 2023 Email 13" ELSE _emailsequence END 
-        CASE WHEN CAST(_campaignid AS STRING) = '208483' THEN 'PEPC 2023 Email 10' ELSE _emailsegment END AS _segment,
-        _link
-      FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
-      WHERE _rootcampaign = 'Participant Engagement' 
-      --AND _campaignid = '215159'
-      ORDER BY _code
-      )
-  ) 
-  WHERE rownum = 1
-  AND id != ''
-  AND id IS NOT NULL
+ SELECT
+  DISTINCT _preview AS _notes,
+  _status AS _status,
+  _campaign_code AS _trimcode,
+  _ad_visual AS _screenshot,
+  _form_submission AS _assettitle,
+  _subject_line AS _subject,
+  _email_name AS _whatwedo,
+  _campaign_id AS _campaignid,
+  _campaign_name AS _utm_campaign,
+  _preview,
+  _campaign_code AS _code,
+  _campaign AS _journeyname,
+  _email_segment AS _campaignname,
+  _form_submission AS _formsubmission,
+  _email_id AS _id,
+  PARSE_TIMESTAMP('%m/%d/%Y', _live_date) AS _livedate,
+  "" AS _utm_source,
+  _email_name AS _emailname,
+  '' AS _assignee,
+  '' AS _utm_medium,
+  _landing_page_url AS _landingpage,
+  CASE
+    WHEN _email_segment LIKE "%PEPC 2022 Email 10 %" THEN "PEPC 2022 Email 10"
+    WHEN _email_segment LIKE "%PEPC3 EM1 (Early)%" THEN "PEPC3Early 2023 Email 11"
+    WHEN _email_segment LIKE "%PEPC3 EM1 (End)%" THEN "PEPC3End 2023 Email 12"
+    WHEN _email_segment LIKE "%PEPC3 EM1 (Mid)%" THEN "PEPC3Mid 2023 Email 13"
+    WHEN CAST(_campaign_id AS STRING) = '208483' THEN 'PEPC 2023 Email 10'
+    ELSE _email_segment
+END
+  AS _segment,
+  _asset_url AS _link,
+  _campaign AS _rootcampaign,
+  _email_segment AS _emailsegment
+FROM
+  `x-marketing.pcs_retirement_google_sheets.db_email_campaign`
+WHERE
+  _campaign = 'Participant Engagement' 
+QUALIFY
+  ROW_NUMBER() OVER(PARTITION BY _campaign_id, _code ORDER BY _livedate DESC) = 1
 )
 ,
 airtable AS (
@@ -1133,7 +1120,7 @@ airtable AS (
             ORDER BY createddate DESC
         ) AS rownum
     FROM `x-marketing.pcs_sfmc.send` airtable, unnest (partnerproperties) name
-   LEFT JOIN  email_campaign ON CAST(airtable.id AS STRING)  = email_campaign.id 
+   LEFT JOIN  email_campaign ON CAST(airtable.id AS STRING)  = email_campaign._campaignid
  )
  WHERE rownum = 1 
  --AND _segment = 'PEPC 2024 Email 1'
@@ -1598,49 +1585,46 @@ unsubscribe AS (
 )
 , 
 email_campaign AS (
-  SELECT * EXCEPT (rownum)
-  FROM (
-    SELECT 
-      *,  
-      ROW_NUMBER() OVER(
-          PARTITION BY id,_code 
-          ORDER BY _livedate DESC
-      ) AS rownum
-    FROM (
-      SELECT DISTINCT 
-        _notes, 
-        _status, 
-        _trimcode, 
-        _screenshot, 
-        _assettitle, 
-        _subject, 
-        _whatwedo, 
-        _campaignid AS id, 
-        _utm_campaign, 
-        _preview, 
-        _code, 
-        _journeyname,
-        _campaignname, 
-        _formsubmission, 
-        _id, 
-        _livedate, 
-        _utm_source, 
-        _emailname, 
-        _assignee, 
-        _utm_medium, 
-        _landingpage,
-        _emailsequence AS _segment,
-        _link,
-        _rootcampaign,
-        _emailsegment
-      FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
-      WHERE _rootcampaign IN( 'Participant Education Series','Adhoc - Cantor')
-      ORDER BY _code
-      )
-  ) 
-  WHERE rownum = 1
-  AND id != ''
-  AND id IS NOT NULL
+  SELECT
+  DISTINCT _preview AS _notes,
+  _status AS _status,
+  _campaign_code AS _trimcode,
+  _ad_visual AS _screenshot,
+  _form_submission AS _assettitle,
+  _subject_line AS _subject,
+  _email_name AS _whatwedo,
+  _campaign_id AS _campaignid,
+  _campaign_name AS _utm_campaign,
+  _preview,
+  _campaign_code AS _code,
+  _campaign AS _journeyname,
+  _email_segment AS _campaignname,
+  _form_submission AS _formsubmission,
+  _email_id AS _id,
+  PARSE_TIMESTAMP('%m/%d/%Y', _live_date) AS _livedate,
+  "" AS _utm_source,
+  _email_name AS _emailname,
+  '' AS _assignee,
+  '' AS _utm_medium,
+  _landing_page_url AS _landingpage,
+  CASE
+    WHEN _email_segment LIKE "%PEPC 2022 Email 10 %" THEN "PEPC 2022 Email 10"
+    WHEN _email_segment LIKE "%PEPC3 EM1 (Early)%" THEN "PEPC3Early 2023 Email 11"
+    WHEN _email_segment LIKE "%PEPC3 EM1 (End)%" THEN "PEPC3End 2023 Email 12"
+    WHEN _email_segment LIKE "%PEPC3 EM1 (Mid)%" THEN "PEPC3Mid 2023 Email 13"
+    WHEN CAST(_campaign_id AS STRING) = '208483' THEN 'PEPC 2023 Email 10'
+    ELSE _email_segment
+END
+  AS _segment,
+  _asset_url AS _link,
+  _campaign AS _rootcampaign,
+  _email_segment AS _emailsegment
+FROM
+  `x-marketing.pcs_retirement_google_sheets.db_email_campaign`
+WHERE
+  _campaign IN( 'Participant Education Series','Adhoc - Cantor')
+QUALIFY
+  ROW_NUMBER() OVER(PARTITION BY _campaign_id, _code ORDER BY _livedate DESC) = 1
 ),
 airtable AS (
   SELECT 
@@ -1667,7 +1651,7 @@ airtable AS (
         -- _preview AS _whatwedo, 
         -- _campaignname AS campaignName, 
         -- _id, 
-        safe.timestamp(_livedate) AS _livedate, 
+        _livedate AS _livedate, 
         _utm_source, 
         _utm_medium, 
         _landingpage,
@@ -1700,7 +1684,7 @@ airtable AS (
             ORDER BY senddate DESC
         ) AS rownum
     FROM `x-marketing.pcs_sfmc.send` airtable, unnest (partnerproperties) name
-    LEFT JOIN  email_campaign ON airtable.id  = CAST(email_campaign.id AS INT)
+    LEFT JOIN  email_campaign ON airtable.id  = SAFE_CAST(_campaignid AS INT)
   )
   WHERE rownum = 1
   AND _code IS NOT NULL
@@ -1989,26 +1973,37 @@ click_event AS(
     linked_click AS (
     
     WITH email_campaign AS (
-    SELECT * 
-    FROM (
-    SELECT *,  
-    ROW_NUMBER() OVER(PARTITION BY id,_code ORDER BY _livedate DESC) AS _rownum
-    FROM (
-    SELECT 
-    DISTINCT 
-    _notes, 
-  _status, 
-  _trimcode, 
-  _screenshot, _assettitle, _subject, _whatwedo, _campaignid, _utm_campaign, _preview, _code, _journeyname,_emailsegment AS _campaignname, _formsubmission, _id, _livedate, _utm_source, _emailname, _assignee, _utm_medium, _landingpage,
-  _campaignid  
-  AS id,
-  _emailsequence  AS _email_segment
-   FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
-  WHERE _rootcampaign = 'Demand Generation' AND  _campaignID  <> 'Obtain from DE>Campaign>Email JobID' 
-  AND _id <> 3321
-  ORDER BY _code
-    )
-    ) WHERE _rownum = 1 
+   SELECT
+  DISTINCT _preview AS _notes,
+  _status AS _status,
+  _campaign_code AS _trimcode,
+  _ad_visual AS _screenshot,
+  _form_submission AS _assettitle,
+  _subject_line AS _subject,
+  _email_name AS _whatwedo,
+  _campaign_id AS _campaignid,
+  _campaign_name AS _utm_campaign,
+  _preview,
+  _campaign_code AS _code,
+  _campaign AS _journeyname,
+  _email_segment AS _campaignname,
+  _form_submission AS _formsubmission,
+  _email_id AS _id,
+  PARSE_TIMESTAMP('%m/%d/%Y', _live_date) AS _livedate,
+  "" AS _utm_source,
+  _email_name AS _emailname,
+  '' AS _assignee,
+  '' AS _utm_medium,
+  _landing_page_url AS _landingpage,
+  _asset_url AS _link,
+  _campaign AS _rootcampaign,
+  _email_segment 
+FROM
+  `x-marketing.pcs_retirement_google_sheets.db_email_campaign`
+WHERE
+  _campaign = 'Demand Generation'
+QUALIFY
+  ROW_NUMBER() OVER(PARTITION BY _campaign_id, _code ORDER BY _livedate DESC) = 1
     )
     ,airtable AS (
     SELECT * EXCEPT(_rownum)
@@ -2028,12 +2023,12 @@ click_event AS(
         airtable.id,
         _code,_trimcode, _screenshot, _assettitle, _subject, _preview AS _whatwedo, _campaignname AS campaignName, 
         _id, 
-        safe.timestamp(_livedate) AS _livedate, 
+        _livedate AS _livedate, 
         _utm_source, _utm_medium, _landingpage,_journeyname,_email_segment,
         _code AS _type,
         ROW_NUMBER() OVER(PARTITION BY emailname,airtable.id,emailid,_email_segment ORDER BY senddate DESC) AS _rownum
         FROM `x-marketing.pcs_sfmc.send` airtable, unnest (partnerproperties) name
-        JOIN  email_campaign ON airtable.id  = SAFE_CAST(email_campaign.id AS INT64)
+        JOIN  email_campaign ON airtable.id  = SAFE_CAST(_campaignid AS INT64)
         )
         WHERE _rownum = 1
         )SELECT l._sdc_sequence,subscriberkey ,CAST(k.id AS STRING) AS sendid,clickdate,url,
@@ -2352,49 +2347,38 @@ FROM `x-marketing.pcs_salesforce.Contact`)  l ON /*activity.subscriberkey = l.em
 )
 , 
 email_campaign AS (
-  SELECT * EXCEPT (rownum)
-  FROM (
-    SELECT 
-      *,  
-      ROW_NUMBER() OVER(
-          PARTITION BY id,_code 
-          ORDER BY _livedate DESC
-      ) AS rownum
-    FROM (
-      SELECT DISTINCT 
-        _notes, 
-        _status, 
-        _trimcode, 
-        _screenshot, 
-        _assettitle, 
-        _subject, 
-        _whatwedo, 
-        _campaignid AS id, 
-        _utm_campaign, 
-        _preview, 
-        _code, 
-        _journeyname,
-        _campaignname, 
-        _formsubmission, 
-        _id, 
-        _livedate, 
-        _utm_source, 
-        _emailname, 
-        _assignee, 
-        _utm_medium, 
-        _landingpage,
-        _emailsequence AS _segment,
-        _link,
-        _rootcampaign,
-        _emailsegment
-      FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
-      WHERE _rootcampaign = 'Demand Generation' AND _id <> 3321 
-      ORDER BY _code
-      )
-  ) 
-  WHERE rownum = 1
-  AND id != ''
-  AND id IS NOT NULL
+SELECT
+  DISTINCT _preview AS _notes,
+  _status AS _status,
+  _campaign_code AS _trimcode,
+  _ad_visual AS _screenshot,
+  _form_submission AS _assettitle,
+  _subject_line AS _subject,
+  _email_name AS _whatwedo,
+  _campaign_id AS _campaignid,
+  _campaign_name AS _utm_campaign,
+  _preview,
+  _campaign_code AS _code,
+  _campaign AS _journeyname,
+  _email_segment AS _campaignname,
+  _form_submission AS _formsubmission,
+  _email_id AS _id,
+  PARSE_TIMESTAMP('%m/%d/%Y', _live_date) AS _livedate,
+  "" AS _utm_source,
+  _email_name AS _emailname,
+  '' AS _assignee,
+  '' AS _utm_medium,
+  _landing_page_url AS _landingpage,
+  _email_segment AS _segment,
+  _asset_url AS _link,
+  _campaign AS _rootcampaign,
+  _email_segment AS _emailsegment
+FROM
+  `x-marketing.pcs_retirement_google_sheets.db_email_campaign`
+WHERE
+  _campaign = 'Demand Generation'
+QUALIFY
+  ROW_NUMBER() OVER(PARTITION BY _campaign_id, _code ORDER BY _livedate DESC) = 1
 ),
 airtable AS (
   SELECT 
@@ -2422,7 +2406,7 @@ airtable AS (
         -- _preview AS _whatwedo, 
         -- _campaignname AS campaignName, 
         -- _id, 
-        safe.timestamp(_livedate) AS _livedate, 
+        _livedate AS _livedate, 
         _utm_source, 
         _utm_medium, 
         _landingpage,
@@ -2455,7 +2439,7 @@ airtable AS (
             ORDER BY senddate DESC
         ) AS rownum
     FROM `x-marketing.pcs_sfmc.send` airtable, unnest (partnerproperties) name
-    LEFT JOIN  email_campaign ON airtable.id  = CAST(email_campaign.id AS INT)
+    LEFT JOIN  email_campaign ON airtable.id  = CAST(_campaignid AS INT)
   )
   WHERE rownum = 1
   AND _code IS NOT NULL
@@ -2868,49 +2852,38 @@ unsubscribe AS (
 )
 , 
 email_campaign AS (
-  SELECT * EXCEPT (rownum)
-  FROM (
-    SELECT 
-      *,  
-      ROW_NUMBER() OVER(
-          PARTITION BY id,_code 
-          ORDER BY _livedate DESC
-      ) AS rownum
-    FROM (
-      SELECT DISTINCT 
-        _notes, 
-        _status, 
-        _trimcode, 
-        _screenshot, 
-        _assettitle, 
-        _subject, 
-        _whatwedo, 
-        _campaignid AS id, 
-        _utm_campaign, 
-        _preview, 
-        _code, 
-        _journeyname,
-        _campaignname, 
-        _formsubmission, 
-        _id, 
-        _livedate, 
-        _utm_source, 
-        _emailname, 
-        _assignee, 
-        _utm_medium, 
-        _landingpage,
-        _emailsequence AS _segment,
-        _link,
-        _rootcampaign,
-        _emailsegment
-      FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
-      WHERE _rootcampaign = 'Selling Season'
-      ORDER BY _code
-      )
-  ) 
-  WHERE rownum = 1
-  AND id != ''
-  AND id IS NOT NULL
+  SELECT
+  DISTINCT _preview AS _notes,
+  _status AS _status,
+  _campaign_code AS _trimcode,
+  _ad_visual AS _screenshot,
+  _form_submission AS _assettitle,
+  _subject_line AS _subject,
+  _email_name AS _whatwedo,
+  _campaign_id AS _campaignid,
+  _campaign_name AS _utm_campaign,
+  _preview,
+  _campaign_code AS _code,
+  _campaign AS _journeyname,
+  _email_segment AS _campaignname,
+  _form_submission AS _formsubmission,
+  _email_id AS _id,
+  PARSE_TIMESTAMP('%m/%d/%Y', _live_date) AS _livedate,
+  "" AS _utm_source,
+  _email_name AS _emailname,
+  '' AS _assignee,
+  '' AS _utm_medium,
+  _landing_page_url AS _landingpage,
+  _email_segment AS _segment,
+  _asset_url AS _link,
+  _campaign AS _rootcampaign,
+  _email_segment AS _emailsegment
+FROM
+  `x-marketing.pcs_retirement_google_sheets.db_email_campaign`
+WHERE
+  _campaign = 'Selling Season'
+QUALIFY
+  ROW_NUMBER() OVER(PARTITION BY _campaign_id, _code ORDER BY _livedate DESC) = 1
 ),
 airtable AS (
   SELECT 
@@ -2937,7 +2910,7 @@ airtable AS (
         -- _preview AS _whatwedo, 
         -- _campaignname AS campaignName, 
         -- _id, 
-        safe.timestamp(_livedate) AS _livedate, 
+        _livedate AS _livedate, 
         _utm_source, 
         _utm_medium, 
         _landingpage,
@@ -2970,7 +2943,7 @@ airtable AS (
             ORDER BY senddate DESC
         ) AS rownum
     FROM `x-marketing.pcs_sfmc.send` airtable, unnest (partnerproperties) name
-    LEFT JOIN  email_campaign ON airtable.id  = CAST(email_campaign.id AS INT)
+    LEFT JOIN  email_campaign ON airtable.id  = CAST(_campaignid AS INT)
   )
   WHERE rownum = 1
   AND _code IS NOT NULL
@@ -3395,49 +3368,38 @@ unsubscribe AS (
 )
 , 
 email_campaign AS (
-  SELECT * EXCEPT (rownum)
-  FROM (
-    SELECT 
-      *,  
-      ROW_NUMBER() OVER(
-          PARTITION BY id,_code 
-          ORDER BY _livedate DESC
-      ) AS rownum
-    FROM (
-      SELECT DISTINCT 
-        _notes, 
-        _status, 
-        _trimcode, 
-        _screenshot, 
-        _assettitle, 
-        _subject, 
-        _whatwedo, 
-        _campaignid AS id, 
-        _utm_campaign, 
-        _preview, 
-        _code, 
-        _journeyname,
-        _campaignname, 
-        _formsubmission, 
-        _id, 
-        _livedate, 
-        _utm_source, 
-        _emailname, 
-        _assignee, 
-        _utm_medium, 
-        _landingpage,
-        _emailsequence AS _segment,
-        _link,
-        _rootcampaign,
-        _emailsegment
-      FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
-      WHERE _rootcampaign =  "Plan Sponsor Demand Gen" AND _id <> 3321
-      ORDER BY _code
-      )
-  ) 
-  WHERE rownum = 1
-  AND id != ''
-  AND id IS NOT NULL
+  SELECT
+  DISTINCT _preview AS _notes,
+  _status AS _status,
+  _campaign_code AS _trimcode,
+  _ad_visual AS _screenshot,
+  _form_submission AS _assettitle,
+  _subject_line AS _subject,
+  _email_name AS _whatwedo,
+  _campaign_id AS _campaignid,
+  _campaign_name AS _utm_campaign,
+  _preview,
+  _campaign_code AS _code,
+  _campaign AS _journeyname,
+  _email_segment AS _campaignname,
+  _form_submission AS _formsubmission,
+  _email_id AS _id,
+  PARSE_TIMESTAMP('%m/%d/%Y', _live_date) AS _livedate,
+  "" AS _utm_source,
+  _email_name AS _emailname,
+  '' AS _assignee,
+  '' AS _utm_medium,
+  _landing_page_url AS _landingpage,
+  _email_segment AS _segment,
+  _asset_url AS _link,
+  _campaign AS _rootcampaign,
+  _email_segment AS _emailsegment
+FROM
+  `x-marketing.pcs_retirement_google_sheets.db_email_campaign`
+WHERE
+  _campaign = "Plan Sponsor Demand Gen"
+QUALIFY
+  ROW_NUMBER() OVER(PARTITION BY _campaign_id, _code ORDER BY _livedate DESC) = 1
 ),
 airtable AS (
   SELECT 
@@ -3465,7 +3427,7 @@ airtable AS (
         -- _preview AS _whatwedo, 
         -- _campaignname AS campaignName, 
         -- _id, 
-        safe.timestamp(_livedate) AS _livedate, 
+        _livedate AS _livedate, 
         _utm_source, 
         _utm_medium, 
         _landingpage,
@@ -3498,7 +3460,7 @@ airtable AS (
             ORDER BY senddate DESC
         ) AS rownum
     FROM `x-marketing.pcs_sfmc.send` airtable, unnest (partnerproperties) name
-    LEFT JOIN  email_campaign ON airtable.id  = CAST(email_campaign.id AS INT)
+    LEFT JOIN  email_campaign ON airtable.id  = SAFE_CAST(_campaignid AS INT)
     --WHERE airtable.id = 224947
   )
   WHERE rownum = 1
@@ -3850,49 +3812,38 @@ unsubscribe AS (
 ) 
 , 
 email_campaign AS (
-  SELECT * EXCEPT (rownum)
-  FROM (
-    SELECT 
-      *,  
-      ROW_NUMBER() OVER(
-          PARTITION BY id,_code 
-          ORDER BY _livedate DESC
-      ) AS rownum
-    FROM (
-      SELECT DISTINCT 
-        _notes, 
-        _status, 
-        _trimcode, 
-        _screenshot, 
-        _assettitle, 
-        _subject, 
-        _whatwedo, 
-        _campaignid AS id, 
-        _utm_campaign, 
-        _preview, 
-        _code, 
-        _journeyname,
-        _campaignname, 
-        _formsubmission, 
-        _id, 
-        _livedate, 
-        _utm_source, 
-        _emailname, 
-        _assignee, 
-        _utm_medium, 
-        _landingpage,
-        _emailsequence AS _segment,
-        _link,
-        _rootcampaign,
-        _emailsegment
-      FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement` 
-      WHERE _rootcampaign = 'Primerica' AND _id <> 13507
-      ORDER BY _code
-      )
-  ) 
-  WHERE rownum = 1
-  AND id != ''
-  AND id IS NOT NULL
+  SELECT
+  DISTINCT _preview AS _notes,
+  _status AS _status,
+  _campaign_code AS _trimcode,
+  _ad_visual AS _screenshot,
+  _form_submission AS _assettitle,
+  _subject_line AS _subject,
+  _email_name AS _whatwedo,
+  _campaign_id AS _campaignid,
+  _campaign_name AS _utm_campaign,
+  _preview,
+  _campaign_code AS _code,
+  _campaign AS _journeyname,
+  _email_segment AS _campaignname,
+  _form_submission AS _formsubmission,
+  _email_id AS _id,
+  PARSE_TIMESTAMP('%m/%d/%Y', _live_date) AS _livedate,
+  "" AS _utm_source,
+  _email_name AS _emailname,
+  '' AS _assignee,
+  '' AS _utm_medium,
+  _landing_page_url AS _landingpage,
+  _email_segment AS _segment,
+  _asset_url AS _link,
+  _campaign AS _rootcampaign,
+  _email_segment AS _emailsegment
+FROM
+  `x-marketing.pcs_retirement_google_sheets.db_email_campaign`
+WHERE
+  _campaign = 'Primerica'
+QUALIFY
+  ROW_NUMBER() OVER(PARTITION BY _campaign_id, _code ORDER BY _livedate DESC) = 1
 ),
 airtable AS (
   SELECT 
@@ -3919,7 +3870,7 @@ airtable AS (
         -- _preview AS _whatwedo, 
         -- _campaignname AS campaignName, 
         -- _id, 
-        safe.timestamp(_livedate) AS _livedate, 
+        _livedate AS _livedate, 
         _utm_source, 
         _utm_medium, 
         _landingpage,
@@ -3952,7 +3903,7 @@ airtable AS (
             ORDER BY senddate DESC
         ) AS rownum
     FROM `x-marketing.pcs_sfmc.send` airtable, unnest (partnerproperties) name
-    LEFT JOIN  email_campaign ON airtable.id  = CAST(email_campaign.id AS INT)
+    LEFT JOIN  email_campaign ON airtable.id  = CAST(_campaignid AS INT)
   )
   WHERE rownum = 1
   AND _code IS NOT NULL
