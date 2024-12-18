@@ -36,6 +36,12 @@ INSERT INTO `x-marketing.corcentric.db_email_activity_log` (
   _last_sal_date,
   _last_sql_date,
   _last_opportunity_date,
+  _zoominfo_management_level,
+  _job_function,
+  _zoominfo_job_function,
+  _annual_revenue_ranges_segment,
+  _industry_segment,
+  _job_function_segment,
   _email,	
   _assettitle,	
   _segment,	
@@ -46,13 +52,13 @@ WITH prospect_info AS (
   SELECT DISTINCT 
     CAST(marketo.id AS STRING) AS _id,
     marketo.email AS _email,
-    CONCAT(marketo.firstname,' ', marketo.lastname) AS _name,
+    mktoname AS _name,
     RIGHT(marketo.email, LENGTH(marketo.email) - STRPOS(marketo.email, '@')) AS _domain, 
     marketo.title AS _job_title,
     marketo.phone AS _phone,
-    company AS _company,
+    marketo.company AS _company,
     CAST(annualrevenue AS STRING) AS _revenue,
-    industry AS _industry,
+    marketo.industry AS _industry,
     city AS _city,
     state AS _state, 
     marketo.country AS _country,
@@ -60,24 +66,40 @@ WITH prospect_info AS (
     marketo.lead_source_original_detail__c AS _leadsourcedetail,
     marketo.leadsource AS _most_recent_lead_source,
     marketo.lead_source_detail__c AS _most_recent_lead_source_detail,
-    contact.status__c AS person_status,
+    st.status AS person_status,
     ds_03_last_qp AS _last_qp_date,
     ds_04_last_discovery AS _last_discovery_date,
     ds_05_last_mql AS _last_mql_date,
     ds_06_last_sal AS _last_sal_date,
     ds_07_last_sql AS _last_sql_date,	
-    ds_08_last_opportunity AS _last_opportunity_date
+    ds_08_last_opportunity AS _last_opportunity_date,
+    marketo.zoominfo_management_level__c AS _zoominfo_management_level,
+    dscorgpkg__job_function__c AS _job_function,
+    marketo.zoominfo_job_function__c AS _zoominfo_job_function,
+    CASE
+      WHEN annualrevenue > 999999999.99 THEN 'High - $1B+'
+      WHEN annualrevenue BETWEEN 499999999.99 AND 999999999.99 THEN 'Medium - $500M - $1B'
+      WHEN annualrevenue BETWEEN 249999999.99 AND 499999999.99 THEN 'Low - $250M - $500M'
+      WHEN annualrevenue BETWEEN 25000000.00 AND 249999999.99 THEN 'Below ICP - $25M - $250M'
+      ELSE NULL
+    END AS _annual_revenue_ranges_segment,
+    _industry_segment,
+    _job_function_segment
   FROM `x-marketing.corcentric_marketo.leads` marketo
   LEFT JOIN `x-marketing.corcentric.salesforce_qp_and_mql` qp
     ON qp.email = marketo.email
   LEFT JOIN `x-marketing.corcentric_salesforce.Contact` contact
     ON contact.email = marketo.email
+  LEFT JOIN `x-marketing.corcentric.db_industry_segment` segment
+    ON segment._id = marketo.id
+  LEFT JOIN `corcentric.marketo_daily_targets` st
+    ON st.marketo_id = CAST(marketo.id AS STRING)
   WHERE marketo.email IS NOT NULL
     AND marketo.email NOT LIKE '%2x.marketing%'
     AND marketo.email NOT LIKE '%corcentric.com%'
-    --AND marketo.email = 'tom.martin@bordendairy.com'
+    -- AND marketo.email LIKE 'emlazo%'
   QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY marketo.email 
+    PARTITION BY marketo.email
     ORDER BY ds_05_last_mql DESC) = 1
 ),
 email_sent AS (
@@ -96,7 +118,8 @@ email_sent AS (
     '' AS _link,
     '' AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_send_email` activity
-  WHERE CAST(activitydate AS DATE) >= '2024-01-01' 
+  WHERE CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%' 
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -118,6 +141,7 @@ email_delivered AS (
     '' AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_email_delivered` activity
   WHERE CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1 
@@ -139,6 +163,7 @@ email_open AS (
     device AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_open_email` activity
   WHERE CAST(activitydate AS DATE) >= '2024-01-01' --AND leadid = 3277762
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -160,6 +185,7 @@ email_click AS (
     '' AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_click_email` activity
   WHERE CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -225,6 +251,7 @@ email_hard_bounce AS (
     '' AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_email_bounced` activity
   WHERE CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -246,6 +273,7 @@ email_soft_bounce AS (
     '' AS _device
   FROM `x-marketing.corcentric_marketo_v2.activities_email_bounced_soft` activity
   WHERE CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -269,6 +297,7 @@ email_download AS (
   WHERE primary_attribute_value NOT LIKE '%TEST 2X%'
     AND primary_attribute_value NOT LIKE '%Email Unsubscribe Form%'
     AND CAST(activitydate AS DATE) >= '2024-01-01'
+    AND primary_attribute_value NOT LIKE '%Newsletter%'
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
@@ -790,7 +819,7 @@ opps AS (
   FROM `x-marketing.corcentric_salesforce.Opportunity` opp
   LEFT JOIN `x-marketing.corcentric_salesforce.RecordType` r
     ON r.id = opp.recordtypeid
-  --WHERE opp.id LIKE '006RQ000003EzEq%'
+  -- WHERE opp.id LIKE '006RQ00000H9ePU%'
 ), 
 contact AS (
   SELECT 
@@ -922,9 +951,9 @@ SELECT
   IF(
       type = 'Inbound' 
       AND opp_record_type = 'New - Direct' 
-      AND opportunity_source IN ('Marketing Generated (BDR)', 'Marketing Generated (Non-BDR)', 'BDR Generated') 
       AND (leadsource NOT IN ('Partner', 'Sales Generated') OR leadsource IS NULL) 
-      AND stagename = 'Closed Won', 
+      AND stagename = 'Closed Won'
+      AND owner_name NOT LIKE '%Cochran%', 
       TRUE, 
       FALSE
   ) AS marketing_source_won_opps,
@@ -950,4 +979,4 @@ SELECT
   ) AS marketing_sourced_lost_opps
 FROM consolidate_qp_opps AS c
 WHERE region IN ('Southern Europe','North America','Northern Europe');
-  --and opportunity_id LIKE '006RQ000003EzEq%'
+  -- and opportunity_id LIKE '006RQ00000H9ePU%'
