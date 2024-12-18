@@ -52,13 +52,13 @@ WITH prospect_info AS (
   SELECT DISTINCT 
     CAST(marketo.id AS STRING) AS _id,
     marketo.email AS _email,
-    CONCAT(marketo.firstname,' ', marketo.lastname) AS _name,
+    mktoname AS _name,
     RIGHT(marketo.email, LENGTH(marketo.email) - STRPOS(marketo.email, '@')) AS _domain, 
     marketo.title AS _job_title,
     marketo.phone AS _phone,
-    company AS _company,
+    marketo.company AS _company,
     CAST(annualrevenue AS STRING) AS _revenue,
-    industry AS _industry,
+    marketo.industry AS _industry,
     city AS _city,
     state AS _state, 
     marketo.country AS _country,
@@ -66,7 +66,7 @@ WITH prospect_info AS (
     marketo.lead_source_original_detail__c AS _leadsourcedetail,
     marketo.leadsource AS _most_recent_lead_source,
     marketo.lead_source_detail__c AS _most_recent_lead_source_detail,
-    contact.status__c AS person_status,
+    st.status AS person_status,
     ds_03_last_qp AS _last_qp_date,
     ds_04_last_discovery AS _last_discovery_date,
     ds_05_last_mql AS _last_mql_date,
@@ -92,12 +92,14 @@ WITH prospect_info AS (
     ON contact.email = marketo.email
   LEFT JOIN `x-marketing.corcentric.db_industry_segment` segment
     ON segment._id = marketo.id
+  LEFT JOIN `corcentric.marketo_daily_targets` st
+    ON st.marketo_id = CAST(marketo.id AS STRING)
   WHERE marketo.email IS NOT NULL
     AND marketo.email NOT LIKE '%2x.marketing%'
     AND marketo.email NOT LIKE '%corcentric.com%'
-    --AND marketo.email = 'tom.martin@bordendairy.com'
+    -- AND marketo.email LIKE 'emlazo%'
   QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY marketo.email 
+    PARTITION BY marketo.email
     ORDER BY ds_05_last_mql DESC) = 1
 ),
 email_sent AS (
