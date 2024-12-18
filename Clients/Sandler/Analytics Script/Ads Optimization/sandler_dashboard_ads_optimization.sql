@@ -150,103 +150,59 @@ s6ense_ads AS (
     GROUP BY 
       _adid, adName, campaignID, _date   
 ),
+airtable_google_sheets AS (
+  SELECT
+    _ad_id AS _adid,
+    _ad_name AS _adname,
+    _campaign_id AS _campaignid,
+    _campaign_name AS _campaignname,
+    _ad_group AS _adgroup,
+    _text_on_image _adcopy,
+    _cta_on_image AS _ctacopy,
+    _template AS _designtemplate,
+    _size,
+    _platform,
+    _business_segment AS _segment,
+    _color AS _designcolor,
+    _image AS _designimages,
+    _blurb AS _designblurp,
+    _logo AS _logos,
+    _messaging AS _copymessaging,
+    _asset_type AS _copyassettype,
+    _tone AS _copytone,
+    _product_company_name AS _copyproductcompanyname,
+    _statistic_proof_point AS _copystatisticproofpoint,
+    _cta_copy AS _ctacopysofthard,
+    _ad_visual AS _screenshot,
+    _pain_point AS _painPoint,
+    _pillars,
+    _instance
+  FROM `x-marketing.sandler_google_sheets.db_ads_optimization`
+  WHERE LENGTH(_ad_id) > 2
+    AND _campaign_id IS NOT NULL
+),
 linkedin_airtable_network AS (
   SELECT
-    _adid, 
-    _adname, 
-    CASE WHEN _campaignid = "" THEN NULL ELSE _campaignid END AS _campaignid,  
-    _campaignname, 
-    _adgroup,
-    _adcopy, 
-    _ctacopy, 
-    _designtemplate, 
-    _size, 
-    _platform, 
-    _segment,
-    _designcolor,
-    _designimages,
-    _designblurp,
-    _logos,
-    _copymessaging,
-    _copyassettype,
-    _copytone,
-    _copyproductcompanyname,
-    _copystatisticproofpoint,
-    _ctacopysofthard, 
-    _screenshot,
-    _painPoint,
-    _pillars,
-    'Sandler Network' AS _instance
-  FROM
-    `x-marketing.sandlernetwork_mysql.sandlernetwork_optimization_airtable_ads_linkedin`
-  WHERE 
-    LENGTH(_adid) > 2 AND _campaignid IS NOT NULL
+    *
+  FROM airtable_google_sheets
+  WHERE _platform = 'LinkedIn'
+    AND _instance = 'Sandler Network'
   GROUP BY ALL
 ),
 linkedin_airtable_franchise AS (
   SELECT
-    _adid, 
-    _adname, 
-    _campaignid,  
-    _campaignname, 
-    '' AS _adgroup,
-    _adcopy, 
-    _ctacopy, 
-    _designtemplate, 
-    _size, 
-    _platform, 
-    _segment,
-    _designcolor,
-    _designimages,
-    _designblurp,
-    _logos,
-    _copymessaging,
-    _copyassettype,
-    _copytone,
-    _copyproductcompanyname,
-    _copystatisticproofpoint,
-    _ctacopysofthard, 
-    _screenshot,
-    _painPoint,
-    _pillars,
-    'Sandler' AS _instance
-  FROM
-    `x-marketing.sandler_mysql.optimization_airtable_ads_linkedin`
-  WHERE 
-    LENGTH(_adid) > 2 AND _campaignid IS NOT NULL
+    *
+  FROM airtable_google_sheets
+  WHERE _platform = 'LinkedIn'
+    AND _instance = 'Sandler Enterprise'
   GROUP BY ALL
 ),
 s6sense_airtable AS (
   SELECT
-    _adid, 
-    _adname, 
-    _campaignid,  
-    _campaignname, 
-    '' AS _adgroup,
-    _adcopy, 
-    _ctacopy, 
-    _designtemplate, 
-    _size, 
-    _platform, 
-    _segment,
-    _designcolor,
-    _designimages,
-    _designblurp,
-    _logos,
-    _copymessaging,
-    _copyassettype,
-    _copytone,
-    _copyproductcompanyname,
-    _copystatisticproofpoint,
-    _ctacopysofthard, 
-    _screenshot,
-    _painPoint,
-    _pillars,
-    'Sandler' AS _instance
-  FROM
-    `x-marketing.sandler_mysql.optimization_airtable_ads_6sense` 
-  WHERE 
-    LENGTH(_adid) > 2 AND _campaignid IS NOT NULL
+    *
+  FROM airtable_google_sheets
+  WHERE _platform = '6sense'
+    AND _instance = 'Sandler Enterprise'
   GROUP BY ALL
 ),
 linkedin_combined_network AS (
@@ -329,27 +285,21 @@ WITH ad_counts AS (
     campaign_name,
     date,
     COUNT(DISTINCT ad.id) AS ad_count
-  FROM
-    `x-marketing.sandler_google_ads.ad_group_performance_report` report
-  JOIN
-    `x-marketing.sandler_google_ads.ads` ad ON ad.ad_group_id = report.ad_group_id
-  JOIN
-    `x-marketing.sandler_mysql.db_airtable_google_display_ads` airtable ON airtable._adid = CAST(ad.id AS STRING)
-  WHERE
-    ad.name IS NOT NULL
-  GROUP BY
-    ad.ad_group_id,
-    ad_group_name,
-    campaign_name,
-    date
+  FROM `x-marketing.sandler_google_ads.ad_group_performance_report` report
+  JOIN `x-marketing.sandler_google_ads.ads` ad ON ad.ad_group_id = report.ad_group_id
+  JOIN `x-marketing.sandler_google_sheets.db_ads_optimization` airtable
+    ON airtable._ad_id = CAST(ad.id AS STRING)
+  WHERE ad.name IS NOT NULL
+    AND airtable._platform = 'Google Ads'
+  GROUP BY 1, 2, 3, 4
 ),
 
 adjusted_metrics AS (
   SELECT
     CAST(ad.id AS STRING) AS _adid,
-    airtable._adname,
+    airtable._ad_name AS _adname,
     '' AS _adcopy,
-    _screenshot,
+    airtable._ad_visual AS _screenshot,
     '' AS _ctacopy,
     report.ad_group_id, 
     report.ad_group_name, 
@@ -357,7 +307,7 @@ adjusted_metrics AS (
     report.campaign_name, 
     ad.name AS ad_name, 
     report.date AS _date,
-    airtable._adsize,
+    airtable._size AS _adsize,
     EXTRACT(YEAR FROM report.date) AS year,
     EXTRACT(MONTH FROM report.date) AS month,
     EXTRACT(QUARTER FROM report.date) AS quarter,
@@ -366,19 +316,15 @@ adjusted_metrics AS (
     conversions / c.ad_count AS adjusted_conversions,
     clicks / c.ad_count AS adjusted_clicks, 
     impressions / c.ad_count AS adjusted_impressions,
-    airtable._painpoint,
+    airtable._pain_point AS _painpoint,
     airtable._pillars,
     ad_count
-  FROM
-    `x-marketing.sandler_google_ads.ad_group_performance_report` report
-  JOIN
-    `x-marketing.sandler_google_ads.ads` ad ON ad.ad_group_id = report.ad_group_id
-  JOIN
-    `x-marketing.sandler_mysql.db_airtable_google_display_ads` airtable ON airtable._adid = CAST(ad.id AS STRING)
-  JOIN
-    ad_counts c ON ad.ad_group_id = c.ad_group_id AND report.date = c.date
-  WHERE
-    ad.name IS NOT NULL
+  FROM `x-marketing.sandler_google_ads.ad_group_performance_report` report
+  JOIN `x-marketing.sandler_google_ads.ads` ad ON ad.ad_group_id = report.ad_group_id
+  JOIN `x-marketing.sandler_google_sheets.db_ads_optimization` airtable ON airtable._ad_id = CAST(ad.id AS STRING)
+  JOIN ad_counts AS c ON ad.ad_group_id = c.ad_group_id AND report.date = c.date
+  WHERE ad.name IS NOT NULL
+    AND airtable._platform = 'Google Ads'
   QUALIFY ROW_NUMBER() OVER (PARTITION BY ad.id, campaign_id, report.date ORDER BY report.date DESC) = 1
 )
 

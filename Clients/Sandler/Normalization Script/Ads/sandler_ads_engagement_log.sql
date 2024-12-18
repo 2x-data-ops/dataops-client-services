@@ -1,24 +1,19 @@
-CREATE OR REPLACE TABLE `x-marketing.sandler.ads_engagement_log` AS
+-- CREATE OR REPLACE TABLE `x-marketing.sandler.ads_engagement_log` AS
 WITH airtable_ads AS (
  
   WITH
     airtable AS (
-      SELECT * EXCEPT (_rownum)
-      FROM (
-        SELECT * EXCEPT (
-          _sdc_batched_at, 
-          _sdc_received_at,
-          _sdc_sequence, 
-          _sdc_table_version
-        ),
-        "Awareness" AS _stage,
-        ROW_NUMBER() OVER (PARTITION BY _adid ORDER BY _sdc_received_at DESC)
-        AS _rownum
-        FROM
-          `x-marketing.sandlernetwork_mysql.sandlernetwork_optimization_airtable_ads_linkedin`
-        WHERE _platform != ""
-      )
-      WHERE _rownum = 1
+      --selecting only few fields for airtable
+      SELECT
+        _ad_id AS _adid,
+        _ad_visual AS _screenshot,
+        _platform,
+        _landing_page_url AS _websiteurl,
+        "Awareness" AS _stage
+      FROM `x-marketing.sandler_google_sheets.db_ads_optimization`
+      WHERE _platform = 'LinkedIn'
+        AND _instance = 'Sandler Network'
+      QUALIFY ROW_NUMBER() OVER (PARTITION BY _adid) = 1
     ),
     ads_title AS(
       SELECT
@@ -64,15 +59,15 @@ WITH airtable_ads AS (
         campaigns.status,
         ads_title._advariation,
         ads_title._content,
-        _screenshot AS _screenshot,
+        airtable._screenshot AS _screenshot,
         campaign_group._groupName AS _reportinggroup,
         'LinkedIn' AS _source,
-        _platform  AS _medium,
+        airtable._platform  AS _medium,
         "" AS _id,
         campaigns.type AS _adtype,
         'LinkedIn' AS _platform,
         "" AS _asset,
-        _websiteurl AS _landingpageurl,
+        airtable._websiteurl AS _landingpageurl,
         campaigns._campaignName AS _campaignname,
         "Awareness" AS _stage
       FROM ads_title
@@ -109,32 +104,29 @@ WITH airtable_ads AS (
         `x-marketing.sandler_google_ads.campaigns` campaign
       ON adgroup.campaign_id = campaign.id
     ), _6sense AS (
-
-      SELECT 
-        CAST(other._campaignid AS STRING) AS _campaign,
-        _adid AS _adid,
-        0 AS ad_group_id,
-        "" AS _status,
-        _adname AS _advariation,
-        "" AS _content,
-        "" AS _screenshot,
-        "" AS _reportinggroup,
-        "" AS _source,
-        "" AS _medium,
-        "" AS _id,
-        "" AS _adtype,
-        "6sense" AS _platform,
-        "" AS _asset,
-        "" AS _landingpageurl,
-       _campaignname AS _campaignname,
-        "Awareness" AS _stage 
-      FROM `x-marketing.sandler_mysql.optimization_airtable_ads_6sense`  AS other 
-      --JOIN  `x-marketing.sandler_mysql.sandler_db_campaign_info`  AS campaign
---ON other._campaignid = campaign._campaignid
-WHERE 
-      /* _sdc_deleted_at IS NULL 
-      AND */ LENGTH(_adid)>2 and _campaignid IS NOT NULL
-
+        SELECT
+          _campaign_id AS _campaign,
+          _ad_id AS _adid,
+          0 AS ad_group_id,
+          "" AS _status,
+          _ad_name AS _advariation,
+          "" AS _content,
+          "" AS _screenshot,
+          "" AS _reportinggroup,
+          "" AS _source,
+          "" AS _medium,
+          "" AS _id,
+          "" AS _adtype,
+          _platform,
+          "" AS _asset,
+          "" AS _landingpageurl,
+          _campaign_name AS _campaignname,
+          "Awareness" AS _stage
+        FROM `x-marketing.sandler_google_sheets.db_ads_optimization`
+        WHERE _platform = '6sense'
+          AND _instance = 'Sandler Enterprise'
+          AND LENGTH(_ad_id) > 2
+          AND _campaign_id IS NOT NULL
     )
     SELECT *
     FROM linkedin
