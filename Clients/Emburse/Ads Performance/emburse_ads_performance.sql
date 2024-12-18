@@ -8,7 +8,8 @@ INSERT INTO `x-marketing.emburse.consolidate_ad_performance` (
   ad_group_name,	
   day,	
   ad_id,	
-  campaign_status,	
+  campaign_status,
+  _google_account_name,	
   _platform,	
   spent,	
   impressions,	
@@ -38,7 +39,8 @@ WITH unique_rows_google_ads AS (
     impressions,
     clicks,
     conversions,
-    INITCAP(campaign_status) AS campaign_status
+    INITCAP(campaign_status) AS campaign_status,
+    customer_descriptive_name AS _google_account_name
   FROM `x-marketing.emburse_google_ads.ad_performance_report` ads
   QUALIFY RANK() OVER (
     PARTITION BY date, ads.campaign_id, ads.ad_group_id, ads.id
@@ -55,76 +57,90 @@ google_ads AS (
     day,
     ad_id,
     campaign_status,
+    _google_account_name,
     'Google' AS _platform,
     SUM(spent) AS spent,
     SUM(impressions) AS impressions,
     SUM(clicks) AS clicks,
     SUM(conversions) AS conversions
   FROM unique_rows_google_ads
-  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
 ),
 
-unique_rows_campaign_level AS (
-  SELECT
-    ads.campaign_id,
-    campaign_name,
-    CASE 
-      WHEN campaign_name LIKE '%US/CA/UK%' THEN 'US/CA/UK'
-      WHEN campaign_name LIKE '%US/CA%' THEN 'US/CA'
-      WHEN campaign_name LIKE '%Germany%' THEN 'Germany'
-      WHEN campaign_name LIKE '%UK%' THEN 'UK'
-      WHEN campaign_name LIKE '%US%' THEN 'US'
-      WHEN campaign_name LIKE '%APAC%' THEN 'APAC'
-      WHEN campaign_name LIKE '%NZ/AU/SG%' THEN 'NZ/AU/SG'
-      WHEN campaign_name LIKE '%NORAM%' THEN 'NORAM'
-      ELSE NULL 
-    END AS campaign_country_region,
-    SAFE_CAST('' AS INT64) AS ad_group_id, --ads.ad_group_id, -- Not in campaign performance
-    '' AS ad_group_name, --ad_group_name, -- Not in campaign performance
-    date AS day,
-    SAFE_CAST('' AS INT64) AS ad_id, --ads.id AS ad_id, -- Not in campaign performance
-    cost_micros/1000000 AS spent,
-    impressions,
-    clicks,
-    conversions,
-    INITCAP(campaign_status) AS campaign_status
-  FROM `x-marketing.emburse_google_ads.campaign_performance_report` ads
-  WHERE campaign_id IN (21672109159,20541949184,19976833107,20998416897)
-  QUALIFY RANK() OVER (
-    PARTITION BY date, campaign_id
-    ORDER BY ads._sdc_received_at DESC) = 1
-),
+-- unique_rows_campaign_level AS (
+--   SELECT
+--     ads.campaign_id,
+--     campaign_name,
+--     CASE 
+--       WHEN campaign_name LIKE '%US/CA/UK%' THEN 'US/CA/UK'
+--       WHEN campaign_name LIKE '%US/CA%' THEN 'US/CA'
+--       WHEN campaign_name LIKE '%Germany%' THEN 'Germany'
+--       WHEN campaign_name LIKE '%UK%' THEN 'UK'
+--       WHEN campaign_name LIKE '%US%' THEN 'US'
+--       WHEN campaign_name LIKE '%APAC%' THEN 'APAC'
+--       WHEN campaign_name LIKE '%NZ/AU/SG%' THEN 'NZ/AU/SG'
+--       WHEN campaign_name LIKE '%NORAM%' THEN 'NORAM'
+--       ELSE NULL 
+--     END AS campaign_country_region,
+--     SAFE_CAST('' AS INT64) AS ad_group_id, --ads.ad_group_id, -- Not in campaign performance
+--     '' AS ad_group_name, --ad_group_name, -- Not in campaign performance
+--     date AS day,
+--     SAFE_CAST('' AS INT64) AS ad_id, --ads.id AS ad_id, -- Not in campaign performance
+--     cost_micros/1000000 AS spent,
+--     impressions,
+--     clicks,
+--     conversions,
+--     INITCAP(campaign_status) AS campaign_status,
+--     customer_descriptive_name AS _google_account_name
+--   FROM `x-marketing.emburse_google_ads.campaign_performance_report` ads
+--   WHERE campaign_id IN (21672109159,20541949184,19976833107,20998416897)
+--   QUALIFY RANK() OVER (
+--     PARTITION BY date, campaign_id
+--     ORDER BY ads._sdc_received_at DESC) = 1
+-- ),
 
-google_campaign_level AS (
-  SELECT
+-- google_campaign_level AS (
+--   SELECT
+--     campaign_id,
+--     campaign_name,
+--     campaign_country_region,
+--     ad_group_id,
+--     ad_group_name,
+--     day,
+--     ad_id,
+--     campaign_status,
+--     _google_account_name,
+--     'Google' AS _platform,
+--     SUM(spent) AS spent,
+--     SUM(impressions) AS impressions,
+--     SUM(clicks) AS clicks,
+--     SUM(conversions) AS conversions
+--   FROM unique_rows_campaign_level
+--   GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
+-- ),
+--Google Display
+unique_campaign_list AS (
+  SELECT DISTINCT 
     campaign_id,
     campaign_name,
-    campaign_country_region,
-    ad_group_id,
-    ad_group_name,
-    day,
-    ad_id,
-    campaign_status,
-    'Google' AS _platform,
-    SUM(spent) AS spent,
-    SUM(impressions) AS impressions,
-    SUM(clicks) AS clicks,
-    SUM(conversions) AS conversions
-  FROM unique_rows_campaign_level
-  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+    customer_descriptive_name
+  FROM `x-marketing.emburse_google_ads.campaign_performance_report`
+  WHERE campaign_advertising_channel_type <> 'SEARCH'
 ),
---Google Display
+
 ad_counts_display AS (
   SELECT
     ad.ad_group_id,
     ad_group_name,
-    campaign_name,
+    report.campaign_name,
     date,
     COUNT(DISTINCT ad.id) AS ad_count
   FROM `x-marketing.emburse_google_ads.ad_group_performance_report` report
   JOIN `x-marketing.emburse_google_ads.ads` ad 
     ON ad.ad_group_id = report.ad_group_id
-  WHERE ad.name IS NOT NULL
+  LEFT JOIN unique_campaign_list
+    ON unique_campaign_list.campaign_id = report.campaign_id
+  WHERE unique_campaign_list.campaign_id IS NOT NULL
   GROUP BY ad.ad_group_id, ad_group_name, campaign_name, date
 ),
 
@@ -161,14 +177,17 @@ adjusted_metrics AS (
     conversions / c.ad_count AS adjusted_conversions,
     clicks / c.ad_count AS adjusted_clicks, 
     impressions / c.ad_count AS adjusted_impressions,
-    ad_count
+    ad_count,
+    report.customer_descriptive_name AS _google_account_name
   FROM `x-marketing.emburse_google_ads.ad_group_performance_report` report
   JOIN `x-marketing.emburse_google_ads.ads` ad 
     ON ad.ad_group_id = report.ad_group_id
   JOIN ad_counts_display c 
     ON ad.ad_group_id = c.ad_group_id 
     AND report.date = c.date
-  WHERE ad.name IS NOT NULL
+  LEFT JOIN unique_campaign_list
+    ON unique_campaign_list.campaign_id = report.campaign_id
+  WHERE unique_campaign_list.campaign_id IS NOT NULL
   QUALIFY RANK() OVER (
     PARTITION BY ad.id, campaign_id, report.date 
     ORDER BY report.date DESC) = 1
@@ -184,7 +203,8 @@ google_display AS (
     _date AS day,
     CAST(_adid AS INT64) AS ad_id,
     campaign_status,
-    'Google Display' AS _platform, 
+    _google_account_name,
+    'Google' AS _platform, 
     SUM(CAST(adjusted_spent AS FLOAT64)) AS spent,
     SUM(CAST(adjusted_impressions AS INT64)) AS impressions,
     SUM(CAST(adjusted_clicks AS INT64)) AS clicks,
@@ -213,6 +233,7 @@ bing_ads AS (
     ads.timeperiod, 
     ads.adid, 
     ads.campaignstatus,
+    '' AS _google_account_name,
     'Bing' AS _platform,
     ads.spend AS cost, 
     ads.impressions, 
@@ -284,6 +305,7 @@ linkedin_ads AS (
     LI_ads._date,
     LI_ads.creative_id,
     LI_campaigns.status,
+    '' AS _google_account_name,
     'LinkedIn' AS _platform,
     LI_ads._spent,
     LI_ads._impressions,
@@ -302,10 +324,10 @@ SELECT
   * 
 FROM google_ads
 UNION ALL
-SELECT 
-  * 
-FROM google_campaign_level
-UNION ALL
+-- SELECT 
+--   * 
+-- FROM google_campaign_level
+-- UNION ALL
 SELECT 
   * 
 FROM google_display
@@ -330,6 +352,7 @@ INSERT INTO `x-marketing.emburse.google_search_campaign_performance` (
   campaign_status,	
   customer_time_zone,	
   campaign_advertising_channel_type,	
+  _account_name,
   cost,	
   impressions,	
   search_impressions,	
@@ -369,7 +392,10 @@ WITH unique_rows AS (
     campaign_status,
     customer_time_zone,
     INITCAP(campaign_advertising_channel_type) AS campaign_advertising_channel_type,
+    account.descriptive_name AS _account_name
   FROM `x-marketing.emburse_google_ads.campaign_performance_report` report
+  LEFT JOIN `x-marketing.emburse_google_ads.accounts` account
+    ON account.id = report.customer_id
   QUALIFY RANK() OVER (
     PARTITION BY date, campaign_id 
     ORDER BY report._sdc_received_at DESC) = 1
@@ -384,6 +410,7 @@ SELECT
   campaign_status,
   customer_time_zone,
   campaign_advertising_channel_type,
+  _account_name,
   SUM(cost) AS cost,
   SUM(impressions) AS impressions,
   SUM(search_impressions) AS search_impressions,
@@ -392,7 +419,7 @@ SELECT
   SUM(view_through_conv) AS view_through_conv,
   SUM(conv_value) AS conv_value
 FROM unique_rows
-GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
 ORDER BY day, campaign_id;
 
 -- Google Search Ads Variation Performance
@@ -410,6 +437,7 @@ INSERT INTO `x-marketing.emburse.google_search_adsvariation_performance` (
   currency,	
   ad_group_status,	
   customer_time_zone,	
+  _account_name,
   cost,	
   impressions,	
   search_impressions,	
@@ -455,8 +483,11 @@ WITH unique_rows AS (
     view_through_conversions AS view_through_conv,
     conversions_value AS conv_value,
     ad_group_status,
-    customer_time_zone
+    customer_time_zone,
+    account.descriptive_name AS _account_name
   FROM `emburse_google_ads.ad_performance_report` ads
+  LEFT JOIN `x-marketing.emburse_google_ads.accounts` account
+    ON account.id = ads.customer_id
   QUALIFY RANK() OVER (
     PARTITION BY date, ads.campaign_id, ads.ad_group_id, ads.id
     ORDER BY ads._sdc_received_at DESC) = 1
@@ -474,6 +505,7 @@ SELECT
   currency,
   ad_group_status,
   customer_time_zone,
+  _account_name,
   SUM(cost) AS cost,
   SUM(impressions) AS impressions,
   SUM(search_impressions) AS search_impressions,
@@ -483,7 +515,7 @@ SELECT
   SUM(view_through_conv) AS view_through_conv,
   SUM(conv_value) AS conv_value
 FROM unique_rows
-GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13
 ORDER BY day, campaign_id, ad_group_id, ad_id;
 
 -- Google Seach Keyword Performance
@@ -501,6 +533,7 @@ INSERT INTO `x-marketing.emburse.google_search_keyword_performance` (
   currency,	
   ad_group_criterion_status,	
   customer_time_zone,	
+  _account_name,
   cost,	
   impressions,	
   search_impressions,	
@@ -542,8 +575,11 @@ WITH unique_rows AS (
     conversions,
     view_through_conversions AS view_through_conv,
     ad_group_criterion_status,
-    customer_time_zone
+    customer_time_zone,
+    account.descriptive_name AS _account_name
   FROM `x-marketing.emburse_google_ads.keywords_performance_report` keywords
+  LEFT JOIN `x-marketing.emburse_google_ads.accounts` account
+    ON account.id = keywords.customer_id
   QUALIFY RANK() OVER (
     PARTITION BY date, campaign_id, ad_group_id, ad_group_criterion_keyword.text
     ORDER BY keywords._sdc_received_at DESC) = 1
@@ -561,6 +597,7 @@ SELECT
   currency,
   ad_group_criterion_status,
   customer_time_zone,
+  _account_name,
   SUM(cost) AS cost,
   SUM(impressions) AS impressions,
   SUM(search_impressions) AS search_impressions,
@@ -569,7 +606,7 @@ SELECT
   SUM(conversions) AS conversions,
   SUM(view_through_conv) AS view_through_conv
 FROM unique_rows
-GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13
 ORDER BY day, campaign_id, ad_group_id, keyword;
 
 -- Google Search Query Performance
@@ -587,6 +624,7 @@ INSERT INTO `x-marketing.emburse.google_search_query_performance` (
   campaign_status,	
   ad_group_status,	
   customer_time_zone,	
+  _account_name,
   cost,	
   impressions,	
   search_impressions,	
@@ -629,11 +667,14 @@ WITH unique_rows AS (
     view_through_conversions AS view_through_conv,
     campaign_status,
     ad_group_status,
-    customer_time_zone
-  FROM `x-marketing.emburse_google_ads.search_query_performance_report`
+    customer_time_zone,
+    account.descriptive_name AS _account_name
+  FROM `x-marketing.emburse_google_ads.search_query_performance_report` report
+  LEFT JOIN `x-marketing.emburse_google_ads.accounts` account
+    ON account.id = customer_id
   QUALIFY ROW_NUMBER() OVER (
     PARTITION BY date, campaign_id, ad_group_id, keyword/*.info.text*/, search_term_view_search_term
-    ORDER BY _sdc_received_at DESC) = 1
+    ORDER BY report._sdc_received_at DESC) = 1
 )
 SELECT
   campaign_id,
@@ -649,6 +690,7 @@ SELECT
   campaign_status,
   ad_group_status,
   customer_time_zone,
+  _account_name,
   SUM(cost) AS cost,
   SUM(impressions) AS impressions,
   SUM(search_impressions) AS search_impressions,
@@ -657,7 +699,7 @@ SELECT
   SUM(conversions) AS conversions,
   SUM(view_through_conv) AS view_through_conv
 FROM unique_rows
-GROUP BY 1, 2, 3, 4, 5, 6, 7, 8,9,10, 11,12
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8,9,10, 11,12,13
 ORDER BY day, campaign_id, ad_group_id, keyword, search_term;
 
 -- Google Display Campaign Performance
@@ -671,6 +713,7 @@ INSERT INTO `x-marketing.emburse.google_display_campaign_performance`  (
   budget,	
   campaign_status,	
   customer_time_zone,	
+  _account_name,
   cost,	
   impressions,	
   active_view_impressions,	
@@ -710,8 +753,11 @@ WITH unique_rows AS (
     conversions,
     view_through_conversions AS view_through_conv,
     campaign_status,
-    customer_time_zone
+    customer_time_zone,
+    account.descriptive_name AS _account_name
   FROM `x-marketing.emburse_google_ads.campaign_performance_report` report
+  LEFT JOIN `x-marketing.emburse_google_ads.accounts` account
+    ON account.id = customer_id
   WHERE campaign_advertising_channel_type = 'DISPLAY'
   QUALIFY RANK() OVER (
     PARTITION BY date, campaign_id
@@ -726,6 +772,7 @@ SELECT
   budget,
   campaign_status,
   customer_time_zone,
+  _account_name,
   SUM(cost) AS cost,
   SUM(impressions) AS impressions,
   SUM(active_view_impressions) AS active_view_impressions,
@@ -735,7 +782,7 @@ SELECT
   SUM(conversions) AS conversions,
   SUM(view_through_conv) AS view_through_conv
 FROM unique_rows
-GROUP BY 1, 2, 3, 4, 5,6,7,8
+GROUP BY 1, 2, 3, 4, 5,6,7,8,9
 ORDER BY day, campaign_id;
 
 --- google video performance
@@ -752,6 +799,7 @@ INSERT INTO `x-marketing.emburse.video_performance` (
   group_status,	
   campaign_status,	
   customer_time_zone,	
+  _account_name,
   cost,	
   impressions,
   search_impressions,
@@ -794,7 +842,8 @@ WITH unique_rows AS (
     ad_group_status AS group_status,
     report.campaign_status AS campaign_status,
     report.video_views AS _view_views,
-    customer_time_zone
+    customer_time_zone,
+    customer_descriptive_name AS _account_name
   FROM `x-marketing.emburse_google_ads.video_performance_report` report 
   QUALIFY RANK() OVER (
   PARTITION BY date, campaign_id,report.video_id
@@ -812,6 +861,7 @@ SELECT
   group_status,
   campaign_status,
   customer_time_zone,
+  _account_name,
   SUM(cost) AS cost,
   SUM(impressions) AS impressions,
   SUM(search_impressions) AS search_impressions,
@@ -820,7 +870,7 @@ SELECT
   SUM(view_through_conv) AS view_through_conv,
   SUM(_view_views) AS view_views
 FROM unique_rows
-GROUP BY 1, 2, 3, 4, 5,6,7,8,9,10, 11
+GROUP BY 1, 2, 3, 4, 5,6,7,8,9,10, 11,12
 ORDER BY day, campaign_id;
 
 ---bings ads performance
