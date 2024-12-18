@@ -61,35 +61,32 @@ INSERT INTO `x-marketing.sandler_network.db_email_engagement_combined` (
       *
     FROM sandler_prospect_info
   ),
+  airtable_google_sheets AS (
+    SELECT
+      _pain_point AS _painpoint,
+      _asset_title AS _assettitle,
+      _asset_type AS _assettype,
+      _ad_visual AS _screenshot,
+      _subject_line AS _subject,
+      CAST(_email_id AS STRING) AS _emailid,
+      _pillars,
+      _email_type AS _emailtype,
+      _email_name AS _emailname,
+      _webinar_theme AS _webinartheme,
+      _instance
+    FROM `x-marketing.sandler_google_sheets.db_email_campaign`
+  ),
   network_airtable AS (
     SELECT
-      _painpoint,
-      _assettitle,
-      _assettype,
-      _screenshot,
-      _subject,
-      _emailid,
-      _pillars,
-      _emailtype,
-      _emailname,
-      _webinartheme,
-      'Sandler Network' AS _instance
-    FROM `x-marketing.sandlernetwork_mysql_2.sandlernetwork_db_airtable_email`
+      *
+    FROM airtable_google_sheets
+    WHERE _instance = 'Sandler Network'
   ),
   sandler_airtable AS (
     SELECT
-      _painpoint,
-      _assettitle,
-      _assettype,
-      _screenshot,
-      _subject,
-      _emailid,
-      _pillars,
-      _emailtype,
-      _emailname,
-      _webinartheme,
-      'Sandler' AS _instance
-    FROM `x-marketing.sandler_mysql.db_airtable_email`
+      *
+    FROM airtable_google_sheets
+    WHERE _instance = 'Sandler Enterprise'
   ),
   airtable_info AS (
     SELECT
@@ -215,7 +212,7 @@ INSERT INTO `x-marketing.sandler_network.db_email_engagement_combined` (
     UNION ALL
     SELECT
       *,
-      'Sandler' AS _instance
+      'Sandler Enterprise' AS _instance
     FROM sandler_sent
   ),
   network_delivered_source AS (
@@ -289,7 +286,7 @@ INSERT INTO `x-marketing.sandler_network.db_email_engagement_combined` (
     UNION ALL
     SELECT
       *,
-      'Sandler' AS _instance
+      'Sandler Enterprise' AS _instance
     FROM sandler_delivered
   ),
   network_open AS (
@@ -344,7 +341,7 @@ INSERT INTO `x-marketing.sandler_network.db_email_engagement_combined` (
     UNION ALL
     SELECT
       *,
-      'Sandler' AS _instance
+      'Sandler Enterprise' AS _instance
     FROM sandler_open
   ),
   network_clicks AS (
@@ -403,7 +400,7 @@ INSERT INTO `x-marketing.sandler_network.db_email_engagement_combined` (
     UNION ALL
     SELECT
       *,
-      'Sandler' AS _instance
+      'Sandler Enterprise' AS _instance
     FROM sandler_clicks
   ),
   network_bounce AS (
@@ -460,7 +457,7 @@ INSERT INTO `x-marketing.sandler_network.db_email_engagement_combined` (
     UNION ALL
     SELECT
       *,
-      'Sandler' AS _instance
+      'Sandler Enterprise' AS _instance
     FROM sandler_bounce
   ),
   network_unsubscribed AS (
@@ -525,7 +522,7 @@ INSERT INTO `x-marketing.sandler_network.db_email_engagement_combined` (
     UNION ALL
     SELECT
       *,
-      'Sandler' AS _instance
+      'Sandler Enterprise' AS _instance
     FROM sandler_unsubscribed
   ),
   sandler_soft_bounced_source AS (
@@ -589,7 +586,7 @@ INSERT INTO `x-marketing.sandler_network.db_email_engagement_combined` (
   overall_hard_bounce AS (
     SELECT
       *,
-      'Sandler' AS _instance
+      'Sandler Enterprise' AS _instance
     FROM sandler_hard_bounced
     UNION ALL
     SELECT
@@ -626,7 +623,7 @@ INSERT INTO `x-marketing.sandler_network.db_email_engagement_combined` (
   overall_soft_bounce AS (
     SELECT
       *,
-      'Sandler' AS _instance
+      'Sandler Enterprise' AS _instance
     FROM sandler_soft_bounced
     UNION ALL
     SELECT

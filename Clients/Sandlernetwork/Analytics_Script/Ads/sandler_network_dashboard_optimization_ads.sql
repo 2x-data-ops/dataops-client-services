@@ -58,32 +58,34 @@ campaigns AS (
 ),
 linkedin_airtable AS (
   SELECT
-    _adid,
-    _adname,
-    _campaignid,
-    _campaignname,
-    _adgroup,
-    _adcopy,
-    _ctacopy,
-    _designtemplate,
+    _ad_id AS _adid,
+    _ad_name AS _adname,
+    _campaign_id AS _campaignid,
+    _campaign_name AS _campaignname,
+    _ad_group AS _adgroup,
+    _text_on_image AS _adcopy,
+    _cta_on_image AS _ctacopy,
+    _template AS _designtemplate,
     _size,
     _platform,
-    _segment,
-    _designcolor,
-    _designimages,
-    _designblurp,
-    _logos,
-    _copymessaging,
-    _copyassettype,
-    _copytone,
-    _copyproductcompanyname,
-    _copystatisticproofpoint,
-    _ctacopysofthard,
-    _screenshot
-  FROM `x-marketing.sandlernetwork_mysql_2.sandlernetwork_optimization_airtable_ads_linkedin`
-  WHERE LENGTH(_adid) > 2 /*_sdc_deleted_at IS NULL*/
+    _business_segment AS _segment,
+    _color AS _designcolor,
+    _image AS _designimages,
+    _blurb AS _designblurp,
+    _logo AS _logos,
+    _messaging AS _copymessaging,
+    _asset_type AS _copyassettype,
+    _tone AS _copytone,
+    _product_company_name AS _copyproductcompanyname,
+    _statistic_proof_point AS _copystatisticproofpoint,
+    _cta_copy AS _ctacopysofthard,
+    _ad_visual AS _screenshot
+  FROM `x-marketing.sandler_google_sheets.db_ads_optimization`
+  WHERE _platform = 'LinkedIn'
+    AND _instance = 'Sandler Network'
+    AND LENGTH(_ad_id) > 2 
   GROUP BY ALL
-),
+  ),
 linkedin_combined AS (
   SELECT
     linkedin_airtable.*,
