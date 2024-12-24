@@ -86,7 +86,10 @@ prospect AS (
     END AS region,
     createdat,
     CASE 
-      WHEN LOWER(title) LIKE '%journalist%' OR LOWER(title) LIKE '%reporter%' OR LOWER(title) LIKE 'student' OR LOWER(title) LIKE 'students' OR LOWER(title) LIKE 'studentin' OR LOWER(title) LIKE 'grad student' OR LOWER(title) LIKE 'master student' OR LOWER(title) LIKE 'intern' OR LOWER(title) LIKE 'mba intern' OR LOWER(title) LIKE 'machine learning intern' OR LOWER (title) LIKE '%publication%' OR LOWER(title) LIKE 'freelance' THEN 'Disqualified Leads' 
+      WHEN LOWER(title) LIKE '%journalist%' OR LOWER(title) LIKE '%reporter%' OR LOWER(title) LIKE 'student' 
+        OR LOWER(title) LIKE 'students' OR LOWER(title) LIKE 'studentin' OR LOWER(title) LIKE 'grad student' 
+        OR LOWER(title) LIKE 'master student' OR LOWER(title) LIKE 'intern' OR LOWER(title) LIKE 'mba intern' 
+        OR LOWER(title) LIKE 'machine learning intern' OR LOWER (title) LIKE '%publication%' OR LOWER(title) LIKE 'freelance' THEN 'Disqualified Leads' 
       ELSE 'Qualified Leads'  
     END AS _leadqualification,
     leadsource,
@@ -339,12 +342,9 @@ soft_bounced_email AS (
 ),
 --merge soft and hard bounced
 soft_hard_email AS ( 
-  SELECT * 
-  FROM (
-    SELECT * FROM bounced_email
-    UNION ALL
-    SELECT * FROM soft_bounced_email
-  )
+  SELECT * FROM bounced_email
+  UNION ALL
+  SELECT * FROM soft_bounced_email
 ),
 --remove soft and hard bounced in delivered list
 new_delivered_email AS ( 
@@ -471,11 +471,10 @@ FROM (
   FROM `x-marketing.epam.db_campaign_analysis_marketo` AS conversion
   WHERE conversion._engagement IN ('Downloaded')
 ) bot
-WHERE 
-  origin._email = bot._email
+WHERE origin._email = bot._email
   AND origin._utm_campaign = bot._utm_campaign
   AND origin._engagement IN ('Clicked','Opened')
-  ;
+;
 
 
 ---------- Set Show Export ----------
@@ -493,7 +492,7 @@ FROM (
         WHEN _engagement IN ( 'Downloaded') THEN 3
       END AS _priority
     FROM `x-marketing.epam.db_campaign_analysis_marketo`
-    WHERE _engagement IN('Opened', 'Clicked', 'Downloaded')
+    WHERE _engagement IN ('Opened', 'Clicked', 'Downloaded')
     ORDER BY 1, 3, 4 DESC 
   ),
   final_engagement AS (
@@ -563,18 +562,18 @@ WITH leads AS (
         THEN 'Disqualified Leads' 
       ELSE 'Qualified Leads' 
     END AS _leadqualification, 
-  program.name, 
-  program.channel, 
-  program.type, 
-  program.workspace, 
-  master._clasification,
-  master._region,
-  CASE 
-    WHEN LOWER(master._personsource) = 'contentsyndication' THEN 'Content Syndication'
-    WHEN LOWER(master._personsource) = 'paidlinkedin' THEN 'Paid LinkedIn'
-    WHEN LOWER(master._personsource) = 'inpersonevent' THEN 'InPerson Event'
-    ELSE master._personsource 
-  END AS _personsource
+    program.name, 
+    program.channel, 
+    program.type, 
+    program.workspace, 
+    master._clasification,
+    master._region,
+    CASE 
+      WHEN LOWER(master._personsource) = 'contentsyndication' THEN 'Content Syndication'
+      WHEN LOWER(master._personsource) = 'paidlinkedin' THEN 'Paid LinkedIn'
+      WHEN LOWER(master._personsource) = 'inpersonevent' THEN 'InPerson Event'
+      ELSE master._personsource 
+    END AS _personsource
 FROM `x-marketing.epam_marketo.leads` leads
 LEFT JOIN `x-marketing.epam_marketo.programs` program 
   ON leads.acquisitionprogramid = CAST(program.id AS STRING)
@@ -582,9 +581,9 @@ LEFT JOIN `x-marketing.epam_mysql.epam_db_masterleads` master
   ON leads.id = CAST(master._leadid AS INT64)
 ),
 email_lead AS (
-SELECT * 
-FROM `x-marketing.epam.db_campaign_analysis_marketo` email 
-WHERE _engagement = 'Delivered'
+  SELECT * 
+  FROM `x-marketing.epam.db_campaign_analysis_marketo` email 
+  WHERE _engagement = 'Delivered'
 )
 SELECT 
   leads.*,
@@ -729,12 +728,11 @@ WITH tam_contacts AS (
     RIGHT(email, LENGTH(email)-STRPOS(email,'@')) AS _domain, 
     company AS _accountname, 
     industry AS _industry, 
-    /*COALESCE(_tier, CAST(NULL AS STRING))*/ NULL AS _tier, 
-    --CAST(_revenue AS INTEGER) AS _annualrevenue,
+    NULL AS _tier
   FROM `epam_marketo.leads` prosp
   QUALIFY ROW_NUMBER() OVER(PARTITION BY email ORDER BY prosp._sdc_received_at DESC) = 1
 ),
---query to pull the email engagement 
+--query to pull the email engagement
 email_engagement AS (
   SELECT * 
   FROM ( 
@@ -775,8 +773,7 @@ contact_engagement AS (
     USING(_email) 
 ),
 combined_engagements AS (
-  SELECT * 
-  FROM contact_engagement
+  SELECT * FROM contact_engagement
 )
 SELECT DISTINCT
   _domain,
