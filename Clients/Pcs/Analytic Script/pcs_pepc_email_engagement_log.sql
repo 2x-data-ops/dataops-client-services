@@ -55,10 +55,7 @@ WITH open_event AS (
       --categoryid, 
       --segment,
       url,
-      -- '' AS utm_source ,
-      -- '' AS utm_content, 
-      -- '' AS utm_medium, 
-      -- '' AS content_downloaded,
+
      '' AS _linked_clicked,
       ROW_NUMBER() OVER(PARTITION BY email,sendid,subscriberkey ORDER BY eventdate DESC) AS rownum
     FROM `x-marketing.pcs_sfmc.event` activity
