@@ -1,7 +1,6 @@
-TRUNCATE TABLE
-  `x-marketing.devo.db_form_fill_log`;
-INSERT INTO
-  `x-marketing.devo.db_form_fill_log`
+TRUNCATE TABLE `x-marketing.devo.db_form_fill_log`;
+INSERT INTO `x-marketing.devo.db_form_fill_log`
+
 WITH
   forms AS (
   SELECT
@@ -9,16 +8,12 @@ WITH
     campaignguid,
     name AS _form_name,
     STRING_AGG(LOWER(field.value.label), ', \n') AS _labels
-  FROM
-    `x-marketing.devo_hubspot_v2.forms`,
+  FROM `x-marketing.devo_hubspot_v2.forms`,
     UNNEST(formfieldgroups) AS fieldgrp,
     UNNEST(fieldgrp.value.fields) AS field
   GROUP BY
-    1,
-    2,
-    3 
-) ,
-  owner AS (
+    1, 2, 3 
+) , owner AS (
   SELECT
     firstname,
     lastname,
@@ -26,20 +21,14 @@ WITH
     id AS _owner_id,
     email AS _owner_email,
     userid
-  FROM
-    `x-marketing.devo_hubspot_v2.owners` 
-) ,
-  contacts_form AS (
+  FROM `x-marketing.devo_hubspot_v2.owners` 
+) , contacts_form AS (
   SELECT
     CAST(NULL AS STRING) AS devicetype,
-  IF
-    ( form.value.page_url LIKE '%utm_content%', SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_content=') + 9), '&')[ORDINAL(1)], CAST(NULL AS STRING) ) AS _campaignID,
-  IF
-    ( form.value.page_url LIKE '%utm_campaign%', REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, 'utm_campaign=') + 13), '&')[ORDINAL(1)], '%20', ' '), '%3A',':'), CAST(NULL AS STRING) ) AS _campaign,
-  IF
-    ( form.value.page_url LIKE '%utm_source%', SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_source=') + 8), '&')[ORDINAL(1)], CAST(NULL AS STRING) ) AS _utm_source,
-  IF
-    ( form.value.page_url LIKE '%utm_medium%', SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_medium=') + 8), '&')[ORDINAL(1)], CAST(NULL AS STRING) ) AS _utm_medium,
+    IF ( form.value.page_url LIKE '%utm_content%', SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_content=') + 9), '&')[ORDINAL(1)], CAST(NULL AS STRING) ) AS _campaignID,
+    IF ( form.value.page_url LIKE '%utm_campaign%', REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, 'utm_campaign=') + 13), '&')[ORDINAL(1)], '%20', ' '), '%3A',':'), CAST(NULL AS STRING) ) AS _campaign,
+    IF ( form.value.page_url LIKE '%utm_source%', SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_source=') + 8), '&')[ORDINAL(1)], CAST(NULL AS STRING) ) AS _utm_source,
+    IF ( form.value.page_url LIKE '%utm_medium%', SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_medium=') + 8), '&')[ORDINAL(1)], CAST(NULL AS STRING) ) AS _utm_medium,
     form.value.title AS _form_title,
     properties.email.value AS _email,
     associated_company.properties.domain.value AS _domain,
@@ -58,8 +47,7 @@ WITH
     property_jobtitle.value AS _jobtitle,
     property_job_function.value AS _job_function,
     property_form_submit_date_datestamp.value AS _form_submit_date_datestamp
-  FROM
-    `x-marketing.devo_hubspot_v2.contacts` contacts,
+  FROM `x-marketing.devo_hubspot_v2.contacts` contacts,
     UNNEST(form_submissions) AS form 
 )
 SELECT
@@ -77,11 +65,8 @@ SELECT
   COALESCE(_domain, RIGHT(_email, LENGTH(_email)-STRPOS(_email, '@'))) AS _domain,
   _timestamp,
   EXTRACT(WEEK
-  FROM
-    activity._timestamp) AS _week,
-  EXTRACT(YEAR
-  FROM
-    activity._timestamp) AS _year,
+  FROM activity._timestamp) AS _week,
+  EXTRACT(YEAR FROM activity._timestamp) AS _year,
   'Form Filled' AS _engagement,
   _form_id,
   _form_title,
@@ -101,17 +86,10 @@ SELECT
   _form_name,
   _labels,
   _form_submit_date_datestamp
-FROM
-  contacts_form activity
-LEFT JOIN
-  `x-marketing.devo_hubspot_v2.campaigns` campaign
-ON
-  activity._campaignID = CAST(campaign.id AS STRING)
-LEFT JOIN
-  owner
-ON
-  activity._owner_id = owner._owner_id
-LEFT JOIN
-  forms
-ON
-  activity._form_id = forms.guid 
+FROM contacts_form activity
+LEFT JOIN `x-marketing.devo_hubspot_v2.campaigns` campaign
+  ON  activity._campaignID = CAST(campaign.id AS STRING)
+LEFT JOIN owner
+  ON activity._owner_id = owner._owner_id
+LEFT JOIN forms
+  ON activity._form_id = forms.guid 
