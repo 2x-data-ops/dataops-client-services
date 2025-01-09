@@ -395,7 +395,8 @@ WITH prospect_info_old AS (
     state AS _state, 
     country AS _country,
     '' AS _persona,
-    leadsource
+    leadsource,
+    'Old' AS _source
   FROM `x-marketing.emburse_marketo.leads` marketo
   WHERE email IS NOT NULL
     AND email NOT LIKE '%2x.marketing'
@@ -420,7 +421,8 @@ prospect_info_new AS (
     state AS _state, 
     country AS _country,
     '' AS _persona,
-    leadsource
+    leadsource,
+    'New' AS _source
   FROM `x-marketing.emburse_marketo_2.leads` marketo
   WHERE email IS NOT NULL
     AND email NOT LIKE '%2x.marketing'
@@ -458,7 +460,8 @@ email_sent_old AS (
     'Sent' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'Old' AS _source
   FROM `x-marketing.emburse_marketo_v2.activities_send_email`
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -475,7 +478,8 @@ email_sent_new AS (
     'Sent' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'New' AS _source
   FROM `x-marketing.emburse_marketo_2.activities_send_email`
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -501,7 +505,8 @@ email_delivered_old AS (
     'Delivered' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'Old' AS _source
   FROM `x-marketing.emburse_marketo_v2.activities_email_delivered`
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -518,7 +523,8 @@ email_delivered_new AS (
     'Delivered' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'New' AS _source
   FROM `x-marketing.emburse_marketo_2.activities_email_delivered`
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -544,7 +550,8 @@ email_open_old AS (
     'Opened' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'Old' AS _source
   FROM `x-marketing.emburse_marketo_v2.activities_open_email`
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -561,7 +568,8 @@ email_open_new AS (
     'Opened' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'New' AS _source
   FROM `x-marketing.emburse_marketo_2.activities_open_email`
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -587,7 +595,8 @@ email_click_old AS (
     'Clicked' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    link AS _link
+    link AS _link,
+    'Old' AS _source
   FROM `x-marketing.emburse_marketo_v2.activities_click_email`
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -604,7 +613,8 @@ email_click_new AS (
     'Clicked' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    link AS _link
+    link AS _link,
+    'New' AS _source
   FROM `x-marketing.emburse_marketo_2.activities_click_email`
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -639,7 +649,8 @@ new_open AS ( --to populate the data in Clicked but not appear in Opened list
     'Opened' AS _engagement,
     _description,
     _leadid,
-    _link 
+    _link,
+    _source
   FROM open_click
   WHERE _engagement <> 'Opened' 
     AND _engagement = 'Clicked'
@@ -667,7 +678,8 @@ email_hard_bounce_old AS (
     'Hard Bounced' AS _engagement,
     details AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'Old' AS _source
   FROM `x-marketing.emburse_marketo_v2.activities_email_bounced` 
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -684,7 +696,8 @@ email_hard_bounce_new AS (
     'Hard Bounced' AS _engagement,
     details AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'New' AS _source
   FROM `x-marketing.emburse_marketo_2.activities_email_bounced` 
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -710,7 +723,8 @@ email_soft_bounce_old AS (
     'Soft Bounced' AS _engagement,
     details AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'Old' AS _source
   FROM `x-marketing.emburse_marketo_v2.activities_email_bounced_soft`  
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -727,7 +741,8 @@ email_soft_bounce_new AS (
     'Soft Bounced' AS _engagement,
     details AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'New' AS _source
   FROM `x-marketing.emburse_marketo_2.activities_email_bounced_soft`  
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -772,7 +787,8 @@ email_download_old AS (
     'Downloaded' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'Old' AS _source
   FROM `x-marketing.emburse_marketo_v2.activities_fill_out_form`
   WHERE primary_attribute_value NOT LIKE '%TEST 2X%'
     AND primary_attribute_value NOT LIKE '%Email Unsubscribe Form%'
@@ -791,7 +807,8 @@ email_download_new AS (
     'Downloaded' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'New' AS _source
   FROM `x-marketing.emburse_marketo_2.activities_fill_out_form`
   WHERE primary_attribute_value NOT LIKE '%TEST 2X%'
     AND primary_attribute_value NOT LIKE '%Email Unsubscribe Form%'
@@ -819,7 +836,8 @@ email_unsubscribed_old AS (
     'Unsubscribed' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'Old' AS _source
   FROM `x-marketing.emburse_marketo_v2.activities_unsubscribe_email`
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -836,7 +854,8 @@ email_unsubscribed_new AS (
     'Unsubscribed' AS _engagement,
     '' AS _description,
     CAST(leadid AS STRING) AS _leadid,
-    '' AS _link
+    '' AS _link,
+    'New' AS _source
   FROM `x-marketing.emburse_marketo_2.activities_unsubscribe_email`
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY leadid, primary_attribute_value_id 
@@ -881,12 +900,13 @@ engagements_combined AS (
   FROM email_unsubscribed
 )
 SELECT
-  engagements.* EXCEPT(_leadid, _email),
+  engagements.* EXCEPT (_leadid, _email,_source),
   COALESCE(REGEXP_EXTRACT(_link, r'[?&]utm_source=([^&]+)'), "Email") AS _utm_source,
   REGEXP_EXTRACT(_link, r'[?&]utm_medium=([^&]+)') AS _utm_medium,
   REGEXP_EXTRACT(_link, r'[?&]utm_content=([^&]+)') AS _utm_content,
   REGEXP_EXTRACT(_link, r'[?&]utm_campaign=([^&]+)') AS _utm_campaign,
-  prospect_info.*
+  prospect_info.* EXCEPT (_source)
 FROM engagements_combined AS engagements
 LEFT JOIN prospect_info
-  ON engagements._leadid = prospect_info._id;
+  ON engagements._leadid = prospect_info._id
+  AND engagements._source = prospect_info._source;
