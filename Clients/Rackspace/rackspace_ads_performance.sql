@@ -70,7 +70,9 @@ INSERT INTO `x-marketing.rackspace.linkedin_ads_performance` (
   _intro_text_length,
   _text_on_image,
   _text_on_image_length,
-  _cta_on_image
+  _cta_on_image,
+  _headline_text,
+  _headline_text_length
 )
 
 WITH linkedin_ads AS (
