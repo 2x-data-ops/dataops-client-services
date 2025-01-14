@@ -66,7 +66,7 @@ WITH prospect_info AS (
     marketo.lead_source_original_detail__c AS _leadsourcedetail,
     marketo.leadsource AS _most_recent_lead_source,
     marketo.lead_source_detail__c AS _most_recent_lead_source_detail,
-    st.status AS person_status,
+    leadstatus AS person_status,
     ds_03_last_qp AS _last_qp_date,
     ds_04_last_discovery AS _last_discovery_date,
     ds_05_last_mql AS _last_mql_date,
@@ -191,9 +191,13 @@ email_click AS (
     ORDER BY activitydate DESC) = 1
 ),
 open_click AS ( --merge open and click data
-  SELECT * FROM email_open
+  SELECT 
+    * 
+  FROM email_open
   UNION ALL
-  SELECT * FROM email_click
+  SELECT 
+    * 
+  FROM email_click
 ),
 new_open AS ( --to populate the data in Clicked but not appear in Opened list
   SELECT 
@@ -390,6 +394,7 @@ visit_webpage AS (
     PARTITION BY leadid, primary_attribute_value_id 
     ORDER BY activitydate DESC) = 1
 ),
+-- Gather all activity data to find the last touch QP 
 activity_log_list AS (
   SELECT 
     * 
@@ -435,15 +440,12 @@ qp_last_touch AS (
     ON a._leadid = prospect_info._id
   WHERE _last_qp_date IS NOT NULL 
     AND _engagement IS NOT NULL
-  --AND TIMESTAMP_DIFF(_timestamp, _last_qp_date, DAY) = 0
     AND TIMESTAMP_DIFF(_timestamp, _last_qp_date, HOUR) <= 48
-  --AND prospect_info._email IN ('vinod.pasi@seagate.com')
   QUALIFY ROW_NUMBER() OVER(
     PARTITION BY _email 
     ORDER BY _timestamp DESC) = 1
 ),
--- select * from qp_last_touch
--- WHERE CAST(_timestamp AS DATE) >= '2024-07-01',
+-- Conversion were taking from Salesforce
 conversions AS (
   SELECT
     activity._sdc_sequence,
@@ -452,7 +454,7 @@ conversions AS (
     '' AS _email_campaign_name,
     campaign.name AS _campaign_name,
     '' AS _subject,
-    l.email AS _email,
+    email AS _email,
     activity.lastmodifieddate AS _timestamp,
     'Conversion' AS _engagement,
     '' AS _description,
@@ -462,14 +464,40 @@ conversions AS (
   FROM `x-marketing.corcentric_salesforce.CampaignMember` activity
   LEFT JOIN `x-marketing.corcentric_salesforce.Campaign` campaign
     ON campaign.id = campaignid
-  JOIN `x-marketing.corcentric_salesforce.Lead` l
-    ON l.id = activity.leadid
-  WHERE activity.status = 'Converted' 
+  WHERE hasresponded IS TRUE
+    AND activity.status NOT IN ('No Show', 'Engaged Lead', 'Opened', '09a Won', 'Member', 'Engaged')
     AND CAST(activity.lastmodifieddate AS DATE) >= '2024-01-01'
+    AND email IS NOT NULL
   QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY l.email, campaignid 
+    PARTITION BY email, campaignid 
     ORDER BY activity.lastmodifieddate DESC) = 1
 ),
+----For Delivered, Opened and Clicked, we just want to see the high level value that unique by campaign
+email_delivered_unique AS (
+  SELECT
+    *
+  FROM email_delivered
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY _campaign_name, _email, _leadid
+    ORDER BY _timestamp DESC) = 1
+),
+email_opened_unique AS (
+  SELECT
+    *
+  FROM email_open
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY _campaign_name, _email, _leadid
+    ORDER BY _timestamp DESC) = 1
+),
+email_clicked_unique AS (
+  SELECT
+    *
+  FROM email_click
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY _campaign_name, _email, _leadid
+    ORDER BY _timestamp DESC) = 1
+),
+-- Combined all engagement except last touch QP and conversions
 engagements_combined AS (
   SELECT 
     * 
@@ -477,15 +505,15 @@ engagements_combined AS (
   UNION ALL
   SELECT 
     * 
-  FROM email_delivered
+  FROM email_delivered_unique
   UNION ALL
   SELECT 
     * 
-  FROM email_open
+  FROM email_opened_unique
   UNION ALL
   SELECT 
     * 
-  FROM email_click
+  FROM email_clicked_unique
   UNION ALL
   SELECT 
     * 
@@ -544,7 +572,7 @@ final_engagements_plus_conversions AS (
     prospect_info.* EXCEPT(_email),
     engagements._email
   FROM conversions AS engagements
-  JOIN prospect_info
+  LEFT JOIN prospect_info
     ON engagements._email = prospect_info._email
 ),
 engagements_combined_conversions AS (
@@ -575,9 +603,9 @@ SELECT
 FROM engagements_combined_conversions AS engagements
 LEFT JOIN airtable_info
   ON engagements._campaign_name = airtable_info._campaign_name;
+-- WHERE engagements._campaign_name = '2024-06-EM-AP-Payments-Stop-Fraud' AND _engagement = 'Opened';
 
---change program member data
--- has attended event
+
 TRUNCATE TABLE `x-marketing.corcentric.db_consolidate_ads`;
 INSERT INTO `x-marketing.corcentric.db_consolidate_ads` (
   _adid,
@@ -757,6 +785,7 @@ INSERT INTO `x-marketing.corcentric.db_opportunity_influenced_sourced` (
   opp_type,
   opp_record_type,
   leadsource,
+  account_name,
   contactid,
   firstname,
   lastname,
@@ -765,6 +794,7 @@ INSERT INTO `x-marketing.corcentric.db_opportunity_influenced_sourced` (
   ownerid,
   accountid,
   person_status,
+  _line_of_business,
   _last_qp_date,
   _last_discovery_date,
   _last_mql_date,
@@ -802,7 +832,7 @@ opps AS (
   SELECT 
     opp.stagename,
     CASE WHEN 
-      currencyisocode = "USD" THEN opp.amount
+      opp.currencyisocode = "USD" THEN opp.amount
       ELSE CAST(REGEXP_EXTRACT(amount_converted_text__c, r'\((?:USD|GBP|EUR|...) (\d+\.\d+)\)') AS FLOAT64)
     END AS opportunity_amount,
     amount_converted_text__c,
@@ -813,12 +843,15 @@ opps AS (
     opp.createddate,
     opp.closedate,
     opportunity_source__c AS opportunity_source,
-    type AS opp_type,
+    opp.type AS opp_type,
     r.name AS opp_record_type,
-    leadsource
+    leadsource,
+    acc.name AS account_name
   FROM `x-marketing.corcentric_salesforce.Opportunity` opp
   LEFT JOIN `x-marketing.corcentric_salesforce.RecordType` r
     ON r.id = opp.recordtypeid
+  LEFT JOIN `x-marketing.corcentric_salesforce.Account` acc
+    ON acc.id = opp.accountid
   -- WHERE opp.id LIKE '006RQ00000H9ePU%'
 ), 
 contact AS (
@@ -831,6 +864,7 @@ contact AS (
     ownerid,
     accountid,
     status__c AS person_status,
+    lob_focus__c AS _line_of_business,
     --region2__c AS region, --CHANGE TO ACCOUNT
     ds_03_last_qp__c AS _last_qp_date, 
     ds_04_last_discovery__c AS _last_discovery_date, 
