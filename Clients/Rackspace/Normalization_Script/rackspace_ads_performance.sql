@@ -167,7 +167,7 @@ airtable_data AS (
     _body_text_length AS _bodytextlength,
     _ad_id AS _adid,
     _status,
-    CAST(NULL AS STRING) AS _filetype,
+    _attachment_file_type AS _filetype,
     _landing_page_url AS _websiteurl,
     _final_ad_files_folder AS _finaladfilesfolder,
     _job_title AS _jobtitles,
