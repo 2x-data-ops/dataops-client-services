@@ -7,7 +7,7 @@ Specs:
 */
 
 TRUNCATE TABLE `x-marketing.rackspace.linkedin_ads_performance`;
-INSERT INTO `x-marketing.rackspace.linkedin_ads_performance`(
+INSERT INTO `x-marketing.rackspace.linkedin_ads_performance` (
   _date,
   _ad_id,
   _start_date,
@@ -41,44 +41,38 @@ INSERT INTO `x-marketing.rackspace.linkedin_ads_performance`(
   _finalutmtrackingurl,
   _bodytextlength,
   _status,
-  _sponsoredtext,
   _filetype,
   _websiteurl,
   _finaladfilesfolder,
-  _copyproductcompanyname,
-  _adcopy,
   _jobtitles,
-  _designblurp,
   _logos,
   _launchdatemonth,
   _screenshot,
   _assettitle,
   _industry,
-  _airtableid,
-  _copyassettype,
   _label,
   _ctacopy,
-  _designcolor,
-  _designimages,
-  _designtemplate,
   _size,
-  _ctacopysofthard,
-  _copymessaging,
-  _sponsoredtextlength,
   _adtitlenaming,
   _ctalength,
   _bodytext,
-  _adcopylength,
-  _copytone,
   _adtype,
   _adtitle,
-  _copystatisticproofpoint,
   _layout,
-  _segment,
   _adtitlelength,
   _adgroup,
   _stage,
-  _adname
+  _adname,
+  _live_date,
+  _completed_date,
+  _campaign_objective,
+  _introduction_text,
+  _intro_text_length,
+  _text_on_image,
+  _text_on_image_length,
+  _cta_on_image,
+  _headline_text,
+  _headline_text_length
 )
 
 WITH linkedin_ads AS (
@@ -169,9 +163,48 @@ main_data AS (
 ),
 airtable_data AS (
   SELECT
-    *
-  FROM `x-marketing.rackspace_mysql_2.optimization_airtable_ads_linkedin`
-  WHERE _adid != ''
+    _final_utm_tracking_url AS _finalutmtrackingurl,
+    _body_text_length AS _bodytextlength,
+    _ad_id AS _adid,
+    _status,
+    _attachment_file_type AS _filetype,
+    _landing_page_url AS _websiteurl,
+    _final_ad_files_folder AS _finaladfilesfolder,
+    _job_title AS _jobtitles,
+    _logo AS _logos,
+    PARSE_DATE('%e/%m/%Y', _launch_date_month)  AS _launchdatemonth,
+    _ad_visual AS _screenshot,
+    _asset_title AS _assettitle,
+    _industry,
+    _campaign_id AS _campaign_id,
+    _label,
+    _cta_copy AS _ctacopy,
+    _campaign_name AS _campaignname,
+    _size,
+    _ad_title_naming AS _adtitlenaming,
+    _cta_on_image_length AS _ctalength,
+    _body_text AS _bodytext,
+    _ad_type AS _adtype,
+    _ad_title AS _adtitle,
+    _layout,
+    _platform,
+    _ad_title_length AS _adtitlelength,
+    _ad_group AS _adgroup,
+    _stage,
+    _ad_name AS _adname,
+    -- NEW COLUMN
+    PARSE_DATE('%e/%m/%Y', _live_date) AS _live_date,
+    PARSE_DATE('%e/%m/%Y', _completed_date) AS _completed_date,
+    _campaign_objective,
+    _introduction_text,
+    _intro_text_length,
+    _text_on_image,
+    _text_on_image_length,
+    _cta_on_image,
+    _headline_text,
+    _headline_text_length
+  FROM `x-marketing.rackspace_google_sheets.db_ads_optimization`
+  WHERE _ad_id != ''
 ),
 total_ads AS (
   SELECT 
@@ -190,7 +223,7 @@ daily_budget_per_ad_per_campaign AS (
 )
 SELECT 
   daily_budget_per_ad_per_campaign.*,
-  airtable_data.* EXCEPT (_platform, _campaignid, _adid, _campaignname, _sdc_batched_at, _id, _sdc_sequence, _sdc_received_at, _sdc_table_version)
+  airtable_data.* EXCEPT (_platform, _campaign_id, _adid, _campaignname)
 FROM daily_budget_per_ad_per_campaign
 LEFT JOIN airtable_data
   ON CAST(daily_budget_per_ad_per_campaign._ad_id AS STRING) = airtable_data._adid
