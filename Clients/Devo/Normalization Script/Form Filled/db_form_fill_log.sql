@@ -11,9 +11,9 @@ WITH
   FROM `x-marketing.devo_hubspot_v2.forms`,
     UNNEST(formfieldgroups) AS fieldgrp,
     UNNEST(fieldgrp.value.fields) AS field
-  GROUP BY
-    1, 2, 3 
-) , owner AS (
+  GROUP BY 1, 2, 3 
+) , 
+owner AS (
   SELECT
     firstname,
     lastname,
@@ -22,13 +22,22 @@ WITH
     email AS _owner_email,
     userid
   FROM `x-marketing.devo_hubspot_v2.owners` 
-) , contacts_form AS (
+) , 
+contacts_form AS (
   SELECT
     CAST(NULL AS STRING) AS devicetype,
-    IF ( form.value.page_url LIKE '%utm_content%', SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_content=') + 9), '&')[ORDINAL(1)], CAST(NULL AS STRING) ) AS _campaignID,
-    IF ( form.value.page_url LIKE '%utm_campaign%', REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, 'utm_campaign=') + 13), '&')[ORDINAL(1)], '%20', ' '), '%3A',':'), CAST(NULL AS STRING) ) AS _campaign,
-    IF ( form.value.page_url LIKE '%utm_source%', SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_source=') + 8), '&')[ORDINAL(1)], CAST(NULL AS STRING) ) AS _utm_source,
-    IF ( form.value.page_url LIKE '%utm_medium%', SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_medium=') + 8), '&')[ORDINAL(1)], CAST(NULL AS STRING) ) AS _utm_medium,
+    IF ( form.value.page_url LIKE '%utm_content%', 
+      SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_content=') + 9), '&')[ORDINAL(1)], 
+      CAST(NULL AS STRING) ) AS _campaignID,
+    IF ( form.value.page_url LIKE '%utm_campaign%', 
+      REGEXP_REPLACE(REGEXP_REPLACE(SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, 'utm_campaign=') + 13), '&')[ORDINAL(1)], '%20', ' '), '%3A',':'),
+       CAST(NULL AS STRING) ) AS _campaign,
+    IF ( form.value.page_url LIKE '%utm_source%', 
+      SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_source=') + 8), '&')[ORDINAL(1)], 
+      CAST(NULL AS STRING) ) AS _utm_source,
+    IF ( form.value.page_url LIKE '%utm_medium%', 
+      SPLIT(SUBSTR(form.value.page_url, STRPOS(form.value.page_url, '_medium=') + 8), '&')[ORDINAL(1)], 
+      CAST(NULL AS STRING) ) AS _utm_medium,
     form.value.title AS _form_title,
     properties.email.value AS _email,
     associated_company.properties.domain.value AS _domain,
