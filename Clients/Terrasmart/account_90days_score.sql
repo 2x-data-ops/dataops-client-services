@@ -28,7 +28,7 @@ SET date_ranges = ARRAY(
 );
 
 
-DELETE FROM `terrasmart.account_90days_score` WHERE _domain IS NOT NULL;
+DELETE FROM `x-marketing.terrasmart.account_90days_score_2025` WHERE _domain IS NOT NULL;
 
 LOOP
   IF index = array_length(date_ranges) 
@@ -46,7 +46,7 @@ LOOP
     DECLARE _min_quater_date DATE DEFAULT date_ranges[OFFSET(index)]._min_quater_date;
     DECLARE _max_quater_date DATE DEFAULT date_ranges[OFFSET(index)]._max_quater_date;
 
-    INSERT INTO  `terrasmart.account_90days_score` 
+    INSERT INTO  `x-marketing.terrasmart.account_90days_score_2025` 
     
      WITH key_account AS (
 SELECT * EXCEPT (rowss)
@@ -69,8 +69,9 @@ SELECT
       ROW_NUMBER() OVER(PARTITION BY LOWER(_domain),LOWER(_account) ORDER BY _account
  DESC) rowss
       FROM `x-marketing.terrasmart_mysql_2.db_key_accounts`
+      WHERE _key_account_year = '2025'
 ) WHERE rowss = 1
-) , other_account AS (
+)  , other_account AS (
       SELECT * EXCEPT (rowss)
 FROM ( SELECT 
       _domain, 
@@ -89,14 +90,16 @@ FROM ( SELECT
       ROW_NUMBER() OVER(PARTITION BY LOWER(_domain) ORDER BY _account
  DESC) rowss
       FROM `terrasmart.db_consolidated_engagements_log` 
-        WHERE _domain NOT IN (SELECT DISTINCT _domain AS _domain FROM `x-marketing.terrasmart_mysql_2.db_key_accounts`)
+        WHERE _domain NOT IN (SELECT DISTINCT _domain AS _domain FROM `x-marketing.terrasmart_mysql_2.db_key_accounts`
+        WHERE _key_account_year = '2025')
 
-        ) WHERE rowss = 1
+   ) WHERE rowss = 1
 )
 , all_accounts AS (
 SELECT * FROM key_account
 UNION ALL 
 SELECT * FROM other_account
+
         ), quarterly_contact_engagement AS (
           SELECT 
           *
@@ -413,7 +416,7 @@ SELECT * FROM other_account
  FROM quarterly_contact_scoring
  ), campaign_score AS (
   SELECT _account, _domain, _account_segment,  SUM(_monthly_email_score) AS _monthly_email_score_campaign, SUM(_webinar_score) AS _webinar_score_campaign
-FROM `terrasmart.campaign_90days_score`
+FROM `x-marketing.terrasmart.campaign_90days_score_2025`
  WHERE _extract_date BETWEEN date_start AND date_end
                
 GROUP BY _account, _domain, _account_segment
@@ -569,8 +572,7 @@ CAST( 0.0 AS NUMERIC) AS _rolling_6_month
   END;
 END LOOP;
 
-
-UPDATE `x-marketing.terrasmart.account_90days_score` origin  
+UPDATE `x-marketing.terrasmart.account_90days_score_2025`origin  
 SET
 origin._cumulative_monthly_engagement_score = updates ._cumulative_monthly_engagement_score,
 origin._cumulative_year_engagement_score = updates ._cumulative_year_engagement_score
@@ -583,7 +585,7 @@ WITH cummulative_score AS (
   _account,
   _monthly_account_score,
  SUM (_monthly_account_score) OVER (PARTITION BY _domain,_year ORDER BY _extract_date) AS _cumulative_monthly_engagement_score
-FROM `x-marketing.terrasmart.account_90days_score` 
+FROM `x-marketing.terrasmart.account_90days_score_2025`
  ) SELECT *,
 MAX (_cumulative_monthly_engagement_score) OVER (PARTITION BY _domain,_year ORDER BY _domain) AS _cumulative_year_engagement_score,
 
@@ -595,7 +597,7 @@ AND origin._account = updates._account
 AND origin._year = updates._year
 AND origin._extract_date = updates._extract_date; 
 
-UPDATE `x-marketing.terrasmart.account_90days_score` origin  
+UPDATE `x-marketing.terrasmart.account_90days_score_2025`origin  
 SET
 origin._cumulative_quaterly_engagement_score = updates ._cumulative_quaterly_engagement_score
 FROM (
@@ -606,7 +608,7 @@ WITH cummulative_score AS (
   _min_quater_date ,
   _account,
  SUM (_monthly_account_score) AS _cumulative_quaterly_engagement_score
-FROM `x-marketing.terrasmart.account_90days_score` 
+FROM `x-marketing.terrasmart.account_90days_score_2025`
 
 GROUP BY 1,2,3,4
  ) SELECT *
@@ -619,7 +621,7 @@ AND origin._account = updates._account
 AND origin._year = updates._year
 AND origin._min_quater_date = updates._min_quater_date; 
 
-UPDATE `x-marketing.terrasmart.account_90days_score` origin  
+UPDATE `x-marketing.terrasmart.account_90days_score_2025`origin  
 SET
 origin._score_first_2_month = updates .score_first_2_month,
 origin._score_first_3_month = updates .score_first_3_month,
@@ -643,7 +645,7 @@ WITH dates AS (
   FROM  UNNEST(GENERATE_DATE_ARRAY('2022-01-01',DATE_ADD(CURRENT_DATE(), INTERVAL 1 MONTH), INTERVAL 1 MONTH)) AS _date
 ),
 all_data AS (
-  SELECT * FROM `terrasmart.account_90days_score`
+  SELECT * FROM `x-marketing.terrasmart.account_90days_score_2025`
 ),
 aggregated_data AS (
   SELECT
@@ -698,13 +700,13 @@ AND origin._account = updates._account
 AND origin._account_segment = updates._account_segment
 AND origin._extract_date = updates._extract_date;
 
--- UPDATE `x-marketing.terrasmart.account_90days_score` origin  
+-- UPDATE `x-marketing.terrasmart.account_90days_score_2025`origin  
 -- SET
 -- origin._monthly_email_score_campaign = updates ._monthly_email_score_campaign,
 -- origin._webinar_score_campaign = updates ._webinar_score_campaign
 -- FROM (
 -- SELECT _account, _domain, _account_segment, _extract_date, SUM(_monthly_email_score) AS _monthly_email_score_campaign, SUM(_webinar_score) AS _webinar_score_campaign
--- FROM `terrasmart.campaign_90days_score`
+-- FROM `x-marketing.terrasmart.campaign_90days_score_2025`
 -- GROUP BY _account, _domain, _account_segment, _extract_date
 -- ) updates 
 -- WHERE origin._domain = updates._domain
