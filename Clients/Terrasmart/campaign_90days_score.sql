@@ -12,7 +12,7 @@ SET date_ranges = ARRAY(
 );
 
 
-DELETE FROM `terrasmart.campaign_90days_score` WHERE _campaignID IS NOT NULL AND _domain IS NOT NULL;
+DELETE FROM `x-marketing.terrasmart.campaign_90days_score_2025` WHERE _campaignID IS NOT NULL AND _domain IS NOT NULL;
 LOOP
   IF index = array_length(date_ranges) 
     THEN BREAK;
@@ -20,9 +20,9 @@ LOOP
   BEGIN
     DECLARE date_end DATE DEFAULT date_ranges[OFFSET(index)].max_date;
     DECLARE date_start DATE DEFAULT date_ranges[OFFSET(index)].min_date;
-     INSERT INTO `terrasmart.campaign_90days_score`
-WITH all_accounts AS (
-       WITH key_account AS (
+     INSERT INTO `x-marketing.terrasmart.campaign_90days_score_2025`
+
+    WITH key_account AS (
 SELECT * EXCEPT (rowss)
 FROM (
 SELECT 
@@ -39,12 +39,13 @@ SELECT
       _rep, 
       _midwest,
       "Key Account" AS _account_segment,
-      _type,
+       _type,
       ROW_NUMBER() OVER(PARTITION BY LOWER(_domain),LOWER(_account) ORDER BY _account
  DESC) rowss
       FROM `x-marketing.terrasmart_mysql_2.db_key_accounts`
+      WHERE _key_account_year = '2025'
 ) WHERE rowss = 1
-) , other_account AS (
+)  , other_account AS (
       SELECT * EXCEPT (rowss)
 FROM ( SELECT 
       _domain, 
@@ -59,14 +60,16 @@ FROM ( SELECT
       _acc_persona, 
       _rep, _midwest ,
       "Other Account"  AS _account_segment,
-      _type,
+       _type,
       ROW_NUMBER() OVER(PARTITION BY LOWER(_domain) ORDER BY _account
  DESC) rowss
       FROM `terrasmart.db_consolidated_engagements_log` 
-        WHERE _domain NOT IN (SELECT DISTINCT _domain AS _domain FROM `x-marketing.terrasmart_mysql_2.db_key_accounts`)
+        WHERE _domain NOT IN (SELECT DISTINCT _domain AS _domain FROM `x-marketing.terrasmart_mysql_2.db_key_accounts`
+        WHERE _key_account_year = '2025')
 
-        ) WHERE rowss = 1
-) 
+   ) WHERE rowss = 1
+)
+, all_accounts AS (
 SELECT * FROM key_account
 UNION ALL 
 SELECT * FROM other_account
