@@ -1,0 +1,26 @@
+CREATE OR REPLACE TABLE `sdi.db_account_log` AS
+SELECT
+  property_name.value AS company_name,
+  companyid AS _company_id,
+  property_country.value AS country,
+  property_type.value AS type,
+  property_website.value AS website,
+    property_numberofemployees.value AS num_employees,
+  property_industry.value AS industry,
+  property_hubspot_owner_id.value AS hubspot_owner_id,
+  property_next_steps__c.value AS next_steps,
+  property_days_to_close.value AS days_to_close,
+  property_domain.value AS domain_timestamp,
+  property_region__c.value AS region,
+  property_hs_parent_company_id.value AS parent_company_id,
+  property_site.value AS site,
+  property_hs_lead_status.value AS lead_status,
+  property_createdate.value AS create_date,
+  property_hs_num_open_deals.value AS num_open_deals,
+  property_annualrevenue.timestamp AS annual_revenue_timestamp,
+  property_lifecyclestage.value AS lifecycle_stage,
+  property_state.value AS state,
+  property_city.value AS city,
+  property_segment.value AS segment,
+FROM
+  `x-marketing.sdi_hubspot.companies`
