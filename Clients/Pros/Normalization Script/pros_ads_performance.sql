@@ -97,13 +97,8 @@ total_ads_per_campaign AS (
         PARTITION BY _date, _campaign_name
     ) AS _ads_per_campaign
   FROM combine_all
-),
-daily_budget_per_ad_per_campaign AS (
-  SELECT
-    *,
-    _daily_budget / IF(_ads_per_campaign = 0, 1, _ads_per_campaign) AS _daily_budget_per_ad
-  FROM total_ads_per_campaign
 )
-SELECT 
-  final_ads.*
-FROM daily_budget_per_ad_per_campaign final_ads
+SELECT
+  *,
+  _daily_budget / IF(_ads_per_campaign = 0, 1, _ads_per_campaign) AS _daily_budget_per_ad
+FROM total_ads_per_campaign;
