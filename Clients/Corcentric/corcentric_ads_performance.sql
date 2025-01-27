@@ -1,5 +1,5 @@
 --Linkedin ads performance
-CREATE OR REPLACE TABLE corcentric.linkedin_ads_performance AS
+CREATE OR REPLACE TABLE `x-marketing.corcentric.linkedin_ads_performance` AS
 
 WITH LI_ads AS (
   SELECT
@@ -120,12 +120,10 @@ SELECT * FROM daily_budget_per_ad_per_campaign;
 
 
 -- Google Search Campaign Performance
-CREATE OR REPLACE TABLE corcentric.google_search_campaign_performance AS
+CREATE OR REPLACE TABLE `x-marketing.corcentric.google_search_campaign_performance` AS
 
 WITH unique_rows AS (
-  SELECT * EXCEPT(_rank)
-    FROM (
-        SELECT
+  SELECT
             campaign_id, 
             campaign_name, 
             date AS day, 
@@ -148,16 +146,14 @@ WITH unique_rows AS (
             view_through_conversions AS view_through_conv,
             all_conversions AS all_conversions,
             campaign_advertising_channel_type AS campaign_advertising_channel_type,
-            campaign_status AS status,
-            RANK() OVER(
-                PARTITION BY date, campaign_id
-                ORDER BY report._sdc_received_at DESC
-            ) AS _rank
+            campaign_status AS status
         FROM `x-marketing.corcentric_google_ads.campaign_performance_report` report
         WHERE campaign_advertising_channel_type = 'SEARCH'
+        QUALIFY RANK() OVER(
+                PARTITION BY date, campaign_id
+                ORDER BY report._sdc_received_at DESC
+            ) = 1
         -- AND campaign_name LIKE 'US | %'
-    )
-    WHERE _rank = 1
 ),
 aggregate_rows AS (
   SELECT
@@ -214,12 +210,10 @@ ORDER BY day, campaign_id;
 
 
 -- Google Search Ads Variation Performance
-CREATE OR REPLACE TABLE corcentric.google_search_adsvariation_performance AS
+CREATE OR REPLACE TABLE `x-marketing.corcentric.google_search_adsvariation_performance` AS
 
 WITH unique_rows AS (
-    SELECT * EXCEPT(_rank)
-    FROM (
-        SELECT 
+    SELECT 
             campaign_id,
             campaign_name, 
             ad_group_id, 
@@ -245,15 +239,13 @@ WITH unique_rows AS (
             absolute_top_impression_percentage * impressions AS abs_top_impr, 
             conversions, 
             view_through_conversions AS view_through_conv,
-            RANK() OVER(
+            
+        FROM `x-marketing.corcentric_google_ads.ad_performance_report` ads
+        -- WHERE campaign_name LIKE 'US | %'
+        QUALIFY RANK() OVER(
                 PARTITION BY date, campaign_id, ad_group_id, id
                 ORDER BY ads._sdc_received_at DESC
-            ) _rank
-        FROM `x-marketing.corcentric_google_ads.ad_performance_report` ads
-        
-        -- WHERE campaign_name LIKE 'US | %'
-    )
-    WHERE _rank = 1
+            ) = 1
 ),
 aggregate_rows AS (
     SELECT
@@ -308,12 +300,10 @@ ORDER BY day, campaign_id, ad_group_id, ad_id;
 
 
 -- Google Search Keyword Performance
-CREATE OR REPLACE TABLE corcentric.google_search_keyword_performance AS
+CREATE OR REPLACE TABLE `x-marketing.corcentric.google_search_keyword_performance` AS
 
 WITH unique_rows AS (
-    SELECT * EXCEPT(_rank) 
-    FROM (
-        SELECT
+    SELECT
             campaign_id, 
             campaign_name, 
             ad_group_id, 
@@ -338,14 +328,13 @@ WITH unique_rows AS (
             search_rank_lost_absolute_top_impression_share,
             search_impression_share,
             search_rank_lost_top_impression_share,
-            RANK() OVER (
-                PARTITION BY date, campaign_id, ad_group_id, ad_group_criterion_keyword.text
-                ORDER BY keywords._sdc_received_at DESC
-            ) AS _rank           
+                     
         FROM `x-marketing.corcentric_google_ads.keywords_performance_report` keywords
         -- WHERE campaign_name LIKE 'US | %'
-    )
-    WHERE _rank = 1
+        QUALIFY RANK() OVER (
+                PARTITION BY date, campaign_id, ad_group_id, ad_group_criterion_keyword.text
+                ORDER BY keywords._sdc_received_at DESC
+            ) = 1 
 ),
 aggregate_rows AS (
     SELECT
@@ -403,12 +392,10 @@ ORDER BY day, campaign_id, ad_group_id, keyword;
 
 
 -- Google Search Query Performance
-CREATE OR REPLACE TABLE corcentric.google_search_query_performance AS
+CREATE OR REPLACE TABLE `x-marketing.corcentric.google_search_query_performance` AS
 
 WITH unique_rows AS (
-    SELECT * EXCEPT(_rank) 
-    FROM (
-        SELECT
+    SELECT
         campaign_id, 
         campaign_name, 
         ad_group_id,
@@ -430,14 +417,13 @@ WITH unique_rows AS (
         absolute_top_impression_percentage * impressions AS abs_top_impr, 
         conversions, 
         view_through_conversions AS view_through_conv, 
-        RANK() OVER( 
-            PARTITION BY date, campaign_id, ad_group_id, keyword.info.text, search_term_view_search_term
-            ORDER BY _sdc_received_at DESC
-        ) AS _rank
+        
         FROM `x-marketing.corcentric_google_ads.search_query_performance_report` query
         -- WHERE campaign_name LIKE 'US | %'
-    )
-    WHERE _rank = 1
+        QUALIFY RANK() OVER( 
+            PARTITION BY date, campaign_id, ad_group_id, keyword/*.info.text*/, search_term_view_search_term
+            ORDER BY _sdc_received_at DESC
+        ) = 1
 ),
 aggregate_rows AS (
     SELECT
@@ -492,12 +478,10 @@ ORDER BY day, campaign_id, ad_group_id, keyword, search_term;
 
 
 --Google Display
-CREATE OR REPLACE TABLE corcentric.google_display_campaign_performance AS
+CREATE OR REPLACE TABLE `x-marketing.corcentric.google_display_campaign_performance` AS
 
 WITH unique_rows AS (
-  SELECT * EXCEPT(_rank)
-  FROM (
-    SELECT
+  SELECT
       campaign_id,
       campaign_name,
       date AS day,
@@ -513,17 +497,15 @@ WITH unique_rows AS (
       absolute_top_impression_percentage * impressions AS abs_top_impr,
       conversions,
       view_through_conversions AS view_through_conv,
-      campaign_status,
-      RANK() OVER(
-        PARTITION BY date, campaign_id
-        ORDER BY report._sdc_received_at DESC
-      ) AS _rank
+      campaign_status
     FROM 
       `corcentric_google_ads.campaign_performance_report` report
     WHERE
       campaign_advertising_channel_type = 'DISPLAY'
-  )
-  WHERE _rank = 1
+      QUALIFY RANK() OVER(
+        PARTITION BY date, campaign_id
+        ORDER BY report._sdc_received_at DESC
+      ) = 1
 ),
 aggregate_rows AS (
   SELECT

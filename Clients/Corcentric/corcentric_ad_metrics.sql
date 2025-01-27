@@ -1,10 +1,37 @@
-CREATE OR REPLACE TABLE `x-marketing.corcentric.ad_metrics` AS
-WITH airtable_ads AS (
-  WITH 
-    airtable AS (
-        SELECT * EXCEPT(rownum)
-        FROM ( 
-            SELECT 
+-- CREATE OR REPLACE TABLE `x-marketing.corcentric.ad_metrics` AS
+TRUNCATE TABLE `x-marketing.corcentric.ad_metrics`;
+
+INSERT INTO `x-marketing.corcentric.ad_metrics` (
+    _status,
+    _advariation,
+    _content,
+    _screenshot,
+    _reportinggroup,
+    _source,
+    _medium,
+    _id,
+    _adtype,
+    _platform,
+    _asset,
+    _landingpageurl,
+    _campaignname,
+    _stage,
+    ad_id,
+    campaign_id,
+    day,
+    spent,
+    impressions,
+    clicks,
+    _platform_type,
+    pageviews,
+    reduced_pageviews,
+    visitors,
+    reduced_visitors
+)
+
+WITH 
+airtable AS (
+        SELECT 
                 * EXCEPT(
                     _sdc_batched_at, 
                     _sdc_received_at,
@@ -13,15 +40,14 @@ WITH airtable_ads AS (
                 ),
                 -- Stage is set over here
                 'Awareness' AS _stage,
-                ROW_NUMBER() OVER(
-                    PARTITION BY _adid
-                    ORDER BY _sdc_received_at DESC
-                ) AS rownum
+                
             FROM 
               `x-marketing.Demo.db_airtable_ads`
             WHERE _platform != ''
-        )
-        WHERE rownum = 1
+        QUALIFY ROW_NUMBER() OVER(
+                    PARTITION BY _adid
+                    ORDER BY _sdc_received_at DESC
+                ) = 1
     ), 
     ads_title AS (
         SELECT
@@ -105,14 +131,16 @@ WITH airtable_ads AS (
       "Awareness" AS _stage
       FROM `x-marketing.corcentric_google_ads.ad_groups` adgroup
       LEFT JOIN `x-marketing.corcentric_google_ads.campaigns` campaign ON campaign.id = adgroup.campaign_id
-    )
+    ),
+
+
+airtable_ads AS (
     SELECT * FROM linkedin 
     UNION ALL
     SELECT * FROM google
 ),
 
-ads_metrics AS (
-WITH linkedin_ads AS (
+linkedin_ads AS (
 SELECT 
         main.creative_id AS ad_id, 
         creative.campaign_id,
@@ -149,53 +177,45 @@ google_ads AS (
         'Google' AS _platform_type
     FROM  `x-marketing.corcentric_google_ads.ad_group_performance_report` campaign
 
-)
-SELECT *
-FROM (
-  SELECT * FROM linkedin_ads
+),
+
+ads_metrics AS (
+SELECT * FROM linkedin_ads
   UNION ALL
   SELECT * FROM google_ads
-  )
+),
 
-),all_ads AS (
-  WITH linkedin_ads AS (
+airtable_linkedin_ads AS (
     SELECT * EXCEPT(_adid,_campaign,ad_group_id)
     FROM airtable_ads
     JOIN ads_metrics ON CAST(ads_metrics.ad_id AS STRING) = airtable_ads._adid
     WHERE _platform = 'Linkedin'
   ),
-  google_ads AS (
+  airtable_google_ads AS (
     SELECT * EXCEPT(_adid,_campaign,ad_group_id)
     FROM airtable_ads
     JOIN ads_metrics ON CAST(ads_metrics.campaign_id AS STRING) = airtable_ads._campaign AND airtable_ads.ad_group_id = ads_metrics.ad_group_id
     WHERE _platform = 'Google'
-  )
-  SELECT *
-  FROM (
-    SELECT * FROM linkedin_ads
+  ),
+
+all_ads AS (
+  SELECT * FROM airtable_linkedin_ads
     UNION ALL
-    SELECT * FROM google_ads
-  )
+    SELECT * FROM airtable_google_ads
 ) ,
-get_web_page_views AS (
-    SELECT
-        ad.day,
-        ad._landingpageurl,
-        ad.ad_count,
-        ad._source,
-        COUNT(DISTINCT web._visitorid) AS visitors,
-        SUM(web._totalsessionviews) AS pageviews
-    FROM (
-        SELECT DISTINCT
+
+web_engagements AS (
+SELECT DISTINCT
            CAST(_timestamp AS DATE) AS _date,
             _visitorid,
            _fullurl AS _fullpage,
             _totalsessionviews,
             _utmsource
         FROM `x-marketing.corcentric.db_web_engagements_log`
-    ) web
-    JOIN (
-        SELECT DISTINCT
+),
+
+ad_counts AS (
+    SELECT DISTINCT
             day,
             _source,
             _landingpageurl,
@@ -204,7 +224,18 @@ get_web_page_views AS (
         FROM all_ads
         GROUP BY 1, 2, 3
         ORDER BY 4 DESC
-    ) ad 
+),
+
+get_web_page_views AS (
+    SELECT
+        ad.day,
+        ad._landingpageurl,
+        ad.ad_count,
+        ad._source,
+        COUNT(DISTINCT web._visitorid) AS visitors,
+        SUM(web._totalsessionviews) AS pageviews
+    FROM web_engagements AS web
+    JOIN ad_counts AS ad 
     ON ad._landingpageurl LIKE CONCAT('%', web._fullpage, '%')
     AND EXTRACT(DATETIME FROM ad.day) = web._date
     WHERE UPPER(ad._source) = UPPER(web._utmsource) 
@@ -227,4 +258,4 @@ get_web_page_views AS (
     LEFT JOIN get_web_page_views AS side 
     ON main.day = side.day 
     AND main._landingpageurl = side._landingpageurl
-    AND main._source = side._source
+    AND main._source = side._source;
