@@ -196,17 +196,18 @@ WHERE _datatype = 'Ad'
 ),
 
 airtable_fields_li AS (
-SELECT DISTINCT 
-  _campaignid AS _campaign_id, 
-  _adid AS _ad_id,
-  _adname,
-  _campaignname AS _campaign_name,
-  _adgroup AS _ad_group,
-  _screenshot,
-  _adtype,
+SELECT DISTINCT
+  _campaign_id,
+  _ad_id,
+  _ad_name AS _adname,
+  _campaign_name,
+  _ad_group,
+  _ad_visual AS _screenshot,
+  _ad_type,
   _platform,
-  _segment
-FROM `x-marketing.blend360_mysql.optimization_airtable_ads_linkedin`
+  _business_segment AS _segment
+FROM `x-marketing.blend360_google_sheets.db_ads_optimization`
+WHERE _platform = 'LinkedIn'
 ),
 
 combined_data_li AS (
@@ -215,7 +216,7 @@ SELECT
   airtable_fields._campaign_name,
   airtable_fields._ad_group,
   airtable_fields._screenshot,
-  airtable_fields._adtype,
+  airtable_fields._ad_type,
   airtable_fields._platform,
   airtable_fields._segment,
   DATE_TRUNC(_date, MONTH) AS _month_year
@@ -250,17 +251,18 @@ SELECT DISTINCT
 ),
 
 airtable_fields_6sense AS (
-SELECT DISTINCT 
-  _campaignid AS _campaign_id, 
-  _adid AS _ad_id,
-  _adname,
-  _campaignname AS _campaign_name,
-  _adgroup AS _ad_group,
-  _screenshot,
-  _adtype,
+SELECT
+  _campaign_id,
+  _ad_id,
+  _ad_name AS _adname,
+  _campaign_name,
+  _ad_group,
+  _ad_visual AS _screenshot,
+  _ad_type,
   _platform,
-  _segment
-FROM `x-marketing.blend360_mysql.optimization_airtable_ads_6sense`
+  _business_segment AS _segment
+FROM `x-marketing.blend360_google_sheets.db_ads_optimization`
+WHERE _platform = '6sense'
 ),
 
 combined_data_6sense AS (
@@ -269,14 +271,14 @@ SELECT
   airtable_fields._campaign_name,
   airtable_fields._ad_group,
   airtable_fields._screenshot,
-  airtable_fields._adtype,
+  airtable_fields._ad_type,
   airtable_fields._platform,
   airtable_fields._segment,
   DATE_TRUNC(_date, MONTH) AS _month_year
 FROM ads_6sense ads
 JOIN airtable_fields_6sense airtable_fields 
-  ON ads._adid = airtable_fields._ad_id
-  AND ads._campaign_id = airtable_fields._campaign_id
+  ON ads._adid = CAST(airtable_fields._ad_id AS STRING)
+  AND ads._campaign_id = CAST(airtable_fields._campaign_id AS STRING)
 )
 SELECT * FROM combined_data_li
 UNION ALL
@@ -300,9 +302,10 @@ INSERT INTO `x-marketing.blend360.db_6sense_account_performance` (
 
 WITH airtable_6sense AS (
 SELECT DISTINCT 
-  _campaignid,
-  _campaignname
-FROM `x-marketing.blend360_mysql.optimization_airtable_ads_6sense`
+  _campaign_id,
+  _campaign_name
+FROM `x-marketing.blend360_google_sheets.db_ads_optimization`
+WHERE _platform = '6sense'
 ),
 
 data_6sense AS (
@@ -330,13 +333,13 @@ SELECT
     ELSE EXTRACT(MONTH FROM PARSE_DATE('%m/%d/%Y', _extractdate)) 
   END AS month,
   acc._campaignID,
-  airtable._campaignname,
+  airtable._campaign_name,
   SUM(CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64)) AS _spent
 FROM `x-marketing.blend360_master_list.F1000_Acc_Name_Matching` master
 LEFT JOIN `x-marketing.blend360_mysql.db_6s_account_reached` acc 
   ON _6s_ad_name = _6sensecompanyname
 LEFT JOIN airtable_6sense airtable 
-  ON airtable._campaignid = acc._campaignid
+  ON CAST(airtable._campaign_id AS STRING) = acc._campaignid
 WHERE _impressions IS NOT NULL 
   AND acc._sdc_deleted_at IS NULL
 GROUP BY ALL
@@ -388,7 +391,7 @@ SELECT
   icp_tier,
   customer_segment,
   _campaignid,
-  ANY_VALUE(_campaignname) AS _campaignname, 
+  ANY_VALUE(_campaign_name) AS _campaignname, 
   SUM(change_impressions) AS _impressions,
   SUM(change_spent) AS _spent,
   SUM(change_clicks) AS _clicks,
@@ -400,9 +403,10 @@ GROUP BY _standardizedcompanyname, new_industry, icp_tier, customer_segment, _da
 
 airtable_linkedin AS (
 SELECT DISTINCT 
-  _campaignid,
-  _campaignname
-FROM `x-marketing.blend360_mysql.optimization_airtable_ads_linkedin`
+  _campaign_name,
+  _campaign_id
+FROM `x-marketing.blend360_google_sheets.db_ads_optimization`
+WHERE _platform = 'LinkedIn'
 ),
 
 data_li_6sense AS (
@@ -430,13 +434,13 @@ SELECT
     ELSE EXTRACT(MONTH FROM PARSE_DATE('%m/%d/%Y', _liextractdate)) 
   END AS month,
   acc._campaignID,
-  airtable._campaignname,
+  airtable._campaign_name,
   SUM(CAST(REPLACE(REPLACE(_spend, '$', ''), ',', '') AS FLOAT64)) AS _spent
 FROM `x-marketing.blend360_master_list.F1000_Acc_Name_Matching` master
 LEFT JOIN `x-marketing.blend360_mysql.db_6s_li_account_reached` acc 
   ON _6s_li_ad_name = _6sensecompanyname
 LEFT JOIN airtable_linkedin airtable 
-  ON airtable._campaignid = acc._campaignid
+  ON CAST(airtable._campaign_id AS STRING) = acc._campaignid
 WHERE _impressions IS NOT NULL 
   AND acc._sdc_deleted_at IS NULL
 GROUP BY ALL
@@ -488,7 +492,7 @@ SELECT
   icp_tier,
   customer_segment,
   _campaignid,
-  ANY_VALUE(_campaignname) AS _campaignname, 
+  ANY_VALUE(_campaign_name) AS _campaignname, 
   SUM(change_impressions) AS _impressions,
   SUM(change_spent) AS _spent,
   SUM(change_clicks) AS _clicks,
