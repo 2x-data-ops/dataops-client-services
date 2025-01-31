@@ -703,16 +703,13 @@ max_date_per_month_impr_li_6sense AS (
 
 impressions_on_max_date_li_6sense AS (
   SELECT 
-    t.* EXCEPT (year, month, _impressions, _spent),
-    m.max_date,
-    SUM(_spent) AS _spent,
-    SUM(_impressions) AS _impressions
+    t.* EXCEPT (year, month),
+    m.max_date
   FROM impressions_data_li_6sense t
   JOIN max_date_per_month_impr_li_6sense m
     ON t.std_name = m.std_name 
     AND t._campaignID = m._campaignID 
     AND t._date = m.max_date
-  GROUP BY ALL
 ),
 
 lagged_impressions_li_6sense AS (
@@ -793,16 +790,13 @@ max_date_per_month_impr_6sense AS (
 
 impressions_on_max_date_6sense AS (
   SELECT 
-    t.* EXCEPT (year, month, _spent, _impressions),
-    m.max_date,
-    SUM(_spent) AS _spent,
-    SUM(_impressions) AS _impressions
+    t.* EXCEPT (year, month),
+    m.max_date
   FROM impressions_data_6sense t
   JOIN max_date_per_month_impr_6sense m
   ON t.std_name = m.std_name 
     AND t._campaignID = m._campaignID 
     AND t._date = m.max_date
-  GROUP BY ALL
 ),
 
 lagged_impressions_6sense AS (
