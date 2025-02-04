@@ -132,11 +132,7 @@ score_pivot_table AS (
 -- Get marketo info of leads
 marketo_info AS (
 
-    SELECT 
-        * EXCEPT(rownum) 
-    FROM (
-
-        SELECT
+    SELECT
             EXTRACT(YEAR FROM DATE(DATE_TRUNC(extract_date, WEEK(MONDAY)))) AS year,
             EXTRACT(ISOWEEK FROM DATE(DATE_TRUNC(extract_date, WEEK(MONDAY)))) AS week,
             marketoid,
@@ -162,33 +158,26 @@ marketo_info AS (
             annual_revenue_amount AS annual_revenue,
             ds03_mql_date,
 
-            -- There are 7 days in a week, so take the latest day of the week data
-            ROW_NUMBER() OVER(
-                PARTITION BY 
-                    marketoid, 
-                    EXTRACT(YEAR FROM DATE(DATE_TRUNC(extract_date, WEEK(MONDAY)))), 
-                    EXTRACT(ISOWEEK FROM DATE(DATE_TRUNC(extract_date, WEEK(MONDAY))))
-                ORDER BY 
-                    extract_date DESC
-            ) rownum
+           
 
         FROM 
             `x-marketing.corcentric.marketo_lead_info_snapshot`
-
-    )
-    WHERE 
-        rownum = 1
+        -- There are 7 days in a week, so take the latest day of the week data
+          QUALIFY ROW_NUMBER() OVER(
+              PARTITION BY 
+                  marketoid, 
+                  EXTRACT(YEAR FROM DATE(DATE_TRUNC(extract_date, WEEK(MONDAY)))), 
+                  EXTRACT(ISOWEEK FROM DATE(DATE_TRUNC(extract_date, WEEK(MONDAY))))
+              ORDER BY 
+                  extract_date DESC
+          ) = 1
 
 ),
 
 -- Get salesforce info of leads
 sf_info AS (
 
-    SELECT 
-        * EXCEPT(rownum) 
-    FROM (
-
-        SELECT
+    SELECT
             marketoid,
             sfdcleadid AS sf_lead_id, 
             sfdccontactid AS sf_contact_id,
@@ -199,17 +188,14 @@ sf_info AS (
             sf_account_type,
             sf_account_source,
 
-            ROW_NUMBER() OVER(
-                PARTITION BY marketoid
-                ORDER BY extract_date DESC
-            ) rownum
+            
 
         FROM 
             `x-marketing.corcentric.marketo_lead_info_snapshot`
-
-    )
-    WHERE 
-        rownum = 1
+        QUALIFY ROW_NUMBER() OVER(
+                PARTITION BY marketoid
+                ORDER BY extract_date DESC
+            ) = 1
 
 ),
 

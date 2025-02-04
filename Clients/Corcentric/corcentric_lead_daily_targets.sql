@@ -7,9 +7,7 @@ CREATE OR REPLACE TABLE `corcentric.marketo_daily_targets` AS
 -- Get all leads and contacts that are QP, Discovery, and MQL
 -- Due to there only being first and last fields, no way to get historical dates
 -- Have to take combo of both fields to get the best possible historical dates
-WITH target_category AS (
-
-    WITH contacts AS (
+WITH contacts AS (
 
         SELECT DISTINCT
 
@@ -105,7 +103,9 @@ WITH target_category AS (
 
         )
 
-    )
+    ),
+
+target_category AS (
 
     SELECT * FROM contacts
 
@@ -400,6 +400,17 @@ get_start_and_end_score AS (
 
 ),
 
+lead_info_snapshot AS (
+  SELECT
+
+            DATE(extract_date) AS extract_date,
+            marketoid AS marketo_id,
+            lead_status AS status
+
+        FROM 
+            `corcentric.marketo_lead_info_snapshot`
+),
+
 -- Tie filtered leads with the snapshot data to get historical lead status
 get_lead_status AS (
 
@@ -411,18 +422,7 @@ get_lead_status AS (
     FROM 
         get_start_and_end_score AS main 
 
-    LEFT JOIN (
-
-        SELECT
-
-            DATE(extract_date) AS extract_date,
-            marketoid AS marketo_id,
-            lead_status AS status
-
-        FROM 
-            `corcentric.marketo_lead_info_snapshot`
-
-    ) side 
+    LEFT JOIN lead_info_snapshot AS side 
 
     ON 
         main.marketo_id = side.marketo_id
@@ -466,21 +466,8 @@ get_week_range AS (
 
 ),
 
--- Label the latest info / engagement of a lead
-label_latest_row_of_leads AS (
-
-    SELECT
-        
-        * EXCEPT(rownum),
-
-        CASE 
-            WHEN rownum = 1 THEN true 
-        END 
-        AS latest_lead_row
-
-    FROM (
-
-        SELECT
+get_week_range_row_num AS (
+  SELECT
             
             *,
 
@@ -496,9 +483,21 @@ label_latest_row_of_leads AS (
     
         FROM 
             get_week_range
+),
 
-    )
+-- Label the latest info / engagement of a lead
+label_latest_row_of_leads AS (
 
+    SELECT
+        
+        * EXCEPT(rownum),
+
+        CASE 
+            WHEN rownum = 1 THEN true 
+        END 
+        AS latest_lead_row
+
+    FROM get_week_range_row_num
 )
 
 SELECT * FROM label_latest_row_of_leads;

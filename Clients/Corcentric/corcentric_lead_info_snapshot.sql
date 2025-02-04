@@ -42,13 +42,8 @@ INSERT INTO `x-marketing.corcentric.marketo_lead_info_snapshot` (
     region
 )
 -- Get marketo related fields for those leads with email
-WITH unique_marketo_leads_with_email AS (
-
-    SELECT 
-        * EXCEPT(rownum, is_deleted) 
-    FROM (
-        
-        SELECT
+WITH marketo_leads_with_email AS (
+  SELECT
             mktoname AS name, 
             email, 
             title,
@@ -110,8 +105,14 @@ WITH unique_marketo_leads_with_email AS (
         AND email NOT LIKE '%@vorker.com'
         AND email NOT LIKE 'test@%'
         AND email NOT LIKE '%@email.tst%'
+),
 
-    )
+
+unique_marketo_leads_with_email AS (
+
+    SELECT 
+        * EXCEPT(rownum, is_deleted) 
+    FROM marketo_leads_with_email
     WHERE 
         rownum = 1
     AND 
@@ -119,14 +120,8 @@ WITH unique_marketo_leads_with_email AS (
 
 ),
 
--- Get marketo related fields for those leads without email
-unique_marketo_leads_without_email AS (
-
-    SELECT 
-        * EXCEPT(rownum, is_deleted) 
-    FROM (
-
-        SELECT
+marketo_leads_without_email AS (
+  SELECT
             mktoname AS name, 
             email, 
             title,
@@ -180,8 +175,14 @@ unique_marketo_leads_without_email AS (
         AND company NOT IN('2x', '2X', '2X LLC', '2X LLC Sdn Bhd', '2x Marketing', '2X Marketing')
         AND UPPER(company) NOT LIKE '%CORCENTRIC%' 
         AND UPPER(company) NOT LIKE '%DETERMINE%'
+),
 
-    )
+-- Get marketo related fields for those leads without email
+unique_marketo_leads_without_email AS (
+
+    SELECT 
+        * EXCEPT(rownum, is_deleted) 
+    FROM marketo_leads_without_email
     WHERE 
         rownum = 1
     AND 
@@ -224,6 +225,12 @@ sf_accounts AS (
 
 ),
 
+unique_marketo_leads_combined AS (
+  SELECT * FROM unique_marketo_leads_with_email
+        UNION ALL
+        SELECT * FROM unique_marketo_leads_without_email
+),
+
 -- Join marketo and salesforce data together
 combined_data AS (
 
@@ -234,13 +241,7 @@ combined_data AS (
         sf_contacts.* EXCEPT(id),
         sf_accounts.* EXCEPT(id)
 
-    FROM (
-
-        SELECT * FROM unique_marketo_leads_with_email
-        UNION ALL
-        SELECT * FROM unique_marketo_leads_without_email
-    
-    ) AS marketo_leads
+    FROM unique_marketo_leads_combined AS marketo_leads
     
     LEFT JOIN sf_leads ON marketo_leads.sfdcleadid = sf_leads.id
     LEFT JOIN sf_contacts ON marketo_leads.sfdccontactid = sf_contacts.id

@@ -161,11 +161,7 @@ score_pivot_table AS (
 -- Get marketo info of leads
 marketo_info AS (
 
-    SELECT 
-        * EXCEPT(rownum) 
-    FROM (
-        
-        SELECT
+    SELECT
 
             marketoid,
             sfdcleadorcontactid,
@@ -193,32 +189,23 @@ marketo_info AS (
             lead_status,
             utm_campaign,
             utm_medium,
-            utm_source,
-
-            ROW_NUMBER() OVER(
+            utm_source
+        FROM 
+            `x-marketing.corcentric.marketo_lead_info_snapshot`
+        QUALIFY ROW_NUMBER() OVER(
                 PARTITION BY 
                     marketoid
                 ORDER BY 
                     extract_date DESC
             ) 
-            AS rownum
-
-        FROM 
-            `x-marketing.corcentric.marketo_lead_info_snapshot`
-
-    )
-    WHERE rownum = 1
+            = 1
     
 ),
 
 -- Get salesforce info of leads
 sf_info AS (
 
-    SELECT 
-        * EXCEPT(rownum) 
-    FROM (
-
-        SELECT
+    SELECT
 
             marketoid,
             sfdcleadorcontactid,
@@ -227,22 +214,16 @@ sf_info AS (
             sfdccontactstatus,
             sf_account_website,
             sf_account_type,
-            sf_account_source,
-            
-            ROW_NUMBER() OVER(
+            sf_account_source
+        FROM 
+            `x-marketing.corcentric.marketo_lead_info_snapshot`
+            QUALIFY ROW_NUMBER() OVER(
                 PARTITION BY 
                     marketoid
                 ORDER BY 
                     extract_date DESC
             ) 
-            AS rownum
-
-        FROM 
-            `x-marketing.corcentric.marketo_lead_info_snapshot`
-
-    )
-    WHERE 
-        rownum = 1
+            = 1  
 
 ),
 
@@ -298,6 +279,24 @@ salesforce_leads_and_contacts AS (
 
 ),
 
+salesforce_lead_emails AS (
+  SELECT DISTINCT
+            email
+        FROM 
+            salesforce_leads_and_contacts
+        WHERE 
+            email IS NOT NULL
+),
+
+salesforce_lead_names AS (
+  SELECT DISTINCT
+            name
+        FROM 
+            salesforce_leads_and_contacts
+        WHERE 
+            email IS NULL
+),
+
 -- Label those from marketo that are also present in salesforce
 check_marketo_people_in_salesforce AS (
 
@@ -320,31 +319,13 @@ check_marketo_people_in_salesforce AS (
         add_marketo_and_sf_info AS main 
 
     -- For checking those with emails
-    LEFT JOIN (
-
-        SELECT DISTINCT
-            email
-        FROM 
-            salesforce_leads_and_contacts
-        WHERE 
-            email IS NOT NULL
-
-    ) AS side_email
+    LEFT JOIN salesforce_lead_emails AS side_email
 
     ON 
         main.email = side_email.email
 
     -- For checking those without emails
-    LEFT JOIN (
-
-        SELECT DISTINCT
-            name
-        FROM 
-            salesforce_leads_and_contacts
-        WHERE 
-            email IS NULL
-
-    ) AS side_name
+    LEFT JOIN salesforce_lead_names AS side_name
 
     ON 
         LOWER(main.name) = LOWER(side_name.name) 
@@ -590,7 +571,28 @@ salesforce_non_2x_campaign_members AS (
         ) 
     AND 
         member.isdeleted = false
+),
 
+combine_campaign_members AS (
+SELECT * FROM salesforce_2x_campaign_members
+
+            UNION ALL 
+
+            SELECT * FROM salesforce_non_2x_campaign_members
+),
+
+campaign_ranks AS (
+  SELECT
+            *,
+
+            -- Set campaign rank
+            DENSE_RANK() OVER(
+                ORDER BY campaign_start_date  
+            )
+            AS campaign_rank
+
+        -- Combine campaign members from 2X campaigns and non 2X campaigns 
+        FROM combine_campaign_members
 ),
 
 -- Rank the campaigns based on campaign launched date 
@@ -603,29 +605,7 @@ set_campaign_rank_and_date AS (
         EXTRACT(YEAR FROM DATE(DATE_TRUNC(campaign_end_date, WEEK(MONDAY)))) AS campaign_year,
         EXTRACT(WEEK FROM DATE(DATE_TRUNC(campaign_end_date, WEEK(MONDAY)))) AS campaign_week
 
-    FROM (
-
-        SELECT
-            *,
-
-            -- Set campaign rank
-            DENSE_RANK() OVER(
-                ORDER BY campaign_start_date  
-            )
-            AS campaign_rank
-
-        -- Combine campaign members from 2X campaigns and non 2X campaigns 
-        FROM (
-
-            SELECT * FROM salesforce_2x_campaign_members
-
-            UNION ALL 
-
-            SELECT * FROM salesforce_non_2x_campaign_members
-
-        )
-    
-    )
+    FROM campaign_ranks
 
 ),
 
