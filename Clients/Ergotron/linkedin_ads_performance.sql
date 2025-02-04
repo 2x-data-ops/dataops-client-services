@@ -1,61 +1,61 @@
 CREATE OR REPLACE TABLE `x-marketing.ergotron.linkedin_ads_performance` AS
 WITH LI_airtable AS (
-   SELECT
-  _ad_id AS _adid,
-  _ad_type,
-  _ad_variation,
-  _ad_name,
-  _ad_name_length,
-  _introduction_text,
-  _intro_text_length,
-  _headline_text,
-  _headline_text_length,
-  _platform,
-  _business_segment,
-  _landing_page_url,
-  _ad_visual,
-  IF(
-  _live_date != '', 
-  PARSE_TIMESTAMP('%d/%m/%Y', _live_date), 
-  NULL ) AS _live_date,
-  _completed_date,
-  _status,
-  _ad_group_length,
-  _job_title,
-  _industry,
-  _size,
-  _ad_title,
-  _ad_title_naming,
-  _ad_title_length,
-  _sponsored_text,
-  _sponsored_text_length,
-  _body_text,
-  _body_text_length,
-  _text_on_image,
-  _text_on_image_length,
-  _cta_on_image,
-  _cta_on_image_length,
-  _cta_copy,
-  _attachment_file_type,
-  _layout,
-  _color,
-  _image,
-  _blurb,
-  _logo,
-  _messaging,
-  _asset_type,
-  _tone,
-  _product_company_name,
-  _stage,
-  _campaign_objective,
-  _main_keywords,
-  _template,
-  _statistic_proof_point
-FROM
-  `x-marketing.jellyvision_google_sheets.db_ads_optimization`
-  WHERE _platform = 'LinkedIn'
-)
-, LI_ads AS (
+    SELECT
+        _ad_id AS _adid,
+        _ad_type,
+        _ad_variation,
+        _ad_name,
+        _ad_name_length,
+        _introduction_text,
+        _intro_text_length,
+        _headline_text,
+        _headline_text_length,
+        _platform,
+        _business_segment,
+        _landing_page_url,
+        _ad_visual,
+        IF(
+        _live_date != '', 
+        PARSE_TIMESTAMP('%d/%m/%Y', _live_date), 
+        NULL ) AS _live_date,
+        _completed_date,
+        _status,
+        _ad_group_length,
+        _job_title,
+        _industry,
+        _size,
+        _ad_title,
+        _ad_title_naming,
+        _ad_title_length,
+        _sponsored_text,
+        _sponsored_text_length,
+        _body_text,
+        _body_text_length,
+        _text_on_image,
+        _text_on_image_length,
+        _cta_on_image,
+        _cta_on_image_length,
+        _cta_copy,
+        _attachment_file_type,
+        _layout,
+        _color,
+        _image,
+        _blurb,
+        _logo,
+        _messaging,
+        _asset_type,
+        _tone,
+        _product_company_name,
+        _stage,
+        _campaign_objective,
+        _main_keywords,
+        _template,
+        _statistic_proof_point
+    FROM `x-marketing.jellyvision_google_sheets.db_ads_optimization`
+    
+    WHERE _platform = 'LinkedIn'
+), 
+ LI_ads AS (
     SELECT
         date_range.start.year AS _start_year, 
         date_range.start.month AS _start_month, 
@@ -89,11 +89,10 @@ FROM
         video_midpoint_completions AS _video_views_50percent,
         video_third_quartile_completions AS _video_views_75percent,
         video_completions AS _video_completions
-    FROM `ergotron_linkedin_ads.ad_analytics_by_creative`
-  
+    FROM `ergotron_linkedin_ads.ad_analytics_by_creative` 
     ORDER BY start_at DESC
-)
-, ads_title AS (
+), 
+ ads_title AS (
     SELECT
         SPLIT(SUBSTR(c.id, STRPOS(c.id, 'sponsoredCreative:')+18))[ORDINAL(1)]  AS _adid,
         campaign_id AS _campaignid,
@@ -102,8 +101,8 @@ FROM
     FROM `ergotron_linkedin_ads.creatives` c
     LEFT JOIN `ergotron_linkedin_ads.accounts` acc 
         ON acc.id = account_id
-)
-, campaigns AS (
+), 
+ campaigns AS (
     SELECT
         id AS _campaignid,
         name AS _campaignname,
@@ -111,17 +110,16 @@ FROM
         cost_type AS _cost_type,
         daily_budget.amount AS _daily_budget,
         campaign_group_id AS _campaign_group_id,
-    FROM `ergotron_linkedin_ads.campaigns`
-    
-)
-, campaign_group AS (
+    FROM `ergotron_linkedin_ads.campaigns`   
+),
+ campaign_group AS (
     SELECT
         id AS _campaign_group_id, 
         name AS _campaign_group_name, 
         status AS _campaign_group_status
     FROM `ergotron_linkedin_ads.campaign_groups`
-)
-, _all AS (
+), 
+ _all AS (
     SELECT
         LI_ads._start_year, 
         LI_ads._start_month, 
@@ -191,14 +189,14 @@ FROM
         ON campaigns._campaign_group_id = campaign_group._campaign_group_id
     LEFT JOIN LI_airtable 
         ON CAST( LI_ads._adid AS STRING) = CAST(LI_airtable._adid AS STRING)
-)
-, total_ads AS (
+), 
+ total_ads AS (
     SELECT 
         *, 
         count(_adid) OVER (PARTITION BY _startDate, _campaignName ) AS ads_per_campaign
     FROM _all
-)
-, daily_budget_per_ad_per_campaign AS (
+), 
+ daily_budget_per_ad_per_campaign AS (
     SELECT 
         *,
         CASE WHEN ads_per_campaign > 0 THEN _daily_budget / ads_per_campaign
