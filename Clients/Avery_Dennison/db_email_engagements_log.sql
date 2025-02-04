@@ -191,14 +191,10 @@ combine_engagement AS (
 )
 SELECT
   engagement.*,
-  contacts.* EXCEPT(contactid,
-    c_emailaddress),
-  campaign.* EXCEPT(campaignid,
-    campaignname)
+  contacts.* EXCEPT(contactid, c_emailaddress),
+  campaign.* EXCEPT(campaignid, campaignname)
 FROM combine_engagement engagement
 LEFT JOIN contacts contacts
-ON
-  engagement.contactid = contacts.contactid
+ON engagement.contactid = contacts.contactid
 LEFT JOIN campaign
-ON
-  engagement.campaignid = campaign.campaignid
+ON engagement.campaignid = campaign.campaignid
