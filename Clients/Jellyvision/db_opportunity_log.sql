@@ -82,7 +82,6 @@ WITH
       createdbyid,
       masterrecordid,
       'Leads' AS _contact_leads_segments,
-   
   FROM `x-marketing.jellyvision_salesforce.Lead` leads
   LEFT JOIN account_leads 
     ON company = account_leads.name 
