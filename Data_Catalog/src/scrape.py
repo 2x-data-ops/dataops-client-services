@@ -71,6 +71,7 @@ class DataPipeline:
                 """
         try:
             df = bq.read_gbq(query, project_id='x-marketing', credentials=self.credentials)
+            os.makedirs('output', exist_ok=True)
             df.to_csv('output/1_main_data.csv', index=False)
             self.logger.info(f"Retrieved records from SQL query")
             return df
