@@ -24,7 +24,7 @@
 - To run the the pipeline, run this command
 
     ```python
-        python .\src\streamlit run app.py
+        streamlit run src/app.py
     ```
 
 ## Pipeline Overview & Flow
