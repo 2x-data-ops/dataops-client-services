@@ -183,7 +183,7 @@ email_data AS (
     _asset_title,
     _asset_type,
     _landing_page_url
-FROM `x-marketing.processunity_google_sheets.db_email_campaign` 
+  FROM `x-marketing.processunity_google_sheets.db_email_campaign` 
 ),
 engagements_combined AS (
   SELECT * FROM sent_email
