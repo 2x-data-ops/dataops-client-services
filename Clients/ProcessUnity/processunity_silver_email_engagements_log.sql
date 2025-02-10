@@ -126,7 +126,7 @@ clicked_email AS (
   FROM `x-marketing.processunity_marketo.activities_click_email`
   QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
 ),
-bounced_email AS (
+hard_bounced_email AS (
   SELECT   
     primary_attribute_value AS _content_title, 
     activitydate AS _timestamp, 
@@ -134,8 +134,20 @@ bounced_email AS (
     '' AS _description,
     CAST(campaignid AS STRING) AS _campaignID,
     primary_attribute_value_id AS _emailID,
-    'Bounced' AS _engagement,
+    'Hard Bounced' AS _engagement,
   FROM `x-marketing.processunity_marketo.activities_email_bounced`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
+),
+soft_bounced_email AS (
+  SELECT   
+    primary_attribute_value AS _content_title, 
+    activitydate AS _timestamp, 
+    CAST(leadid AS STRING) AS _leadid, 
+    '' AS _description,
+    CAST(campaignid AS STRING) AS _campaignID,
+    primary_attribute_value_id AS _emailID,
+    'Soft Bounced' AS _engagement,
+  FROM `x-marketing.processunity_marketo.activities_email_bounced_soft`
   QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
 ),
 unsubscribed_email AS (
@@ -181,7 +193,9 @@ engagements_combined AS (
   UNION ALL
   SELECT * FROM clicked_email
   UNION ALL
-  SELECT * FROM bounced_email
+  SELECT * FROM hard_bounced_email
+  UNION ALL
+  SELECT * FROM soft_bounced_email
   UNION ALL
   SELECT * FROM unsubscribed_email
 )
@@ -208,7 +222,7 @@ SELECT
 FROM engagements_combined
 LEFT JOIN prospect_info
   ON engagements_combined._leadid = prospect_info._prospectID
-LEFT JOIN email_data
+JOIN email_data
   ON engagements_combined._emailID = email_data._email_id
 LEFT JOIN campaign
   ON email_data._campaign_id = campaign.id
