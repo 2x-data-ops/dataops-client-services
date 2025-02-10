@@ -1,6 +1,6 @@
-TRUNCATE TABLE `x-marketing.processunity.db_email_engagements_log`;
+TRUNCATE TABLE `x-marketing.processunity.email_engagements_log`;
 
-INSERT INTO `x-marketing.processunity.db_email_engagements_log` (
+INSERT INTO `x-marketing.processunity.email_engagements_log` (
   _content_title, 
   _timestamp,
   _leadid, 
@@ -11,8 +11,28 @@ INSERT INTO `x-marketing.processunity.db_email_engagements_log` (
   _name,
   _job_title,
   _persona,
+  _account,
   _company,
   _industry,
+  _email_activity_count,
+  _email_delivered_count,
+  _email_opens_count,
+  _email_CTA_click_count,
+  _content_syndication_activity_count,
+  _event_registered,
+  _event_attended,
+  _webinar_registration_count,
+  _website_visit_count,
+  _lead_score,
+  _lead_nurture_entry,
+  _lead_mql_qualified,
+  _lead_mql_qualified_date,
+  _wf_became_mql_date,
+  _sal_qualified_date,
+  _leads_sql_qualified_date,
+  _lead_source,
+  _wf_became_sql_date,
+  _wf_became_sal_date,
   _campaign_name,
   _campaign_id,
   _campaign_code,
@@ -26,7 +46,7 @@ INSERT INTO `x-marketing.processunity.db_email_engagements_log` (
   _programID,
   _program_name
 )
--- CREATE OR REPLACE TABLE `x-marketing.processunity.db_email_engagements_log` AS
+-- CREATE OR REPLACE TABLE `x-marketing.processunity.email_engagements_log` AS
 WITH prospect_info AS (
   SELECT
     CAST(_leadID AS STRING) AS _prospectID,
@@ -35,14 +55,34 @@ WITH prospect_info AS (
     _job_title,
     _persona,
     _company_name AS _company,
-    _industry
+    _account,
+    _industry,
+    _email_activity_count,
+    _email_delivered_count,
+    _email_opens_count,
+    _email_CTA_click_count,
+    _content_syndication_activity_count,
+    _event_registered,
+    _event_attended,
+    _webinar_registration_count,
+    _website_visit_count,
+    _lead_score,
+    _lead_nurture_entry,
+    _lead_mql_qualified,
+    _lead_mql_qualified_date,
+    _wf_became_mql_date,
+    _sal_qualified_date,
+    _leads_sql_qualified_date,
+    _lead_source,
+    _wf_became_sql_date,
+    _wf_became_sal_date
   FROM `x-marketing.processunity.marketo_contacts_log` leads
 ),
 sent_email AS (
   SELECT   
     primary_attribute_value AS _content_title, 
     activitydate AS _timestamp, 
-    CAST(leadid AS STRING) AS _prospectID, 
+    CAST(leadid AS STRING) AS _leadid, 
     '' AS _description,
     CAST(campaignid AS STRING) AS _campaignID,
     primary_attribute_value_id AS _emailID,
@@ -152,12 +192,7 @@ SELECT
   engagements_combined._description,
   engagements_combined._campaignID,
   engagements_combined._engagement,
-  prospect_info._email,
-  prospect_info._name,
-  prospect_info._job_title,
-  prospect_info._persona,
-  prospect_info._company,
-  prospect_info._industry,
+  prospect_info.* EXCEPT(_prospectID),
   email_data._campaign_name,
   email_data._campaign_id,
   email_data._campaign_code,
@@ -170,9 +205,9 @@ SELECT
   email_data._landing_page_url,
   campaign._programID,
   campaign._program_name
- FROM engagements_combined
+FROM engagements_combined
 LEFT JOIN prospect_info
-  ON engagements_combined._prospectID = prospect_info._prospectID
+  ON engagements_combined._leadid = prospect_info._prospectID
 LEFT JOIN email_data
   ON engagements_combined._emailID = email_data._email_id
 LEFT JOIN campaign
