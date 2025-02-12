@@ -65,12 +65,7 @@ WITH prospect_info AS (
         END AS _lifecycleStage
     FROM `x-marketing.equiteq_hubspot.contacts` 
     QUALIFY ROW_NUMBER() OVER(
-        PARTITION BY property_email.value,
-        CONCAT(
-            properties.firstname.value,
-            ' ',
-            properties.lastname.value
-        )
+        PARTITION BY property_email.value, CONCAT(properties.firstname.value,  ' ', properties.lastname.value)
         ORDER BY vid DESC
     ) = 1
 ),
@@ -81,18 +76,14 @@ airtable_info AS (
         campaign.subject AS _campaignSubject,
         REPLACE(INITCAP(campaign.type), '_', ' ') AS _campaignType,
         IF(
-            airtable._hubspotid IS NOT NULL,
+            airtable._email_id IS NOT NULL,
             '2X',
             'Equiteq'
         )AS _emailCategory
     FROM `x-marketing.equiteq_hubspot.campaigns` campaign
-    LEFT JOIN `x-marketing.equiteq_mysql.equiteq_db_airtable_email` airtable
-        ON CAST(campaign.id AS STRING) = airtable._hubspotid
-    QUALIFY ROW_NUMBER() OVER(
-        PARTITION BY campaign.name,
-        campaign.id
-        ORDER BY campaign.id
-    ) = 1
+    LEFT JOIN `x-marketing.equiteq_google_sheets.db_email_campaign` airtable
+      ON CAST(campaign.id AS STRING) = CAST(airtable._email_id AS STRING)
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY campaign.name, campaign.id ORDER BY campaign.id) = 1
 ),
 shared_fields AS (
     SELECT 
@@ -120,11 +111,7 @@ dropped AS (
         'Dropped' AS _engagement,
     FROM shared_fields
     WHERE _type = 'DROPPED' 
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 deferred AS (
     SELECT *
@@ -132,11 +119,7 @@ deferred AS (
         'Deferred' AS _engagement,
     FROM shared_fields
     WHERE _type = 'DEFERRED' 
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 suppressed AS (
     SELECT *
@@ -144,11 +127,7 @@ suppressed AS (
         'Suppressed' AS _engagement,
     FROM shared_fields
     WHERE _type = 'SUPPRESSED' 
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 opened AS (
     SELECT *
@@ -157,11 +136,7 @@ opened AS (
     FROM shared_fields
     WHERE _type = 'OPEN' 
       AND _filteredevent = FALSE
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 clicked AS (
     SELECT *
@@ -170,11 +145,7 @@ clicked AS (
         FROM shared_fields
     WHERE _type = 'CLICK' 
       AND _filteredevent = FALSE
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 unsubscribed AS (
     SELECT 
@@ -187,11 +158,7 @@ unsubscribed AS (
         ON status.value.causedbyevent.id = shared_fields.id
     WHERE _type = 'STATUSCHANGE'
       AND status.value.change = 'UNSUBSCRIBED' 
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 form_filled AS (
     SELECT 
@@ -226,11 +193,7 @@ downloaded AS (
     FROM form_filled activity
     LEFT JOIN `x-marketing.equiteq_hubspot.campaigns` campaign 
         ON activity._utmcontent = CAST(campaign.id AS STRING) 
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 softbounced AS (
     SELECT *
@@ -238,11 +201,7 @@ softbounced AS (
         'Soft Bounced' AS _engagement,
     FROM shared_fields
     WHERE _type = 'BOUNCE' 
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 hardbounced AS (
     SELECT 
@@ -254,11 +213,7 @@ hardbounced AS (
     JOIN shared_fields 
         ON status.value.causedbyevent.id = shared_fields.id
     WHERE status.value.change = 'BOUNCED' 
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 sent AS (
     SELECT *
@@ -266,11 +221,7 @@ sent AS (
         'Sent' AS _engagement,
     FROM shared_fields
     WHERE _type = 'SENT' 
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 delivered AS (
     SELECT *
@@ -278,11 +229,7 @@ delivered AS (
         'Delivered' AS _engagement,
     FROM shared_fields
     WHERE _type = 'DELIVERED'
-    QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY _email,
-        _campaignName
-        ORDER BY _timestamp DESC
-    ) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY _email, _campaignName ORDER BY _timestamp DESC) = 1
 ),
 sent_filtered AS (
     SELECT
