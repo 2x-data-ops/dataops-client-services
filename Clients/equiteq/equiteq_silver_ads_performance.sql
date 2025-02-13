@@ -54,7 +54,7 @@ campaigns AS (
     INITCAP(status) AS li_campaign_status,
     CASE
       WHEN daily_budget.amount IS NOT NULL THEN daily_budget.amount
-      ELSE total_budget.amount / TIMESTAMP_DIFF(run_schedule.end, run_schedule.start, DAY)
+      ELSE SAFE_DIVIDE(total_budget.amount , TIMESTAMP_DIFF(run_schedule.end, run_schedule.start, DAY))
     END AS li_daily_budget,
     run_schedule.start AS li_campaign_start_date,
     run_schedule.end AS li_campaign_end_date,
@@ -95,7 +95,7 @@ total_ads_per_campaign AS (
 daily_budget_per_ad_per_campaign AS (
   SELECT
     *,
-    li_daily_budget / fm_ads_per_campaign AS fm_daily_budget_per_ad,
+    SAFE_DIVIDE(li_daily_budget , fm_ads_per_campaign) AS fm_daily_budget_per_ad,
   FROM total_ads_per_campaign
 )
 SELECT
@@ -123,8 +123,7 @@ INSERT INTO `x-marketing.equiteq.google_search_campaign_performance` (
   conversions,
   view_through_conv
 )
-WITH
-unique_rows AS (
+WITH unique_rows AS (
   SELECT
     campaign_id,
     campaign_name,
@@ -144,13 +143,7 @@ unique_rows AS (
     customer_time_zone,
     INITCAP(campaign_advertising_channel_type) AS campaign_advertising_channel_type
   FROM `x-marketing.equiteq_google_ads.campaign_performance_report`
-  QUALIFY RANK() OVER (
-    PARTITION BY
-      date,
-      campaign_id
-    ORDER BY
-      _sdc_received_at DESC
-  ) = 1
+  QUALIFY RANK() OVER(PARTITION BY date, campaign_id ORDER BY  _sdc_received_at DESC) = 1
 )
 SELECT
   campaign_id,
@@ -168,18 +161,8 @@ SELECT
   SUM(conversions) AS conversions,
   SUM(view_through_conv) AS view_through_conv
 FROM unique_rows
-GROUP BY
-  1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8
-ORDER BY
-  day,
-  campaign_id;
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+ORDER BY day, campaign_id;
 
 -- Google Search Ads Variation Performance --
 -- CREATE OR REPLACE TABLE `x-marketing.equiteq.google_search_adsvariation_performance` AS
@@ -238,15 +221,7 @@ WITH unique_rows AS (
     INITCAP(ad_group_status) AS ad_group_status,
     customer_time_zone
   FROM `x-marketing.equiteq_google_ads.ad_performance_report`
-  QUALIFY RANK() OVER (
-    PARTITION BY
-      date,
-      campaign_id,
-      ad_group_id,
-      id
-    ORDER BY
-      _sdc_received_at DESC
-  ) = 1
+  QUALIFY RANK() OVER(PARTITION BY date, campaign_id, ad_group_id, id ORDER BY _sdc_received_at DESC) = 1
 )
 SELECT
   campaign_id,
@@ -268,23 +243,8 @@ SELECT
   SUM(conversions) AS conversions,
   SUM(view_through_conv) AS view_through_conv
 FROM unique_rows
-GROUP BY
-  1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8,
-  9,
-  10,
-  11
-ORDER BY
-  day,
-  campaign_id,
-  ad_group_id,
-  ad_id;
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+ORDER BY day, campaign_id, ad_group_id, ad_id;
 
 -- Google Search Keyword Performance --
 -- CREATE OR REPLACE TABLE `x-marketing.equiteq.google_search_keyword_performance` AS
@@ -334,15 +294,7 @@ WITH unique_rows AS (
     view_through_conversions AS view_through_conv,
     customer_time_zone,
   FROM `x-marketing.equiteq_google_ads.keywords_performance_report`
-  QUALIFY RANK() OVER (
-    PARTITION BY
-      date,
-      campaign_id,
-      ad_group_id,
-      ad_group_criterion_keyword.text
-    ORDER BY
-      _sdc_received_at DESC
-  ) = 1
+  QUALIFY RANK() OVER(PARTITION BY date, campaign_id, ad_group_id, ad_group_criterion_keyword.text ORDER BY _sdc_received_at DESC) = 1
 )
 SELECT
   campaign_id,
@@ -364,23 +316,8 @@ SELECT
   SUM(conversions) AS conversions,
   SUM(view_through_conv) AS view_through_conv
 FROM unique_rows
-GROUP BY
-  1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8,
-  9,
-  10,
-  11
-ORDER BY
-  day,
-  campaign_id,
-  ad_group_id,
-  keyword;
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+ORDER BY day, campaign_id, ad_group_id, keyword;
 
 -- Google Search Query Performance --
 -- CREATE OR REPLACE TABLE `x-marketing.equiteq.google_search_query_performance` AS
@@ -430,16 +367,7 @@ WITH unique_rows AS (
     INITCAP(ad_group_status) AS ad_group_status,
     customer_time_zone,
   FROM `x-marketing.equiteq_google_ads.search_query_performance_report`
-  QUALIFY RANK() OVER (
-    PARTITION BY
-      date,
-      campaign_id,
-      ad_group_id,
-      keyword.info.text,
-      search_term_view_search_term
-    ORDER BY
-      _sdc_received_at DESC
-  ) = 1
+  QUALIFY RANK() OVER(PARTITION BY date, campaign_id, ad_group_id, keyword.info.text, search_term_view_search_term ORDER BY _sdc_received_at DESC) = 1
 )
 SELECT
   campaign_id,
@@ -461,24 +389,8 @@ SELECT
   SUM(conversions) AS conversions,
   SUM(view_through_conv) AS view_through_conv
 FROM unique_rows
-GROUP BY
-  1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8,
-  9,
-  10,
-  11
-ORDER BY
-  day,
-  campaign_id,
-  ad_group_id,
-  keyword,
-  search_term;
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+ORDER BY day, campaign_id, ad_group_id, keyword, search_term;
 
 -- Google Display Campaign Performance --
 -- CREATE OR REPLACE TABLE `x-marketing.equiteq.google_display_campaign_performance` AS
@@ -523,13 +435,7 @@ WITH unique_rows AS (
     customer_time_zone
   FROM `x-marketing.equiteq_google_ads.campaign_performance_report`
   WHERE campaign_advertising_channel_type = 'DISPLAY'
-  QUALIFY RANK() OVER (
-    PARTITION BY
-      date,
-      campaign_id
-    ORDER BY
-      _sdc_received_at DESC
-  ) = 1
+  QUALIFY RANK() OVER(PARTITION BY date, campaign_id ORDER BY _sdc_received_at DESC) = 1
 )
 SELECT
   campaign_id,
@@ -548,14 +454,5 @@ SELECT
   SUM(conversions) AS conversions,
   SUM(view_through_conv) AS view_through_conv
 FROM unique_rows
-GROUP BY
-  1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7
-ORDER BY
-  day,
-  campaign_id;
+GROUP BY 1, 2, 3, 4, 5, 6, 7
+ORDER BY day, campaign_id;
