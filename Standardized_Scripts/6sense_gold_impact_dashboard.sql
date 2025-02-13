@@ -1,4 +1,7 @@
-
+/*
+    Deprecated - 6Sense Impact Dashboard will now be separated to smaller chunks where one script contains one table
+    Kindly only use this script as reference
+*/
 -- 6sense Buying Stage Movement
 
 CREATE OR REPLACE TABLE `sandler.db_6sense_buying_stages_movement` AS
