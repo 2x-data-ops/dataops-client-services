@@ -1,6 +1,6 @@
 --Linkedin ads performance
-TRUNCATE TABLE `brp.linkedin_ads_performance`;
-INSERT INTO `brp.linkedin_ads_performance` (
+TRUNCATE TABLE `x-marketing.brp.linkedin_ads_performance`;
+INSERT INTO `x-marketing.brp.linkedin_ads_performance` (
   _status,
   _advariation,
   _content,
@@ -95,13 +95,13 @@ WITH LI_ads AS (
     video_midpoint_completions AS _video_views_50percent,
     video_third_quartile_completions AS _video_views_75percent,
     video_completions AS _video_completions
-  FROM `brp_linkedin_ads.ad_analytics_by_creative` 
+  FROM `x-marketing.brp_linkedin_ads.ad_analytics_by_creative` 
 ),
 ads_title AS (
   SELECT
     SPLIT(SUBSTR(id, STRPOS(id, 'sponsoredCreative:')+18))[ORDINAL(1)] AS cID,
     campaign_id
-  FROM `brp_linkedin_ads.creatives`
+  FROM `x-marketing.brp_linkedin_ads.creatives`
 ),
 campaigns AS (
   SELECT
@@ -113,14 +113,14 @@ campaigns AS (
     campaign_group_id,
     account AS _account_name,
     account_id,
-  FROM `brp_linkedin_ads.campaigns`
+  FROM `x-marketing.brp_linkedin_ads.campaigns`
 ),
 campaign_group AS (
   SELECT
     id AS groupID,
     name AS _groupName,
     status
-  FROM `brp_linkedin_ads.campaign_groups`
+  FROM `x-marketing.brp_linkedin_ads.campaign_groups`
 ),
 airtable_ads AS (
   SELECT 
@@ -161,8 +161,8 @@ SELECT
 FROM total_ads;
 
 -- Google Search Campaign Performance
-TRUNCATE TABLE `brp.google_search_campaign_performance`;
-INSERT INTO `brp.google_search_campaign_performance` (
+TRUNCATE TABLE `x-marketing.brp.google_search_campaign_performance`;
+INSERT INTO `x-marketing.brp.google_search_campaign_performance` (
   campaign_id,
   campaign_name,
   day,
@@ -255,8 +255,8 @@ ORDER BY day, campaign_id;
 
 -- Google Search Ads Variation Performance
 
-TRUNCATE TABLE `brp.google_search_adsvariation_performance`;
-INSERT INTO `brp.google_search_adsvariation_performance` (
+TRUNCATE TABLE `x-marketing.brp.google_search_adsvariation_performance`;
+INSERT INTO `x-marketing.brp.google_search_adsvariation_performance` (
   campaign_id,
   campaign_name,
   ad_group_id,
@@ -637,8 +637,8 @@ FROM daily_budget_per_ad_per_campaign;
 
 
 -- ABX BRP LinkedIn
-TRUNCATE TABLE `brp.abx_linkedin_ads_performance`;
-INSERT INTO `brp.abx_linkedin_ads_performance` (
+TRUNCATE TABLE `x-marketing.brp.abx_linkedin_ads_performance`;
+INSERT INTO `x-marketing.brp.abx_linkedin_ads_performance` (
   _finalutmtrackingurl,
   _bodytextlength,
   _status,
@@ -765,14 +765,14 @@ WITH LI_ads AS (
     video_midpoint_completions AS _video_views_50percent,
     video_third_quartile_completions AS _video_views_75percent,
     video_completions AS _video_completions
-  FROM `brp_abx_linkedin_ads_v2.ad_analytics_by_creative` 
+  FROM `x-marketing.brp_abx_linkedin_ads_v2.ad_analytics_by_creative` 
 ),
 ads_title AS (
   SELECT
     SPLIT(SUBSTR(id, STRPOS(id, 'sponsoredCreative:')+18))[ORDINAL(1)] AS cID,
     campaign_id,
     intended_status
-  FROM `brp_abx_linkedin_ads_v2.creatives`
+  FROM `x-marketing.brp_abx_linkedin_ads_v2.creatives`
 ),
 campaigns AS (
   SELECT
@@ -784,7 +784,7 @@ campaigns AS (
     campaign_group_id,
     acc.name AS account_name,
     account_id,
-  FROM `brp_abx_linkedin_ads_v2.campaigns` campaign
+  FROM `x-marketing.brp_abx_linkedin_ads_v2.campaigns` campaign
   LEFT JOIN `x-marketing.brp_abx_linkedin_ads_v2.accounts` acc 
     ON acc.id = account_id
 ),
@@ -793,7 +793,7 @@ campaign_group AS (
     id AS groupID,
     name AS _groupName,
     status
-  FROM `brp_abx_linkedin_ads_v2.campaign_groups`   
+  FROM `x-marketing.brp_abx_linkedin_ads_v2.campaign_groups`   
 ),
 airtable_ads AS (
   SELECT 
@@ -842,8 +842,8 @@ FROM daily_budget_per_ad_per_campaign;
 
 
 --Paid Media LinkedIn
-TRUNCATE TABLE `brp.paid_media_linkedin_ads_performance`;
-INSERT INTO `brp.paid_media_linkedin_ads_performance` (
+TRUNCATE TABLE `x-marketing.brp.paid_media_linkedin_ads_performance`;
+INSERT INTO `x-marketing.brp.paid_media_linkedin_ads_performance` (
   start_year,
   start_month,
   start_day,
@@ -925,14 +925,14 @@ WITH LI_ads AS (
     video_midpoint_completions AS _video_views_50percent,
     video_third_quartile_completions AS _video_views_75percent,
     video_completions AS _video_completions
-  FROM `brp_abx_linkedin_ads_v2.ad_analytics_by_creative` 
+  FROM `x-marketing.brp_abx_linkedin_ads_v2.ad_analytics_by_creative` 
 ),
 ads_title AS (
   SELECT
     SPLIT(SUBSTR(id, STRPOS(id, 'sponsoredCreative:')+18))[ORDINAL(1)] AS cID,
     campaign_id,
     intended_status
-  FROM `brp_abx_linkedin_ads_v2.creatives`
+  FROM `x-marketing.brp_abx_linkedin_ads_v2.creatives`
 ),
 campaigns AS (
   SELECT
@@ -944,7 +944,7 @@ campaigns AS (
     campaign_group_id,
     acc.name AS account_name,
     account_id,
-  FROM `brp_abx_linkedin_ads_v2.campaigns` campaign
+  FROM `x-marketing.brp_abx_linkedin_ads_v2.campaigns` campaign
   LEFT JOIN `x-marketing.brp_abx_linkedin_ads_v2.accounts` acc 
     ON acc.id = account_id
   WHERE account_id = 507653713
@@ -954,7 +954,7 @@ campaign_group AS (
     id AS groupID,
     name AS _groupName,
     status
-  FROM `brp_abx_linkedin_ads_v2.campaign_groups`
+  FROM `x-marketing.brp_abx_linkedin_ads_v2.campaign_groups`
 ), 
 _all AS (
   SELECT 
