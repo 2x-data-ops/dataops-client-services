@@ -299,13 +299,13 @@ class DataPipeline:
                 if_exists='replace', 
                 credentials=self.credentials,
                 table_schema=[
-                    {'name': 'dataset', 'type': 'STRING'},
-                    {'name': 'table', 'type': 'STRING'},
-                    {'name': 'column', 'type': 'STRING'},
-                    {'name': 'data_type', 'type': 'STRING'},
-                    {'name': 'sample_record', 'type': 'STRING'},
-                    {'name': 'table_created', 'type': 'STRING'},
-                    {'name': 'client_name', 'type': 'STRING'}  # Make sure this matches exactly
+                    {'name': '_dataset', 'type': 'STRING'},
+                    {'name': '_table', 'type': 'STRING'},
+                    {'name': '_column', 'type': 'STRING'},
+                    {'name': '_data_type', 'type': 'STRING'},
+                    {'name': '_sample_record', 'type': 'STRING'},
+                    {'name': '_table_created', 'type': 'STRING'},
+                    {'name': '_client_name', 'type': 'STRING'}  # Make sure this matches exactly
                 ]
             )
             self.logger.info("Successfully uploaded to BigQuery")
