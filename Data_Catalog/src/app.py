@@ -48,7 +48,7 @@ def main():
                 try:
                     df = pd.read_csv('output/4_final_output.csv')
                     st.subheader("Preview of processed data:")
-                    st.dataframe(df.head())
+                    st.dataframe(df.head(100))
                 except Exception as e:
                     st.warning(f"Pipeline completed but couldn't load preview: {str(e)}")
                 
