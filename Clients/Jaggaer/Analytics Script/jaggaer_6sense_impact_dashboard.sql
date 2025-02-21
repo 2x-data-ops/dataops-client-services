@@ -126,7 +126,7 @@ WITH target_accounts AS (
     ORDER BY 1 DESC
   ) scenario
 
-  ON main._country_account = scenario._country_account
+  ON main._country_account = scenario._country_account AND main._added_on = scenario._added_on
 ),
 
 reached_related_info AS (
@@ -173,7 +173,7 @@ reached_related_info AS (
         SELECT
           DISTINCT _campaignid
         FROM
-          `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`   --- CHANGE TO JAGGAER
+          `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
         WHERE _campaignid <> ''
       )
   )
@@ -181,7 +181,46 @@ reached_related_info AS (
 ),
 
 six_qa_related_info AS (
-  SELECT
+  WITH max_batchid AS (
+  SELECT MAX(_batchid) AS max_batchid
+  FROM `jaggaer_mysql.jaggaer_db_6qa_accounts_list`
+)
+SELECT
+    * EXCEPT(_rownum)
+  FROM (
+    SELECT
+      DISTINCT
+      CASE
+        WHEN _extractdate LIKE '%/%'
+          THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+        ELSE
+          PARSE_DATE('%F', _extractdate)
+      END AS _6qa_date,
+      
+      true _is_6qa,
+
+      ROW_NUMBER() OVER(
+        PARTITION BY CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain)
+        ORDER BY
+          CASE
+            WHEN _extractdate LIKE '%/%'
+              THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+            ELSE
+              PARSE_DATE('%F', _extractdate)
+          END
+        DESC
+      ) AS _rownum,
+
+      CONCAT(_6sensecompanyname, _6sensecountry, _6sensedomain) AS _country_account
+    FROM
+      `jaggaer_mysql.jaggaer_db_6qa_accounts_list`
+    CROSS JOIN max_batchid
+    WHERE _batchid = max_batchid.max_batchid
+  )
+  WHERE _rownum = 1
+
+  
+  /* SELECT
     * EXCEPT(_rownum)
   FROM (
     SELECT
@@ -211,7 +250,7 @@ six_qa_related_info AS (
     FROM
       `jaggaer_mysql.jaggaer_db_6qa_accounts_list`
   )
-  WHERE _rownum = 1
+  WHERE _rownum = 1 */
 ),
 
 -- Get buying stage info for each account
@@ -304,6 +343,7 @@ reached_accounts_data AS (
   FROM 
     `jaggaer_mysql.jaggaer_db_6sense_accounts_reached` main
   JOIN (
+    
     SELECT 
       DISTINCT 
       _campaignid, 
@@ -313,6 +353,28 @@ reached_accounts_data AS (
       `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
     WHERE 
       _campaignid != ''
+        
+    UNION ALL
+
+    SELECT 
+      DISTINCT 
+      _6sensecampaignid AS _campaignid, 
+      _campaignname,  
+      IF(_platform = 'LinkedIn', 'LinkedIn', _platform) AS _campaigntype
+    FROM
+      `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+    WHERE 
+      _campaignid != ''
+    
+    /* SELECT 
+      DISTINCT 
+      _campaignid, 
+      _campaignname,  
+      IF(_platform = '6Sense', '6sense', _platform) AS _campaigntype
+    FROM
+      `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
+    WHERE 
+      _campaignid != '' */
   ) side
 
   USING(_campaignid)
@@ -350,7 +412,31 @@ email_alerts_data AS (
         CONCAT(_accountname, _country, _domain) AS _country_account
     FROM `x-marketing.jaggaer_mysql.jaggaer_db_email_alerts` main
     JOIN (
-        SELECT 
+      SELECT 
+        DISTINCT 
+        _campaignid, 
+        _campaignname,  
+        _segment AS _segmentname,
+        IF(_platform = '6Sense', '6sense', _platform) AS _campaigntype
+      FROM
+        `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
+      WHERE 
+        _campaignid != ''
+
+      UNION ALL
+
+      SELECT 
+        DISTINCT 
+        _6sensecampaignid, 
+        _campaignname,  
+        _segment AS _segmentname,
+        IF(_platform = 'LinkedIn', 'LinkedIn', _platform) AS _campaigntype
+      FROM
+        `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+      WHERE 
+        _campaignid != ''
+        
+        /* SELECT 
         DISTINCT 
         _campaignid, 
         _campaignname,  
@@ -359,7 +445,7 @@ email_alerts_data AS (
         FROM
         `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
         WHERE 
-        _campaignid != ''
+        _campaignid != '' */
     ) side
     USING(_segmentname)
 ),
@@ -368,7 +454,7 @@ email_alerts AS (
         DISTINCT 
         _country_account, 
         CAST(NULL AS STRING) AS _email,
-        MIN(_latestimpression) OVER(
+        MIN(_latestimpression) OVER( 
         PARTITION BY 
             _country_account, 
             _campaign_name
@@ -482,7 +568,7 @@ _keywords AS (
         DISTINCT
         _country_account,
         CAST(NULL AS STRING) AS _email,  
-        _activities_on AS _timestamp,
+        _latestimpression AS _timestamp,     -- _activities_on
         CONCAT(_campaign_type, ' ', 'Keywords') AS _engagement, 
         '6sense' AS _engagement_data_source,
         _keywords AS _description,  
@@ -494,7 +580,7 @@ _keywords AS (
             _country_account, 
             _campaign_name
           ORDER BY 
-            _activities_on
+            _latestimpression     -- _activities_on
         )
         AS _old_notes
       FROM
@@ -513,7 +599,7 @@ _webVisits AS (
         DISTINCT
         _country_account,
         CAST(NULL AS STRING) AS _email,  
-        _activities_on AS _timestamp,
+        _latestimpression AS _timestamp,     -- _activities_on
         CONCAT(_campaign_type, ' ', 'Web Visits') AS _engagement, 
         '6sense' AS _engagement_data_source,
         _weburls AS _description,  
@@ -525,7 +611,7 @@ _webVisits AS (
             _country_account, 
             _campaign_name
           ORDER BY 
-            _activities_on
+            _latestimpression     -- _activities_on
         )
         AS _old_notes
       FROM
@@ -568,7 +654,6 @@ combined_data AS (
 )
 
 SELECT * FROM combined_data;
-
 
 ---------------------------------------------- 6SENSE AD PERFORMANCE ----------------------------------------------
 
@@ -680,6 +765,7 @@ campaign_fields AS (
 ),
 
 airtable_fields AS (
+  WITH _6sense AS (
   SELECT 
     DISTINCT 
     _campaignid AS _campaign_id, 
@@ -687,8 +773,23 @@ airtable_fields AS (
     _adgroup AS _ad_group,
     _screenshot    
   FROM
-    `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`   --- CHANGE TO JAGGAER
+    `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
   WHERE _campaignid <> ''
+),
+_linkedin AS (
+  SELECT 
+    DISTINCT 
+    _6sensecampaignid AS _campaign_id, 
+    _6senseadid AS _ad_id,
+    _adgroup AS _ad_group,
+    _screenshot    
+  FROM
+    `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+  WHERE _campaignid <> ''
+)
+SELECT * FROM _6sense
+UNION ALL
+SELECT * FROM _linkedin
 ),
 
 -- Combined Ads, Campaign and Airtable into one table
@@ -746,9 +847,12 @@ campaign_numbers AS (
         side._campaignid
       FROM
         `jaggaer_mysql.jaggaer_db_segment_target_accounts` main
-      JOIN 
-        `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense` side   --- CHANGE TO JAGGAER 
-      ON main._segmentname = side._segment   --- WRONG SEGMENT NAME IN AIRTABLE 6SENSE
+      JOIN (
+        SELECT _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
+        UNION ALL
+        SELECT _6sensecampaignid AS _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+      ) side 
+      ON main._segmentname = side._segment
     )
     GROUP BY 1
   ) target_acc
@@ -771,9 +875,12 @@ campaign_numbers AS (
         side._campaignid
       FROM 
         `jaggaer_mysql.jaggaer_db_segment_target_accounts` main
-      JOIN 
-        `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense` side    --- CHANGE TO JAGGAER
-      ON main._segmentname = side._segment   --- WRONG SEGMENT NAME IN AIRTABLE
+      JOIN (
+        SELECT _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
+        UNION ALL
+        SELECT _6sensecampaignid AS _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+      ) side
+      ON main._segmentname = side._segment
       JOIN 
         `jaggaer_mysql.jaggaer_db_6sense_accounts_reached` extra
       USING (
@@ -804,11 +911,14 @@ campaign_numbers AS (
         side._campaignid
       FROM
         `jaggaer_mysql.jaggaer_db_segment_target_accounts` main
-      JOIN 
-        `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense` side    --- CHANGE TO JAGGAER    
+      JOIN (
+        SELECT _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
+        UNION ALL
+        SELECT _6sensecampaignid AS _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+      ) side
       ON main._segmentname = side._segment
       JOIN 
-        `jaggaer.db_6sense_account_current_state` extra   --- CHANGE TO JAGGAER // TABLE NOT READY
+        `jaggaer.db_6sense_account_current_state` extra
       USING(
         _6sensecompanyname,
         _6sensecountry,
@@ -848,6 +958,101 @@ reduced_campaign_numbers AS (
 SELECT * FROM reduced_campaign_numbers;
 
 
+-- Insert LinkedIn campaign performance data into Ad Performance table
+INSERT INTO `jaggaer.db_6sense_ad_performance` (
+_adid, 
+_date, 
+_spend, 
+_clicks, 
+_impressions, 
+_campaign_type, 
+_campaign_id, 
+_campaign_name, 
+_campaign_status, 
+_start_date, 
+_end_date, 
+_advariation, 
+_ad_group, 
+_newly_engaged_accounts, 
+_increased_engagement_accounts, 
+_target_accounts, 
+_reached_accounts, 
+_6qa_accounts, 
+_occurrence, 
+_reduced_newly_engaged_accounts, 
+_reduced_increased_engagement_accounts, 
+_reduced_target_accounts, 
+_reduced_reached_accounts, 
+_reduced_6qa_accounts, 
+_screenshot
+) 
+WITH
+linkedin_ads AS (
+  SELECT
+    CAST(creative_id AS STRING) AS _adid,
+    CAST(start_at AS DATE) AS _date,
+    SUM(cost_in_usd) AS _spend, 
+    SUM(clicks) AS _clicks, 
+    SUM(impressions) AS _impressions,
+    'LinkedIn' AS _campaign_type
+  FROM
+    `jaggaer_linkedin_ads.ad_analytics_by_creative`
+  GROUP BY creative_id, start_at
+),
+creative AS (
+  SELECT
+    SPLIT(SUBSTR(id, STRPOS(id, 'sponsoredCreative:')+18))[ORDINAL(1)] AS cID,
+    CAST(campaign_id AS STRING) AS _campaign_id
+  FROM `jaggaer_linkedin_ads.creatives`
+),
+campaign AS (
+  SELECT
+    name AS _campaign_name,
+    CAST(id AS STRING) AS id,
+    '' AS _campaign_status,
+    CAST(NULL AS DATE) AS _start_date,
+    CAST(NULL AS DATE) AS _end_date,
+    '' AS _advariation,
+    '' AS _ad_group,
+    CAST(NULL AS INT64) AS _newly_engaged_accounts,
+    CAST(NULL AS INT64) AS _increased_engagement_accounts,
+    CAST(NULL AS INT64) AS _target_accounts,
+    CAST(NULL AS INT64) AS _reached_accounts,
+    CAST(NULL AS INT64) AS _6qa_accounts,
+    CAST(NULL AS INT64) AS _occurrence,
+    CAST(NULL AS INT64) AS _reduced_newly_engaged_accounts,
+    CAST(NULL AS INT64) AS _reduced_increased_engagement_accounts,
+    CAST(NULL AS INT64) AS _reduced_target_accounts,
+    CAST(NULL AS INT64) AS _reduced_reached_accounts,
+    CAST(NULL AS INT64) AS _reduced_6qa_accounts
+  FROM `jaggaer_linkedin_ads.campaigns`
+),
+linkedin_airtable AS (
+  SELECT
+    _adid,
+    _adtitle AS _adname, 
+    _campaignid,  
+    _campaignname, 
+    _screenshot
+
+  FROM `x-marketing.jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+  
+  WHERE _campaignid = '304100656'
+)
+SELECT
+  linkedin_ads.*,
+  creative.* EXCEPT(cID),
+  campaign.* EXCEPT (id),
+  linkedin_airtable._screenshot
+FROM linkedin_ads
+JOIN linkedin_airtable 
+ON linkedin_ads._adid = CAST(linkedin_airtable._adid AS STRING)
+LEFT JOIN creative
+ON linkedin_ads._adid = creative.cID
+LEFT JOIN campaign
+ON campaign.id = creative._campaign_id;
+
+
 ---------------------------------------------- 6SENSE ACCOUNT PERFORMANCE ----------------------------------------------
 
 CREATE OR REPLACE TABLE `jaggaer.db_6sense_account_performance` AS
@@ -867,7 +1072,7 @@ WITH target_accounts AS (
   FROM
     `jaggaer_mysql.jaggaer_db_segment_target_accounts` main
   JOIN
-    `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense` side   --- CHANGE TO JAGGAER
+    `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense` side
   ON main._segmentname = side._segment
 ),
 
@@ -912,9 +1117,7 @@ CREATE OR REPLACE TABLE `jaggaer.opportunity_influenced_accelerated` AS
 
 -- Get account engagements of target account 
 WITH target_account_engagements AS (
-
     SELECT DISTINCT 
-
         _6sensecompanyname,
         _6sensecountry,
         _6sensedomain, 
@@ -924,19 +1127,11 @@ WITH target_account_engagements AS (
         _timestamp AS _eng_timestamp,
         _description AS _eng_description,
         _notes AS _eng_notes,
-
         CASE
             WHEN _engagement LIKE '%6sense%' THEN '6sense'
             WHEN _engagement LIKE '%LinkedIn%' THEN 'LinkedIn'
-        END 
-        AS _channel
-
-    FROM 
-        `jaggaer.db_6sense_engagement_log` 
-    
-    -- Get engagements after start of campaign
-   -- WHERE
-        --_timestamp >= '2023-10-19'
+        END AS _channel
+    FROM `jaggaer.db_6sense_engagement_log` 
 
 ),
 
@@ -981,19 +1176,15 @@ opps_created AS (
     ORDER BY isocode 
   ),
   opps_main AS (
-
       SELECT DISTINCT 
-
           opp.accountid AS _account_id, 
           act.name AS _account_name,
           REGEXP_REPLACE(act.website, r'^(https?://)?www\.(.*?)(?:/|$)', r'\2') AS _domain,
-          
           COALESCE(
               act.shippingcountry, 
               act.billingcountry
           )
           AS _country,
-          
           opp.id AS _opp_id,
           opp.name AS _opp_name,
           own.name AS _opp_owner_name,
@@ -1001,6 +1192,7 @@ opps_created AS (
           DATE(opp.createddate) AS _created_date,
           DATE(opp.closedate) AS _closed_date,
           opp.amount AS _amount,
+          opp.acv__c AS _acv,
           opp.currencyisocode,
           opp.isclosed,
           opp.region__c AS _region,
@@ -1069,6 +1261,7 @@ opps_created AS (
     LEFT JOIN openConversionRate ON openConversionRate.isocode = opps_main.currencyisocode
   )
   WHERE _created_date >= '2023-01-01'
+  AND _country = 'United States'  -- to filter those account based outside United States
 ),
 
 -- Get all historical stages of opp
@@ -1332,14 +1525,9 @@ set_influencing_activity AS (
             WHEN 
                 DATE(_eng_timestamp) 
                     BETWEEN 
-                        DATE_SUB(_created_date, INTERVAL 90 DAY) 
+                        DATE_SUB(_created_date, INTERVAL 120 DAY) 
                     AND 
-                        DATE(_created_date)
-                -- AND 
-                --     REGEXP_CONTAINS(
-                --         _engagement, 
-                --         '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
-                --     )                     
+                        DATE(_created_date)               
             THEN true 
         END 
         AS _is_influencing_activity
@@ -1369,81 +1557,44 @@ label_influenced_opportunity AS (
 
 -- Label the activty that accelerated the opportunity
 set_accelerating_activity AS (
-
     SELECT 
-
         *,
-        
         CASE 
-            WHEN 
-                _is_influenced_opp IS NULL
-            AND 
-                _eng_timestamp > _created_date 
-            AND 
-                _eng_timestamp <= _historical_stage_change_date
-            AND 
-                _stage_movement = 'Upward'
-            -- AND 
-            --     REGEXP_CONTAINS(
-            --         _engagement, 
-            --         '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
-            --     )
-
+            WHEN _is_influenced_opp IS NULL
+            --AND _created_date BETWEEN DATE(_eng_timestamp) AND DATE_ADD(DATE(_eng_timestamp) , INTERVAL 120 DAY)
+            AND DATE(_eng_timestamp) > _created_date
+            AND DATE(_eng_timestamp) <= _stage_change_date --_historical_stage_change_date
+            AND _stage_movement = 'Upward'
             THEN true
-        END 
-        AS _is_accelerating_activity
-
-    FROM
-        label_influenced_opportunity
-
+        END AS _is_accelerating_activity
+    FROM label_influenced_opportunity
 ),
 
 -- Mark every other rows of the opportunity as accelerated 
 -- If there is at least one accelerating activity
 label_accelerated_opportunity AS (
-    
     SELECT
-    
         *,
-
         MAX(_is_accelerating_activity) OVER(
             PARTITION BY _opp_id
         )
         AS _is_accelerated_opp
-
-    FROM 
-        set_accelerating_activity
-
+    FROM set_accelerating_activity
 ),
 
 -- Label the activty that accelerated an influenced opportunity
 set_accelerating_activity_for_influenced_opportunity AS (
-
     SELECT 
-
         *,
-        
         CASE 
-            WHEN 
-                _is_influenced_opp IS NOT NULL
-            AND 
-                _eng_timestamp > _created_date 
-            AND 
-                _eng_timestamp <= _historical_stage_change_date
-            AND 
-                _stage_movement = 'Upward'
-            -- AND 
-            --     REGEXP_CONTAINS(
-            --         _engagement, 
-            --         '6sense Campaign|6sense Ad|6sense Form|LinkedIn Campaign|LinkedIn Ad'
-            --     )
+            WHEN _is_influenced_opp IS NOT NULL
+            --AND _created_date BETWEEN DATE(_eng_timestamp) AND DATE_ADD(DATE(_eng_timestamp) , INTERVAL 120 DAY)
+            AND DATE(_eng_timestamp) > _created_date
+            AND DATE(_eng_timestamp) <= _stage_change_date --_historical_stage_change_date
+            AND _stage_movement = 'Upward'
             THEN true
-        END 
-        AS _is_later_accelerating_activity
-
-    FROM
-        label_accelerated_opportunity
-
+        END AS _is_later_accelerating_activity
+    FROM label_accelerated_opportunity
 ),
 
 -- Mark every other rows of the opportunity as infuenced cum accelerated 
@@ -1466,26 +1617,17 @@ label_influenced_opportunity_that_continue_to_accelerate AS (
 
 -- Mark opportunities that were matched but werent influenced or accelerated or influenced cum accelerated as stagnant 
 label_stagnant_opportunity AS (
-
     SELECT
         *,
 
         CASE
-            WHEN 
-                _is_matched_opp = true 
-            AND 
-                _is_influenced_opp IS NULL 
-            AND 
-                _is_accelerated_opp IS NULL 
-            AND 
-                _is_later_accelerated_opp IS NULL
-            THEN
-                true 
-        END 
-        AS _is_stagnant_opp
-
-    FROM 
-        label_influenced_opportunity_that_continue_to_accelerate
+            WHEN _is_matched_opp = true 
+            AND _is_influenced_opp IS NULL 
+            AND _is_accelerated_opp IS NULL 
+            AND _is_later_accelerated_opp IS NULL
+            THEN true 
+        END AS _is_stagnant_opp
+    FROM label_influenced_opportunity_that_continue_to_accelerate
 
 ),
 
@@ -1554,6 +1696,7 @@ SELECT DISTINCT
     _created_date,
     _closed_date,
     _amount_converted,
+    _acv,
     _region,
     _stage_change_date,
     _current_stage,
