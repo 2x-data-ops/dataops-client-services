@@ -171,10 +171,10 @@ reached_related_info AS (
     WHERE
       _campaignid IN (
         SELECT
-          DISTINCT _campaignid
+          DISTINCT CAST(_campaign_id AS STRING) AS _campaignid
         FROM
-          `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
-        WHERE _campaignid <> ''
+         `x-marketing.jaggaer_google_sheets.db_ads_optimization`
+        WHERE CAST(_campaign_id AS STRING)<> ''
       )
   )
   WHERE _rownum = 1
@@ -346,108 +346,60 @@ reached_accounts_data AS (
     
     SELECT 
       DISTINCT 
-      _campaignid, 
-      _campaignname,  
-      IF(_platform = '6Sense', '6sense', _platform) AS _campaigntype
-    FROM
-      `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
-    WHERE 
-      _campaignid != ''
-        
-    UNION ALL
+      CAST(_campaign_id AS STRING) AS _campaignid,
+      _campaign_name AS _campaignname, 
 
-    SELECT 
-      DISTINCT 
-      _6sensecampaignid AS _campaignid, 
-      _campaignname,  
-      IF(_platform = 'LinkedIn', 'LinkedIn', _platform) AS _campaigntype
-    FROM
-      `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
-    WHERE 
-      _campaignid != ''
-    
-    /* SELECT 
-      DISTINCT 
-      _campaignid, 
-      _campaignname,  
-      IF(_platform = '6Sense', '6sense', _platform) AS _campaigntype
-    FROM
-      `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
-    WHERE 
-      _campaignid != '' */
+     _platform AS _campaigntype
+    FROM `x-marketing.jaggaer_google_sheets.db_ads_optimization` 
   ) side
 
   USING(_campaignid)
 
 ),
 email_alerts_data AS (
-    SELECT 
-    DISTINCT 
-        CASE 
-          WHEN main._keywordcount IS NULL OR main._keywordcount = '' THEN 0
-          ELSE CAST(main._keywordcount AS INTEGER) 
-        END AS _keywordCount,
-        CASE
-          WHEN main._webvisitcount IS NULL OR main._webvisitcount = '' THEN 0
-          ELSE CAST(main._webvisitcount AS INTEGER)
-        END AS _webvisitCount,
-        main._keywords,
-        main._weburls,
-        CASE 
-          WHEN main._timeframe LIKE '%-%'
-              THEN PARSE_DATE('%m-%d-%Y', FORMAT_DATE('%m-%d-%Y', PARSE_DATE('%d-%b-%y', main._timeframe)))
-          ELSE 
-              PARSE_DATE('%m/%d/%Y', FORMAT_DATE('%m/%d/%Y', PARSE_DATE('%b %d, %Y', main._timeframe)))
-        END AS _latestimpression,
-        CASE 
-            WHEN main._extractdate LIKE '%/%'
-            THEN PARSE_DATE('%m/%e/%Y', main._extractdate)
-            ELSE 
-            PARSE_DATE('%F', main._extractdate)
-        END AS _activities_on, 
-        side._campaignid AS _campaign_id,
-        -- Need label to distingush 6sense and Linkedin campaigns
-        side._campaigntype AS _campaign_type,
-        side._campaignname AS _campaign_name,
-        CONCAT(_accountname, _country, _domain) AS _country_account
-    FROM `x-marketing.jaggaer_mysql.jaggaer_db_email_alerts` main
-    JOIN (
-      SELECT 
-        DISTINCT 
-        _campaignid, 
-        _campaignname,  
-        _segment AS _segmentname,
-        IF(_platform = '6Sense', '6sense', _platform) AS _campaigntype
-      FROM
-        `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
-      WHERE 
-        _campaignid != ''
-
-      UNION ALL
-
-      SELECT 
-        DISTINCT 
-        _6sensecampaignid, 
-        _campaignname,  
-        _segment AS _segmentname,
-        IF(_platform = 'LinkedIn', 'LinkedIn', _platform) AS _campaigntype
-      FROM
-        `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
-      WHERE 
-        _campaignid != ''
-        
-        /* SELECT 
-        DISTINCT 
-        _campaignid, 
-        _campaignname,  
-        _segment AS _segmentname,
-        IF(_platform = '6Sense', '6sense', _platform) AS _campaigntype
-        FROM
-        `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
-        WHERE 
-        _campaignid != '' */
-    ) side
-    USING(_segmentname)
+    SELECT
+  DISTINCT
+  CASE
+    WHEN main._keywordcount IS NULL OR main._keywordcount = '' THEN 0
+    ELSE CAST(main._keywordcount AS INTEGER)
+END
+  AS _keywordCount,
+  CASE
+    WHEN main._webvisitcount IS NULL OR main._webvisitcount = '' THEN 0
+    ELSE CAST(main._webvisitcount AS INTEGER)
+END
+  AS _webvisitCount,
+  main._keywords,
+  main._weburls,
+  CASE
+    WHEN REGEXP_CONTAINS(main._timeframe, r'^\d{1,2}/\d{1,2}/\d{4}$') THEN PARSE_DATE('%m/%d/%Y', main._timeframe)
+    WHEN REGEXP_CONTAINS(main._timeframe, r'^\d{1,2}-\w{3}-\d{2}$') THEN PARSE_DATE('%d-%b-%y', main._timeframe)
+    WHEN REGEXP_CONTAINS(main._timeframe, r'^\w{3} \d{1,2}, \d{4}$') THEN PARSE_DATE('%b %d, %Y', main._timeframe)
+    ELSE NULL
+END
+  AS _latestimpression,
+  CASE
+    WHEN main._extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', main._extractdate)
+    ELSE PARSE_DATE('%F', main._extractdate)
+END
+  AS _activities_on,
+  side._campaignid AS _campaign_id,
+  -- Need label TO distingush 6sense AND Linkedin campaigns 
+  side._campaigntype AS _campaign_type,
+  side._campaignname AS _campaign_name,
+  CONCAT(_accountname, _country, _domain) AS _country_account
+FROM
+  `x-marketing.jaggaer_mysql.jaggaer_db_email_alerts` main
+JOIN (
+  SELECT
+    DISTINCT CAST(_campaign_id AS STRING) AS _campaignid,
+    _campaign_name AS _campaignname,
+    _business_segment AS _segmentname,
+    _platform AS _campaigntype
+  FROM
+    `x-marketing.jaggaer_google_sheets.db_ads_optimization` ) side
+USING
+  (_segmentname)
 ),
 email_alerts AS (
     SELECT 
@@ -765,31 +717,14 @@ campaign_fields AS (
 ),
 
 airtable_fields AS (
-  WITH _6sense AS (
-  SELECT 
+   SELECT 
     DISTINCT 
-    _campaignid AS _campaign_id, 
-    _adid AS _ad_id,
-    _adgroup AS _ad_group,
-    _screenshot    
+     CAST(_campaign_id AS STRING) AS _campaign_id, 
+    _ad_id,
+    _ad_group_id AS _ad_group,
+    _ad_visual AS _screenshot    
   FROM
-    `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
-  WHERE _campaignid <> ''
-),
-_linkedin AS (
-  SELECT 
-    DISTINCT 
-    _6sensecampaignid AS _campaign_id, 
-    _6senseadid AS _ad_id,
-    _adgroup AS _ad_group,
-    _screenshot    
-  FROM
-    `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
-  WHERE _campaignid <> ''
-)
-SELECT * FROM _6sense
-UNION ALL
-SELECT * FROM _linkedin
+    `x-marketing.jaggaer_google_sheets.db_ads_optimization` 
 ),
 
 -- Combined Ads, Campaign and Airtable into one table
@@ -848,9 +783,11 @@ campaign_numbers AS (
       FROM
         `jaggaer_mysql.jaggaer_db_segment_target_accounts` main
       JOIN (
-        SELECT _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
-        UNION ALL
-        SELECT _6sensecampaignid AS _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+        SELECT 
+      DISTINCT 
+      CAST(_campaign_id AS STRING) AS _campaignid,
+_business_segment AS _segment
+    FROM `x-marketing.jaggaer_google_sheets.db_ads_optimization` 
       ) side 
       ON main._segmentname = side._segment
     )
@@ -876,9 +813,11 @@ campaign_numbers AS (
       FROM 
         `jaggaer_mysql.jaggaer_db_segment_target_accounts` main
       JOIN (
-        SELECT _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
-        UNION ALL
-        SELECT _6sensecampaignid AS _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+       SELECT 
+      DISTINCT 
+      CAST(_campaign_id AS STRING) AS _campaignid,
+_business_segment AS _segment
+    FROM `x-marketing.jaggaer_google_sheets.db_ads_optimization` 
       ) side
       ON main._segmentname = side._segment
       JOIN 
@@ -912,9 +851,11 @@ campaign_numbers AS (
       FROM
         `jaggaer_mysql.jaggaer_db_segment_target_accounts` main
       JOIN (
-        SELECT _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense`
-        UNION ALL
-        SELECT _6sensecampaignid AS _campaignid,_segment FROM `jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+        SELECT 
+      DISTINCT 
+      CAST(_campaign_id AS STRING) AS _campaignid,
+_business_segment AS _segment
+    FROM `x-marketing.jaggaer_google_sheets.db_ads_optimization` 
       ) side
       ON main._segmentname = side._segment
       JOIN 
@@ -1029,15 +970,15 @@ campaign AS (
 ),
 linkedin_airtable AS (
   SELECT
-    _adid,
-    _adtitle AS _adname, 
-    _campaignid,  
-    _campaignname, 
-    _screenshot
+    _ad_id AS _adid,
+    _ad_name AS _adname, 
+    CAST(_campaign_id AS STRING) AS _campaignid,  
+    _campaign_name AS _campaignname, 
+    _ad_visual AS _screenshot
 
-  FROM `x-marketing.jaggaer_mysql.jaggaer_optimization_airtable_ads_linkedin`
+  FROM `x-marketing.jaggaer_google_sheets.db_ads_optimization` 
   
-  WHERE _campaignid = '304100656'
+  WHERE CAST(_campaign_id AS STRING) = '304100656'
 )
 SELECT
   linkedin_ads.*,
@@ -1065,15 +1006,15 @@ WITH target_accounts AS (
     main._6sensecountry,
     main._6sensedomain,
     main._segmentname,              
-    side._segment,
-    side._campaignid,
-    side._campaignid AS _campaign_id,
-    side._campaignname AS _campaign_name
+    side._business_segment AS _segment,
+    CAST(side._campaign_id AS STRING) AS _campaignid,
+    CAST(side._campaign_id AS STRING)  AS _campaign_id,
+    side._campaign_name
   FROM
     `jaggaer_mysql.jaggaer_db_segment_target_accounts` main
   JOIN
-    `jaggaer_mysql.jaggaer_optimization_airtable_ads_6sense` side
-  ON main._segmentname = side._segment
+    `x-marketing.jaggaer_google_sheets.db_ads_optimization`  side
+  ON main._segmentname = side._business_segment
 ),
 
 -- Mark those target accounts that have been reached by their campaigns
