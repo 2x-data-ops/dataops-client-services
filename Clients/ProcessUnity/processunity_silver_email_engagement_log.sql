@@ -7,6 +7,8 @@ INSERT INTO `x-marketing.processunity.email_engagements_log` (
   _description,
   _campaignID,
   _engagement,
+  _bots,
+  _has_delivered,
   _email,
   _name,
   _job_title,
@@ -44,8 +46,7 @@ INSERT INTO `x-marketing.processunity.email_engagements_log` (
   _asset_type,
   _landing_page_url,
   _programID,
-  _program_name,
-  _bot_click
+  _program_name
 )
 -- CREATE OR REPLACE TABLE `x-marketing.processunity.email_engagements_log` AS
 WITH prospect_info AS (
@@ -79,98 +80,6 @@ WITH prospect_info AS (
     _wf_became_sal_date
   FROM `x-marketing.processunity.marketo_contacts_log` leads
 ),
-sent_email AS (
-  SELECT   
-    primary_attribute_value AS _content_title, 
-    activitydate AS _timestamp, 
-    CAST(leadid AS STRING) AS _leadid, 
-    '' AS _description,
-    CAST(campaignid AS STRING) AS _campaignID,
-    primary_attribute_value_id AS _emailID,
-    'Sent' AS _engagement,
-  FROM `x-marketing.processunity_marketo.activities_send_email`
-  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
-),
-delivered_email AS (
-  SELECT   
-    primary_attribute_value AS _content_title, 
-    activitydate AS _timestamp, 
-    CAST(leadid AS STRING) AS _leadid, 
-    '' AS _description,
-    CAST(campaignid AS STRING) AS _campaignID,
-    primary_attribute_value_id AS _emailID,
-    'Delivered' AS _engagement,
-  FROM `x-marketing.processunity_marketo.activities_email_delivered`
-  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
-),
-opened_email AS (
-  SELECT   
-    primary_attribute_value AS _content_title, 
-    activitydate AS _timestamp, 
-    CAST(leadid AS STRING) AS _leadid, 
-    '' AS _description,
-    CAST(campaignid AS STRING) AS _campaignID,
-    primary_attribute_value_id AS _emailID,
-    'Opened' AS _engagement,
-  FROM `x-marketing.processunity_marketo.activities_open_email`
-  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
-),
-clicked_email AS (
-  SELECT   
-    primary_attribute_value AS _content_title, 
-    activitydate AS _timestamp, 
-    CAST(leadid AS STRING) AS _leadid, 
-    link AS _description,
-    CAST(campaignid AS STRING) AS _campaignID,
-    primary_attribute_value_id AS _emailID,
-    'Clicked' AS _engagement,
-  FROM `x-marketing.processunity_marketo.activities_click_email`
-  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
-),
-hard_bounced_email AS (
-  SELECT   
-    primary_attribute_value AS _content_title, 
-    activitydate AS _timestamp, 
-    CAST(leadid AS STRING) AS _leadid, 
-    '' AS _description,
-    CAST(campaignid AS STRING) AS _campaignID,
-    primary_attribute_value_id AS _emailID,
-    'Hard Bounced' AS _engagement,
-  FROM `x-marketing.processunity_marketo.activities_email_bounced`
-  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
-),
-soft_bounced_email AS (
-  SELECT   
-    primary_attribute_value AS _content_title, 
-    activitydate AS _timestamp, 
-    CAST(leadid AS STRING) AS _leadid, 
-    '' AS _description,
-    CAST(campaignid AS STRING) AS _campaignID,
-    primary_attribute_value_id AS _emailID,
-    'Soft Bounced' AS _engagement,
-  FROM `x-marketing.processunity_marketo.activities_email_bounced_soft`
-  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
-),
-unsubscribed_email AS (
-  SELECT   
-    primary_attribute_value AS _content_title, 
-    activitydate AS _timestamp, 
-    CAST(leadid AS STRING) AS _leadid, 
-    '' AS _description,
-    CAST(campaignid AS STRING) AS _campaignID,
-    primary_attribute_value_id AS _emailID,
-    'Unsubscribed' AS _engagement,
-  FROM `x-marketing.processunity_marketo.activities_unsubscribe_email`
-  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
-),
-campaign AS (
-  SELECT
-    CAST(id AS STRING) AS id,
-    name AS _campaign_name,
-    CAST(programid AS STRING) AS _programID,
-    programname AS _program_name
-  FROM `x-marketing.processunity_marketo.campaigns`
-),
 email_data AS (
   SELECT  
     _campaign_name,
@@ -185,6 +94,134 @@ email_data AS (
     _landing_page_url
   FROM `x-marketing.processunity_google_sheets.db_email_campaign` 
 ),
+sent_email AS (
+  SELECT   
+    primary_attribute_value AS _content_title, 
+    activitydate AS _timestamp, 
+    CAST(leadid AS STRING) AS _leadid, 
+    '' AS _description,
+    CAST(campaignid AS STRING) AS _campaignID,
+    primary_attribute_value_id AS _emailID,
+    'Sent' AS _engagement,
+    FALSE AS _bots,
+    TRUE AS _has_delivered
+  FROM `x-marketing.processunity_marketo.activities_send_email`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
+),
+delivered_email AS (
+  SELECT   
+    primary_attribute_value AS _content_title, 
+    activitydate AS _timestamp, 
+    CAST(leadid AS STRING) AS _leadid, 
+    '' AS _description,
+    CAST(campaignid AS STRING) AS _campaignID,
+    primary_attribute_value_id AS _emailID,
+    'Delivered' AS _engagement,
+    FALSE AS _bots,
+    TRUE AS _has_delivered
+  FROM `x-marketing.processunity_marketo.activities_email_delivered`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
+),
+opened_email AS (
+  SELECT   
+    primary_attribute_value AS _content_title, 
+    activitydate AS _timestamp, 
+    CAST(leadid AS STRING) AS _leadid, 
+    '' AS _description,
+    CAST(campaignid AS STRING) AS _campaignID,
+    primary_attribute_value_id AS _emailID,
+    'Opened' AS _engagement,
+    FALSE AS _bots,
+    TRUE AS _has_delivered
+  FROM `x-marketing.processunity_marketo.activities_open_email`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
+),
+clicked_email AS (
+  SELECT   
+    click.primary_attribute_value AS _content_title, 
+    click.activitydate AS _timestamp, 
+    CAST(click.leadid AS STRING) AS _leadid, 
+    click.link AS _description,
+    CAST(click.campaignid AS STRING) AS _campaignID,
+    click.primary_attribute_value_id AS _emailID,
+    'Clicked' AS _engagement
+  FROM `x-marketing.processunity_marketo.activities_click_email` click
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
+),
+clicked_email_bots AS (
+  SELECT DISTINCT
+    CAST(click.leadid AS STRING) AS _leadid
+  FROM `x-marketing.processunity_marketo.activities_click_email` click
+  WHERE LOWER(click.link) LIKE '%iclick%'
+),
+filtered_clicked_email AS (
+  SELECT
+    clicked_email._content_title, 
+    clicked_email._timestamp, 
+    clicked_email._leadid, 
+    clicked_email._description,
+    clicked_email._campaignID,
+    clicked_email._emailID,
+    clicked_email._engagement,
+    CASE 
+      WHEN clicked_email._leadid = clicked_email_bots._leadid THEN TRUE
+      ELSE FALSE
+    END AS _bots,
+    TRUE AS _has_delivered
+  FROM clicked_email
+  LEFT JOIN clicked_email_bots
+    ON clicked_email._leadid = clicked_email_bots._leadid
+),
+hard_bounced_email AS (
+  SELECT   
+    primary_attribute_value AS _content_title, 
+    activitydate AS _timestamp, 
+    CAST(leadid AS STRING) AS _leadid, 
+    '' AS _description,
+    CAST(campaignid AS STRING) AS _campaignID,
+    primary_attribute_value_id AS _emailID,
+    'Hard Bounced' AS _engagement,
+    FALSE AS _bots,
+    FALSE AS _has_delivered
+  FROM `x-marketing.processunity_marketo.activities_email_bounced`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
+),
+soft_bounced_email AS (
+  SELECT   
+    primary_attribute_value AS _content_title, 
+    activitydate AS _timestamp, 
+    CAST(leadid AS STRING) AS _leadid, 
+    '' AS _description,
+    CAST(campaignid AS STRING) AS _campaignID,
+    primary_attribute_value_id AS _emailID,
+    'Soft Bounced' AS _engagement,
+    FALSE AS _bots,
+    FALSE AS _has_delivered
+  FROM `x-marketing.processunity_marketo.activities_email_bounced_soft`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
+),
+unsubscribed_email AS (
+  SELECT   
+    primary_attribute_value AS _content_title, 
+    activitydate AS _timestamp, 
+    CAST(leadid AS STRING) AS _leadid, 
+    '' AS _description,
+    CAST(campaignid AS STRING) AS _campaignID,
+    primary_attribute_value_id AS _emailID,
+    'Unsubscribed' AS _engagement,
+    FALSE AS _bots,
+    TRUE AS _has_delivered
+  FROM `x-marketing.processunity_marketo.activities_unsubscribe_email`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value ORDER BY activitydate DESC) = 1
+),
+campaign AS (
+  SELECT
+    CAST(id AS STRING) AS id,
+    name AS _campaign_name,
+    CAST(programid AS STRING) AS _programID,
+    programname AS _program_name
+  FROM `x-marketing.processunity_marketo.campaigns`
+),
 engagements_combined AS (
   SELECT * FROM sent_email
   UNION ALL
@@ -192,7 +229,7 @@ engagements_combined AS (
   UNION ALL
   SELECT * FROM opened_email
   UNION ALL
-  SELECT * FROM clicked_email
+  SELECT * FROM filtered_clicked_email
   UNION ALL
   SELECT * FROM hard_bounced_email
   UNION ALL
@@ -207,6 +244,8 @@ SELECT
   engagements_combined._description,
   engagements_combined._campaignID,
   engagements_combined._engagement,
+  engagements_combined._bots,
+  engagements_combined._has_delivered,
   prospect_info.* EXCEPT(_prospectID),
   email_data._campaign_name,
   email_data._campaign_id,
@@ -219,17 +258,37 @@ SELECT
   email_data._asset_type,
   email_data._landing_page_url,
   campaign._programID,
-  campaign._program_name,
-  FALSE AS _bot_click
+  campaign._program_name
 FROM engagements_combined
 LEFT JOIN prospect_info
   ON engagements_combined._leadid = prospect_info._prospectID
-JOIN email_data
+LEFT JOIN email_data
   ON engagements_combined._emailID = email_data._email_id
 LEFT JOIN campaign
-  ON email_data._campaign_id = campaign.id;
+  ON email_data._campaign_id = campaign.id
+WHERE _email_name IS NOT NULL;
 
-UPDATE `x-marketing.processunity.email_engagements_log`
-SET 
-  _bot_click = TRUE
-WHERE LOWER(_description) LIKE '%iclick%';
+-- // Update Bot 
+-- /1/ mark all the email that is bots
+UPDATE `x-marketing.processunity.email_engagements_log` origin
+SET origin._bots = TRUE
+FROM (
+  SELECT DISTINCT
+    _email
+  FROM `x-marketing.processunity.email_engagements_log`
+  WHERE _bots IS TRUE
+) bot
+WHERE origin._email = bot._email;
+
+-- /2/ mark all the email that is bounced
+UPDATE `x-marketing.processunity.email_engagements_log` origin
+SET origin._has_delivered = FALSE
+FROM (
+  SELECT DISTINCT
+    _email,
+    _email_id
+  FROM `x-marketing.processunity.email_engagements_log`
+  WHERE _has_delivered IS FALSE
+) bounced
+WHERE origin._email = bounced._email
+AND origin._email_id = bounced._email_id;
