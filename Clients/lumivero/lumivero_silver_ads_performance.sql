@@ -327,8 +327,7 @@ WITH keywords AS (
     keywords.qualityscore,
     bidmatchtype
   FROM `x-marketing.lumivero_bing_ads.keyword_performance_report` keywords
-  QUALIFY
-    RANK() OVER (PARTITION BY keywords.timeperiod, keywords.keywordid ORDER BY keywords._sdc_report_datetime DESC) = 1 
+  QUALIFY RANK() OVER (PARTITION BY keywords.timeperiod, keywords.keywordid ORDER BY keywords._sdc_report_datetime DESC) = 1 
 ),budget AS (
   SELECT
     id AS campaignid,
@@ -463,9 +462,7 @@ WITH campaign AS (
     campaign.conversions,
     campaign.campaignstatus AS campaign_status
   FROM `x-marketing.lumivero_bing_ads.campaign_performance_report` campaign
-  QUALIFY RANK() OVER (
-    PARTITION BY campaign.timeperiod, campaign.campaignid
-    ORDER BY campaign._sdc_report_datetime DESC) = 1
+  QUALIFY RANK() OVER (PARTITION BY campaign.timeperiod, campaign.campaignid ORDER BY campaign._sdc_report_datetime DESC) = 1
 ), 
 budget AS (
   SELECT 
@@ -522,9 +519,7 @@ WITH adgroups AS (
     campaigntype, 
     campaignstatus
   FROM `x-marketing.lumivero_bing_ads.ad_group_performance_report` adgroups
-  QUALIFY RANK() OVER (
-    PARTITION BY adgroups.timeperiod, adgroups.adgroupid
-    ORDER BY adgroups._sdc_report_datetime DESC) = 1
+  QUALIFY RANK() OVER (PARTITION BY adgroups.timeperiod, adgroups.adgroupid ORDER BY adgroups._sdc_report_datetime DESC) = 1
 ), 
 budget AS (
   SELECT 
@@ -585,6 +580,4 @@ SELECT
   campaignstatus,
   adgroupstatus
 FROM `x-marketing.lumivero_bing_ads.search_query_performance_report`
-QUALIFY RANK() OVER (
-  PARTITION BY timeperiod, campaignid, adgroupid, keyword, searchquery
-  ORDER BY _sdc_received_at DESC) = 1;
+QUALIFY RANK() OVER (PARTITION BY timeperiod, campaignid, adgroupid, keyword, searchquery ORDER BY _sdc_received_at DESC) = 1;
