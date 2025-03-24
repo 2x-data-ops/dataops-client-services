@@ -20,11 +20,15 @@ INSERT INTO `x-marketing.madcap.topic_clustering` (
   _date,
   _compositescore,
   topic_count,
-  avg_surge_score
+  avg_surge_score,
+  _account_name,
+  _account_owner,
+  _priority,
+  _top20
 )
 WITH target_bombora AS (
-  SELECT DISTINCT 
-    _domain, 
+  SELECT 
+    DISTINCT _domain, 
     _companyrevenue, 
     _hqzip, 
     _countrycompositescoredelta, 
@@ -63,7 +67,34 @@ average_surge_score AS (
       ELSE 0 
     END AS avg_surge_score
   FROM total_date
+),
+_all_accounts AS (
+  SELECT 
+    main.*,
+    side._account_name,
+    side._account_owner,
+    _priority,
+    "All Accounts" AS _top20
+  FROM average_surge_score main
+  LEFT JOIN `x-marketing.madcap.top_20_target_account` side
+    ON main._domain = side._domain
+),
+_top_accounts AS (
+  SELECT 
+    main.*,
+    side._account_name,
+    side._account_owner,
+    _priority,
+    "Top 20 Accounts" AS _top20
+  FROM average_surge_score main
+  LEFT JOIN `x-marketing.madcap.top_20_target_account` side
+    ON main._domain = side._domain
+  WHERE side._account_name IS NOT NULL
 )
 SELECT 
-  * 
-FROM average_surge_score;
+  *
+FROM _all_accounts
+UNION ALL
+SELECT
+  *
+FROM _top_accounts
