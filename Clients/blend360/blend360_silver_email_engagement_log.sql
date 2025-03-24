@@ -69,14 +69,15 @@ WITH prospect_info AS (
     _pageViews,
     _unsubscribed -- _emailClicks,
     -- _emailOpens
-  FROM `blend360.db_icp_database_log`
+  FROM `x-marketing.blend360.db_icp_database_log`
   WHERE _email IS NOT NULL
     AND _email NOT LIKE '%2x.marketing%'
     AND _email NOT LIKE '%blend360.com%'
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY _email ORDER BY _id DESC) = 1
 ),
 airtable_info AS (
   SELECT
-    CAST(_campaign_id AS INT64) AS _campaign_id,
+    _campaign_id AS _campaign_id,
     CASE
       WHEN LENGTH(TRIM(_live_date)) = 0 THEN NULL
       ELSE CAST(_live_date AS TIMESTAMP)
@@ -90,7 +91,7 @@ airtable_info AS (
     '' AS _eventlevel,
     _audience
   FROM `x-marketing.blend360_google_sheets.db_email_campaign`
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY CAST(_campaign_id AS INT64) ORDER BY _campaign_name DESC) = 1
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY _campaign_id ORDER BY _campaign_name DESC) = 1
 ),
 total_sent AS (
   SELECT
@@ -410,9 +411,9 @@ SELECT
   form.value.title AS form_submitted,
   contact.property_createdate.value AS created_date,
   contact.property_notes_last_updated.value AS last_activity_date
-FROM `blend360_hubspot_v2.contacts` contact, 
+FROM `x-marketing.blend360_hubspot_v2.contacts` contact, 
   UNNEST(form_submissions) AS form
-LEFT JOIN `blend360_hubspot_v2.owners` owner
+LEFT JOIN `x-marketing.blend360_hubspot_v2.owners` owner
   ON contact.property_hubspot_owner_id.value = CAST(owner.ownerid AS STRING)
 WHERE form.value.title LIKE '%HubSpot Webinar 2023 LP form January 31, 2023 5:00:44 PM CET%'
   AND property_email.value NOT LIKE '%test%'
