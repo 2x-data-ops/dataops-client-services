@@ -27,8 +27,8 @@ INSERT INTO `x-marketing.madcap.topic_clustering` (
   _top20
 )
 WITH target_bombora AS (
-  SELECT 
-    DISTINCT _domain, 
+  SELECT DISTINCT 
+    _domain, 
     _companyrevenue, 
     _hqzip, 
     _countrycompositescoredelta, 
