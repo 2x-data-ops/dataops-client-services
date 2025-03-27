@@ -97,7 +97,7 @@ WITH prospect_info AS(
     _email_id,
     _preview,
     _asset_type,
-    PARSE_TIMESTAMP('%m/%d/%Y %H:%M', CONCAT(_live_date, ' ', _send_time)) AS _campaignSentDate,
+    PARSE_TIMESTAMP('%m/%d/%Y %H:%M', CONCAT(_live_date, ' ', IFNULL(NULLIF(_send_time, ''), '00:00'))) AS _campaignSentDate,
     _email_segment,
     _landing_page_url,
     _landing_page_url AS _landingpage,
