@@ -34,12 +34,12 @@ SELECT
     _compositescore
   ),
   CASE
-    WHEN _countrycompositescore LIKE '%.0' THEN CAST(CAST(_countrycompositescore AS FLOAT64) AS INT64)
+    WHEN _countrycompositescore LIKE '%.0' THEN CAST(REGEXP_EXTRACT(_countrycompositescore, r'\d+') AS INT64)
     WHEN _countrycompositescore != '' THEN CAST(_countrycompositescore AS INT64)
     ELSE CAST(NULL AS INT64)
   END AS _countrycompositescore,
   CASE
-    WHEN _compositescore LIKE '%.0' THEN CAST(CAST(_compositescore AS FLOAT64) AS INT64)
+    WHEN _compositescore LIKE '%.0' THEN CAST(REGEXP_EXTRACT(_compositescore, r'\d+') AS INT64)
     WHEN _compositescore != '' THEN CAST(_compositescore AS INT64)
     ELSE CAST(NULL AS INT64)
   END AS _compositescore
