@@ -136,20 +136,13 @@ campaign_number_target AS (
   GROUP BY 1
 ),
 unique_reach_list AS (
-  SELECT DISTINCT 
-    main._6sensecompanyname,
-    main._6sensecountry,
-    main._6sensedomain,
-    main._segmentname,
-    side._campaign_id
-  FROM `x-marketing.bluemantis_mysql.db_target_account` main    
-  JOIN `x-marketing.bluemantis_google_sheets.db_ads_optimization` side  
-    ON main._segmentname = side._business_segment
+  SELECT main.*
+  FROM unique_target_list AS main
   JOIN `x-marketing.bluemantis_mysql.db_campaign_accounts_reached` extra
     ON main._6sensecompanyname = extra._6sensecompanyname
     AND main._6sensecountry = extra._6sensecountry
     AND main._6sensedomain = extra._6sensedomain
-    AND side._campaign_id = extra._campaignid
+    AND main._campaign_id = extra._campaignid
 ),
 campaign_number_reach AS (
   SELECT DISTINCT 
