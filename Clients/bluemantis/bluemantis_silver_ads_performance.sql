@@ -117,44 +117,46 @@ combined_data AS (
     ON ads_campaign_combined._campaign_id = campaign_fields._campaign_id
 ),
 -- Add campaign numbers to each ad
+unique_target_list AS (
+  SELECT DISTINCT 
+    main._6sensecompanyname,
+    main._6sensecountry,
+    main._6sensedomain,
+    main._segmentname,
+    side._campaign_id
+  FROM `x-marketing.bluemantis_mysql.db_target_account` main
+  JOIN `x-marketing.bluemantis_google_sheets.db_ads_optimization` side
+    ON main._segmentname = side._business_segment
+),
 campaign_number_target AS (
   SELECT DISTINCT 
     _campaign_id,
     COUNT(*) AS _target_accounts
-    FROM (
-      SELECT DISTINCT 
-        main._6sensecompanyname,
-        main._6sensecountry,
-        main._6sensedomain,
-        main._segmentname,
-        side._campaign_id
-      FROM `x-marketing.bluemantis_mysql.db_target_account` main
-      JOIN `x-marketing.bluemantis_google_sheets.db_ads_optimization` side
-        ON main._segmentname = side._business_segment
-    )
-    GROUP BY 1
+  FROM unique_target_list
+  GROUP BY 1
+),
+unique_reach_list AS (
+  SELECT DISTINCT 
+    main._6sensecompanyname,
+    main._6sensecountry,
+    main._6sensedomain,
+    main._segmentname,
+    side._campaign_id
+  FROM `x-marketing.bluemantis_mysql.db_target_account` main    
+  JOIN `x-marketing.bluemantis_google_sheets.db_ads_optimization` side  
+    ON main._segmentname = side._business_segment
+  JOIN `x-marketing.bluemantis_mysql.db_campaign_accounts_reached` extra
+    ON main._6sensecompanyname = extra._6sensecompanyname
+    AND main._6sensecountry = extra._6sensecountry
+    AND main._6sensedomain = extra._6sensedomain
+    AND side._campaign_id = extra._campaignid
 ),
 campaign_number_reach AS (
   SELECT DISTINCT 
     _campaign_id,
     COUNT(*) AS _reached_accounts
-    FROM (
-      SELECT DISTINCT 
-        main._6sensecompanyname,
-        main._6sensecountry,
-        main._6sensedomain,
-        main._segmentname,
-        side._campaign_id
-      FROM `x-marketing.bluemantis_mysql.db_target_account` main    
-      JOIN `x-marketing.bluemantis_google_sheets.db_ads_optimization` side  
-        ON main._segmentname = side._business_segment
-      JOIN `x-marketing.bluemantis_mysql.db_campaign_accounts_reached` extra
-        ON main._6sensecompanyname = extra._6sensecompanyname
-        AND main._6sensecountry = extra._6sensecountry
-        AND main._6sensedomain = extra._6sensedomain
-        AND side._campaign_id = extra._campaignid
-    ) 
-    GROUP BY 1
+  FROM unique_reach_list
+  GROUP BY 1
 ),
 campaign_numbers AS (
   SELECT
@@ -169,10 +171,7 @@ campaign_numbers AS (
 total_ad_occurrence_per_campaign AS (
   SELECT
     *,
-    COUNT(*) OVER (
-      PARTITION BY _campaign_id
-    ) 
-    AS _occurrence
+    COUNT(*) OVER (PARTITION BY _campaign_id) AS _occurrence
   FROM campaign_numbers
 ),
 -- Reduced the campaign numbers by the occurrence
