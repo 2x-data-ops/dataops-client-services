@@ -142,25 +142,15 @@ set_buying_stage_order AS (
 ),
 -- Set movement of each historical record an account
 set_movement AS (
-  SELECT
-    * EXCEPT (_order)
-  FROM (
-      SELECT DISTINCT
-        *,
-        IF(
-          _curr_order > _prev_order,
-          "+ve",
-          IF(_curr_order < _prev_order, "-ve", "Stagnant")
-        ) AS _movement,
-        ROW_NUMBER() OVER (
-          PARTITION BY _country_account
-          ORDER BY _activities_on DESC
-        ) AS _order
-      FROM set_buying_stage_order
-      ORDER BY _activities_on DESC
-    )
-  WHERE _order = 1
-  ORDER BY _country_account
+  SELECT DISTINCT
+    *,
+    IF(
+      _curr_order > _prev_order,
+      "+ve",
+      IF(_curr_order < _prev_order, "-ve", "Stagnant")
+    ) AS _movement,
+  FROM set_buying_stage_order
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY _country_account ORDER BY _activities_on DESC) = 1
 )
 SELECT
   *
@@ -180,37 +170,33 @@ CREATE OR REPLACE TABLE `x-marketing.sandler.db_6sense_account_current_state` AS
 -- Get all target accounts and their segments
 WITH target_accounts AS (
   SELECT DISTINCT
-    * EXCEPT (rownum)
-  FROM (
-      SELECT DISTINCT
-        _6sensecompanyname,
-        _6sensecountry,
-        _6sensedomain,
-        _industrylegacy AS _6senseindustry,
-        _6senseemployeerange,
-        _6senserevenuerange,
-        'Target' AS _account_data_source,
-        MIN(
-          CASE
-            WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
-            ELSE PARSE_DATE('%F', _extractdate)
-          END
-        ) OVER (
-          PARTITION BY CONCAT(_6sensecountry, _6sensecompanyname)
-        ) AS _added_on,
-        CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account,
-        -- Remove duplicate records of account
-        -- Take the latest details of account
-        ROW_NUMBER() OVER (
-          PARTITION BY CONCAT(_6sensecountry, _6sensecompanyname)
-          ORDER BY CASE
-              WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
-              ELSE PARSE_DATE('%F', _extractdate)
-            END DESC
-        ) AS rownum
-      FROM `x-marketing.sandler_mysql.db_segment_target_accounts`
-    )
-  WHERE rownum = 1 -- Add SEM accounts that do not exist in the target accounts
+    _6sensecompanyname,
+    _6sensecountry,
+    _6sensedomain,
+    _industrylegacy AS _6senseindustry,
+    _6senseemployeerange,
+    _6senserevenuerange,
+    'Target' AS _account_data_source,
+    MIN(
+      CASE
+        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+        ELSE PARSE_DATE('%F', _extractdate)
+      END
+    ) OVER (
+      PARTITION BY CONCAT(_6sensecountry, _6sensecompanyname)
+    ) AS _added_on,
+    CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account,
+  FROM `x-marketing.sandler_mysql.db_segment_target_accounts`
+  -- Remove duplicate records of account
+  -- Take the latest details of account
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY CONCAT(_6sensecountry, _6sensecompanyname)
+    ORDER BY CASE
+        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _extractdate)
+        ELSE PARSE_DATE('%F', _extractdate)
+      END DESC
+  ) = 1
+  -- Add SEM accounts that do not exist in the target accounts
   UNION DISTINCT
   SELECT DISTINCT
     _6sensecompanyname,
@@ -260,106 +246,85 @@ set_icp AS (
 ),
 -- Get date when account had first impression
 reached_related_info AS (
-  SELECT
-    * EXCEPT (rownum)
-  FROM (
-      SELECT DISTINCT
-        MIN(
-          CASE
-            WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
-            ELSE PARSE_DATE('%F', _latestimpression)
-          END
-        ) OVER (
-          PARTITION BY CONCAT(_6sensecountry, _6sensecompanyname)
-        ) AS _first_impressions,
-        CASE
-          WHEN _websiteengagement = '-' THEN CAST(NULL AS STRING)
-          ELSE _websiteengagement
-        END AS _website_engagement,
-        ROW_NUMBER() OVER (
-          PARTITION BY CONCAT(_6sensecountry, _6sensecompanyname)
-          ORDER BY (
-              CASE
-                WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
-                ELSE PARSE_DATE('%F', _latestimpression)
-              END
-            ) DESC
-        ) AS rownum,
-        CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account
-      FROM `x-marketing.sandler_mysql.db_campaign_reached_account_new`
-      WHERE _campaignid IN (
-          SELECT DISTINCT
-            _campaignid
-          FROM `x-marketing.sandler_mysql.db_campaign_segment_new`
-        )
-    )
-  WHERE rownum = 1
+SELECT DISTINCT
+  MIN(
+    CASE
+      WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
+      ELSE PARSE_DATE('%F', _latestimpression)
+    END
+  ) OVER (
+    PARTITION BY CONCAT(_6sensecountry, _6sensecompanyname)
+  ) AS _first_impressions,
+  CASE
+    WHEN _websiteengagement = '-' THEN CAST(NULL AS STRING)
+    ELSE _websiteengagement
+  END AS _website_engagement,
+  CONCAT(_6sensecountry, _6sensecompanyname) AS _country_account
+FROM `x-marketing.sandler_mysql.db_campaign_reached_account_new`
+WHERE _campaignid IN (
+  SELECT DISTINCT
+    _campaignid
+  FROM `x-marketing.sandler_mysql.db_campaign_segment_new`
+)
+QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY CONCAT(_6sensecountry, _6sensecompanyname)
+  ORDER BY (
+      CASE
+        WHEN _extractdate LIKE '%/%' THEN PARSE_DATE('%m/%e/%Y', _latestimpression)
+        ELSE PARSE_DATE('%F', _latestimpression)
+      END
+    ) DESC
+  ) = 1
 ),
 -- Get the date when account first became a 6QA
 six_qa_related_info AS (
-  SELECT
-    * EXCEPT (rownum)
+  SELECT DISTINCT
+    main._6qa_date,
+    main._is_6qa,
+    main._is_6qa_plus,
+    side._country_account,
+  -- Get 6QA date from hubspot
   FROM (
       SELECT DISTINCT
-        main._6qa_date,
-        main._is_6qa,
-        main._is_6qa_plus,
-        side._country_account,
-        ROW_NUMBER() OVER (
-          PARTITION BY side._country_account
-          ORDER BY main._6qa_date
-        ) AS rownum
-      -- Get 6QA date from hubspot
-      FROM (
-          SELECT DISTINCT
-            property_domain.value AS _domain,
-            property_name.value AS _company,
-            property_country.value AS _country,
-            DATE(
-              TIMESTAMP_MILLIS(CAST(property_sixsense_account_sixqa_start_date.value AS INT64))
-            ) AS _6qa_date,
-            CASE
-              WHEN property_sixsense_account_sixqa.value = '1' THEN TRUE
-            END AS _is_6qa,
-            CASE
-              WHEN property_n2x___6qa__status.value = 'true' THEN TRUE
-            END AS _is_6qa_plus
-          FROM `x-marketing.sandler_hubspot.companies`
-          WHERE property_sixsense_account_sixqa.value = '1'
-            OR property_n2x___6qa__status.value = 'true'
-        ) main
-      JOIN target_accounts AS side
-        ON (
-        main._domain = side._6sensedomain
-        AND main._country = side._6sensecountry
-      )
-      OR (
-        LOWER(main._company) = LOWER(side._6sensecompanyname)
-        AND main._country = side._6sensecountry
-      )
-    )
-  WHERE rownum = 1
+        property_domain.value AS _domain,
+        property_name.value AS _company,
+        property_country.value AS _country,
+        DATE(
+          TIMESTAMP_MILLIS(CAST(property_sixsense_account_sixqa_start_date.value AS INT64))
+        ) AS _6qa_date,
+        CASE
+          WHEN property_sixsense_account_sixqa.value = '1' THEN TRUE
+        END AS _is_6qa,
+        CASE
+          WHEN property_n2x___6qa__status.value = 'true' THEN TRUE
+        END AS _is_6qa_plus
+      FROM `x-marketing.sandler_hubspot.companies`
+      WHERE property_sixsense_account_sixqa.value = '1'
+        OR property_n2x___6qa__status.value = 'true'
+    ) main
+  JOIN target_accounts AS side
+    ON (
+    main._domain = side._6sensedomain
+    AND main._country = side._6sensecountry
+  )
+  OR (
+    LOWER(main._company) = LOWER(side._6sensecompanyname)
+    AND main._country = side._6sensecountry
+  )
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY side._country_account ORDER BY main._6qa_date) = 1
 ),
 -- Get the buying stage info each account
 buying_stage_related_info AS (
   SELECT DISTINCT
-    * EXCEPT (rownum)
-  FROM (
-      SELECT DISTINCT
-        _prev_stage,
-        _prev_order,
-        _current_stage,
-        _curr_order,
-        _movement,
-        _activities_on AS _movement_date,
-        _country_account,
-        ROW_NUMBER() OVER (
-          PARTITION BY _country_account
-          ORDER BY _activities_on DESC
-        ) AS rownum
-      FROM `x-marketing.sandler.db_6sense_buying_stages_movement`
-    )
-  WHERE rownum = 1
+    _prev_stage,
+    _prev_order,
+    _current_stage,
+    _curr_order,
+    _movement,
+    _activities_on AS _movement_date,
+    _country_account,
+  FROM `x-marketing.sandler.db_6sense_buying_stages_movement`
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY _country_account ORDER BY _activities_on DESC) = 1
 ),
 -- Attach all other data parts to target accounts
 combined_data AS (
@@ -855,127 +820,21 @@ accumulated_engagement_values AS (
   SELECT
     *,
     -- The aggregated values
-    SUM(
-      CASE
-        WHEN _engagement = '6sense Campaign Reached' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_6sense_campaign_reached,
-    SUM(
-      CASE
-        WHEN _engagement = '6sense Ad Clicks' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_6sense_ad_clicks,
-    SUM(
-      CASE
-        WHEN _engagement = '6sense Influenced Form Fill' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_6sense_form_fills,
-    SUM(
-      CASE
-        WHEN _engagement = 'LinkedIn Campaign Reached' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_li_campaign_reached,
-    SUM(
-      CASE
-        WHEN _engagement = 'LinkedIn Ad Clicks' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_li_ad_clicks,
-    SUM(
-      CASE
-        WHEN _engagement = 'LinkedIn Influenced Form Fill' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_li_form_fills,
-    SUM(
-      CASE
-        WHEN _engagement = 'SEM Engagement' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_sem_engagements,
-    SUM(
-      CASE
-        WHEN _engagement = '6sense Web Visits' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_web_visits,
-    SUM(
-      CASE
-        WHEN _engagement = '6sense Searched Keywords' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_searched_keywords,
-    SUM(
-      CASE
-        WHEN _engagement = 'Email Opened' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_email_open,
-    SUM(
-      CASE
-        WHEN _engagement = 'Email Clicked' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_email_click,
-    SUM(
-      CASE
-        WHEN _engagement = 'PF Tracking' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _6sensecompanyname,
-        _6sensedomain
-    ) AS _total_pf_tracks,
-    SUM(
-      CASE
-        WHEN _engagement = 'HS Email Opened' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_hs_email_open,
-    SUM(
-      CASE
-        WHEN _engagement = 'HS Email Clicked' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_hs_email_click,
-    SUM(
-      CASE
-        WHEN _engagement = 'HS Form Filled' THEN _notes
-        ELSE 0
-      END
-    ) OVER (
-      PARTITION BY _country_account
-    ) AS _total_hs_form_filled
+    SUM(IF(_engagement = '6sense Campaign Reached', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_6sense_campaign_reached,
+    SUM(IF(_engagement = '6sense Ad Clicks', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_6sense_ad_clicks,
+    SUM(IF(_engagement = '6sense Influenced Form Fill', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_6sense_form_fills,
+    SUM(IF(_engagement = 'LinkedIn Campaign Reached', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_li_campaign_reached,
+    SUM(IF(_engagement = 'LinkedIn Ad Clicks', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_li_ad_clicks,
+    SUM(IF(_engagement = 'LinkedIn Influenced Form Fill', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_li_form_fills,
+    SUM(IF(_engagement = 'SEM Engagement', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_sem_engagements,
+    SUM(IF(_engagement = '6sense Web Visits', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_web_visits,
+    SUM(IF(_engagement = '6sense Searched Keywords', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_searched_keywords,
+    SUM(IF(_engagement = 'Email Opened', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_email_open,
+    SUM(IF(_engagement = 'Email Clicked', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_email_click,
+    SUM(IF(_engagement = 'PF Tracking', _notes, 0)) OVER (PARTITION BY _6sensecompanyname, _6sensedomain) AS _total_pf_tracks,
+    SUM(IF(_engagement = 'HS Email Opened', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_hs_email_open,
+    SUM(IF(_engagement = 'HS Email Clicked', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_hs_email_click,
+    SUM(IF(_engagement = 'HS Form Filled', _notes, 0)) OVER (PARTITION BY _country_account) AS _total_hs_form_filled
   FROM combined_data
 )
 SELECT
@@ -1179,25 +1038,20 @@ opps_historical_stage AS (
 -- Get unique stage on each day 
 unique_opps_historical_stage AS (
   SELECT
-    * EXCEPT (_rownum),
+    *,
     -- Setting the rank of the historical stage based on stage change date
     ROW_NUMBER() OVER (
       PARTITION BY _opp_id
       ORDER BY _historical_stage_change_date DESC
     ) AS _stage_rank
-  FROM (
-      SELECT
-        *,
-        -- Those on same day are differentiated by timestamp and stage order
-        ROW_NUMBER() OVER (
-          PARTITION BY _opp_id,
-            _historical_stage_change_date
-          ORDER BY _historical_stage_change_timestamp DESC,
-            _stage_order DESC
-        ) AS _rownum
-      FROM opps_historical_stage
-    )
-  WHERE _rownum = 1
+  FROM opps_historical_stage
+  -- Those on same day are differentiated by timestamp and stage order
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY _opp_id,
+      _historical_stage_change_date
+    ORDER BY _historical_stage_change_timestamp DESC,
+      _stage_order DESC
+  ) = 1
 ),
 -- Generate a log to store stage history from latest to earliest
 get_aggregated_stage_history_text AS (
@@ -1368,29 +1222,24 @@ label_stagnant_opportunity AS (
 -- Get the latest stage of each opportunity 
 -- While carrying forward all its boolean fields' value caused by its historical changes 
 latest_stage_opportunity_only AS (
-  SELECT
-    * EXCEPT (_rownum)
-  FROM (
-      SELECT DISTINCT
-        -- Remove fields that are unique for each historical stage of opp
-        * EXCEPT (_historical_stage_change_date, _historical_stage, _stage_movement),
-        -- For removing those with values in the activity boolean fields
-        -- Different historical stages may have caused the influencing or accelerating
-        -- This is unlike the opportunity boolean that is uniform among the all historical stage of opp 
-        ROW_NUMBER() OVER (
-          PARTITION BY _opp_id,
-            _eng_timestamp,
-            _engagement,
-            _eng_description,
-            _city,
-            _state
-          ORDER BY _is_influencing_activity DESC,
-            _is_accelerating_activity DESC,
-            _is_later_accelerating_activity DESC
-        ) AS _rownum
-      FROM label_stagnant_opportunity
-    )
-  WHERE _rownum = 1
+  SELECT DISTINCT
+    -- Remove fields that are unique for each historical stage of opp
+    * EXCEPT (_historical_stage_change_date, _historical_stage, _stage_movement)
+  FROM label_stagnant_opportunity
+  -- For removing those with values in the activity boolean fields
+  -- Different historical stages may have caused the influencing or accelerating
+  -- This is unlike the opportunity boolean that is uniform among the all historical stage of opp 
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY _opp_id,
+      _eng_timestamp,
+      _engagement,
+      _eng_description,
+      _city,
+      _state
+    ORDER BY _is_influencing_activity DESC,
+      _is_accelerating_activity DESC,
+      _is_later_accelerating_activity DESC
+  ) = 1
 )
 SELECT
   *
