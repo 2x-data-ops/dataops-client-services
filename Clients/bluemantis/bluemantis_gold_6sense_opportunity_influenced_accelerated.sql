@@ -198,7 +198,7 @@ opps_history AS (
       ELSE 'Upward'
     END AS _stage_movement
   FROM opps_created AS main
-  JOIN get_current_stage_and_date AS side
+  LEFT JOIN get_current_stage_and_date AS side
     ON main._opp_id = side._opp_id
 ),
 -- Tie opportunities with stage history and account engagements
