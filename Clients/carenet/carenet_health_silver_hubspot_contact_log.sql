@@ -4,65 +4,9 @@
 
 
 -- No bombora report so it's being excluded.
--- CREATE OR REPLACE TABLE `carenet_health.db_icp_database_log` AS
-TRUNCATE TABLE `carenet_health.db_icp_database_log` ;
-INSERT INTO `carenet_health.db_icp_database_log`(
-  _id,
-  _email,
-  _name,
-  _domain,
-  _jobtitle,
-  _seniority,
-  _function,
-  _phone,
-  _company,
-  _industry,
-  _revenue,
-  _employee,
-  _city,
-  _state,
-  _persona,
-  _lifecycleStage,
-  _createddate,
-  _sfdcaccountid,
-  _sfdccontactid,
-  _sfdcleadid,
-  _country,
-  _num_tied_contacts,
-  _num_form_contacts,
-  _target_contacts,
-  _target_accounts,
-  _hubspot_score_v2,
-  _hubspot_score,
-  _proposed_qualifications,
-  _jobLevel,
-  _formSubmissions,
-  _formSubmissionsTitle,
-  _formSubmissionsURL,
-  _formSubmissionsTimestamp,
-  _pageViews,
-  _emailClicks,
-  _emailOpens,
-  _campaignName,
-  _campaignSource,
-  _hsMarketableStatus,
-  _hsAnalyticsSource,
-  _carenetBasedScore,
-  _analyticsSourceData1,
-  _objectSourceDetail1,
-  _hs_latest_source,
-  _recent_conversion_date,
-  _leadstatus,
-  _dateTimeContacted,
-  _dateTimeDisqualified,
-  _dateTimeEngaged,
-  _dateTimeMQL,
-  _dateTimeNurture,
-  _dateTimeOpen,
-  _dateTimeOQL,
-  _dateTimeSalesQualified,
-  _found_in_hubspot
-)
+TRUNCATE TABLE `carenet_health.contact_icp_score` ;
+INSERT INTO `carenet_health.contact_icp_score`
+-- CREATE OR REPLACE TABLE `carenet_health.contact_icp_score` AS
 WITH contacts AS (
   SELECT 
     vid AS _id,
@@ -132,22 +76,34 @@ WITH contacts AS (
     associated_company.properties.annualrevenue.value AS _revenue,
     INITCAP(REPLACE(associated_company.properties.industry.value, '_', ' ')) AS _industry,
     associated_company.properties.numberofemployees.value AS _employee,
-    COALESCE(property_city.value,associated_company.properties.city.value) AS _city, 
-    COALESCE(property_state.value,associated_company.properties.state.value) AS _state,
+    COALESCE(
+        property_city.value,
+        associated_company.properties.city.value
+    ) AS _city, 
+    COALESCE(
+        property_state.value,
+        associated_company.properties.state.value
+    ) AS _state,
     CASE 
-      WHEN LOWER(
-        COALESCE(property_country.value, associated_company.properties.country.value)
-      ) IN ('us',  'usa', 'united states', 'united states of america') THEN 'US' 
-      ELSE COALESCE(property_country.value,associated_company.properties.country.value) 
+      WHEN LOWER(COALESCE(
+        property_country.value, 
+        associated_company.properties.country.value
+    )) 
+      IN ('us',  'usa', 'united states', 'united states of america') 
+      THEN 'US' 
+      ELSE COALESCE(
+        property_country.value, 
+        associated_company.properties.country.value
+    ) 
     END AS _country,
     properties.hubspot_score_v2.value AS _hubspot_score_v2,
     properties.proposed_qualifications.value AS _proposed_qualifications,
     properties.hubspotscore.value AS _hubspot_score,
     '' AS _persona,
     CASE
-      WHEN property_lifecyclestage.value = 'marketingqualifiedlead' THEN 'Marketing Qualified Lead' 
-      WHEN property_lifecyclestage.value = 'salesqualifiedlead' THEN 'Sales Qualified Lead' 
-      ELSE INITCAP(property_lifecyclestage.value)
+        WHEN property_lifecyclestage.value = 'marketingqualifiedlead' THEN 'Marketing Qualified Lead' 
+        WHEN property_lifecyclestage.value = 'salesqualifiedlead' THEN 'Sales Qualified Lead' 
+        ELSE INITCAP(property_lifecyclestage.value)
     END AS _lifecycleStage,
     property_createdate.value AS _createddate,
     properties.salesforceaccountid.value AS _sfdcaccountid,
@@ -155,19 +111,23 @@ WITH contacts AS (
     properties.salesforceleadid.value AS _sfdcleadid,
     properties.job_function.value AS _jobLevel,
     CASE 
-      WHEN form_submissions[SAFE_OFFSET(0)].value.title LIKE "%Unsubscribe%" THEN CAST(NULL AS STRING)
+      WHEN form_submissions[SAFE_OFFSET(0)].value.title LIKE "%Unsubscribe%"
+      THEN CAST(NULL AS STRING)
       ELSE form_submissions[SAFE_OFFSET(0)].value.form_id
     END AS _formSubmissions,
     CASE 
-      WHEN form_submissions[SAFE_OFFSET(0)].value.title LIKE "%Unsubscribe%" THEN CAST(NULL AS STRING)
+      WHEN form_submissions[SAFE_OFFSET(0)].value.title LIKE "%Unsubscribe%"
+      THEN CAST(NULL AS STRING)
       ELSE form_submissions[SAFE_OFFSET(0)].value.title
     END AS _formSubmissionsTitle,
     CASE 
-      WHEN form_submissions[SAFE_OFFSET(0)].value.title LIKE "%Unsubscribe%" THEN CAST(NULL AS STRING)
+      WHEN form_submissions[SAFE_OFFSET(0)].value.title LIKE "%Unsubscribe%"
+      THEN CAST(NULL AS STRING)
       ELSE form_submissions[SAFE_OFFSET(0)].value.page_url
     END AS _formSubmissionsURL,
     CASE 
-      WHEN form_submissions[SAFE_OFFSET(0)].value.title LIKE "%Unsubscribe%" THEN CAST(NULL AS TIMESTAMP)
+      WHEN form_submissions[SAFE_OFFSET(0)].value.title LIKE "%Unsubscribe%"
+      THEN CAST(NULL AS TIMESTAMP)
       ELSE form_submissions[SAFE_OFFSET(0)].value.timestamp
     END AS _formSubmissionsTimestamp,
     properties.hs_analytics_num_page_views.value AS _pageViews,
@@ -196,7 +156,7 @@ WITH contacts AS (
     properties.date_time___oql.value AS _dateTimeOQL,
     properties.date_time___sales_qualified.value AS _dateTimeSalesQualified,
     properties.found_in_hubspot.value AS _found_in_hubspot
-  FROM `x-marketing.carenet_health_hubspot.contacts` hs
+  FROM `x-marketing.carenet_health_hubspot_2.contacts` hs
   QUALIFY ROW_NUMBER() OVER( PARTITION BY property_email.value ORDER BY vid DESC) = 1
 )
 SELECT DISTINCT 
@@ -204,7 +164,7 @@ SELECT DISTINCT
   _email,
   _name,
   _domain,
-  _jobtitle,
+  _jobtitle AS _job_title,
   _seniority,
   _function,
   _phone,
@@ -215,11 +175,11 @@ SELECT DISTINCT
   _city,
   _state,
   _persona,
-  _lifecycleStage,
-  _createddate,
-  _sfdcaccountid,
-  _sfdccontactid,
-  _sfdcleadid,
+  _lifecycleStage AS _lifecycle_stage,
+  _createddate AS _created_date,
+  _sfdcaccountid AS _sfdc_account_id,
+  _sfdccontactid AS _sfdc_contact_id,
+  _sfdcleadid AS _sfdc_lead_id,
   _country,
   COUNT(_domain) OVER(PARTITION BY CONCAT(_domain, _company)) AS _num_tied_contacts,
   CAST((COUNT(_formSubmissions) OVER(PARTITION BY CONCAT(_email,_id))) AS STRING) AS _num_form_contacts,
@@ -237,31 +197,31 @@ SELECT DISTINCT
   _hubspot_score,
   _proposed_qualifications,
   _jobLevel,
-  _formSubmissions,
-  _formSubmissionsTitle,
-  _formSubmissionsURL,
-  _formSubmissionsTimestamp,
-  CAST(_pageViews AS STRING) AS _pageViews,
-  _emailClicks,
-  _emailOpens,
-  _campaignName,
-  _campaignSource,
-  _hsMarketableStatus,
-  _hsAnalyticsSource,
-  _carenetBasedScore,
-  _analyticsSourceData1,
-  _objectSourceDetail1,
+  _formSubmissions AS _form_submissions,
+  _formSubmissionsTitle AS _form_submissions_title,
+  _formSubmissionsURL AS _form_submissions_URL,
+  _formSubmissionsTimestamp AS _form_submissions_timestamp,
+  CAST(_pageViews AS STRING) AS _page_views,
+  _emailClicks AS _email_clicks,
+  _emailOpens AS _email_opens, 
+  _campaignName AS _campaign_name,
+  _campaignSource AS _campaign_source,
+  _hsMarketableStatus AS _hs_marketable_status,
+  _hsAnalyticsSource AS _hs_analytics_source,
+  _carenetBasedScore AS _carenet_based_score,
+  _analyticsSourceData1 AS _analytics_source_data_1,
+  _objectSourceDetail1 AS _object_source_detail_1,
   _hs_latest_source,
   _recent_conversion_date,
-  _leadstatus,
-  _dateTimeContacted,
-  _dateTimeDisqualified,
-  _dateTimeEngaged,
-  _dateTimeMQL,
-  _dateTimeNurture,
-  _dateTimeOpen,
-  _dateTimeOQL,
-  _dateTimeSalesQualified,
+  _leadstatus AS _lead_status,
+  _dateTimeContacted AS _date_time_contacted,
+  _dateTimeDisqualified AS _date_time_disqualified,
+  _dateTimeEngaged AS _date_time_engaged,
+  _dateTimeMQL AS _date_time_MQL,
+  _dateTimeNurture AS _date_time_nurture,
+  _dateTimeOpen AS _date_time_open,
+  _dateTimeOQL AS _date_time_OQL,
+  _dateTimeSalesQualified AS _date_time_sales_qualified,
   _found_in_hubspot
 FROM contacts
 /* LEFT JOIN
