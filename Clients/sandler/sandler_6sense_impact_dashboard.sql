@@ -845,34 +845,8 @@ FROM accumulated_engagement_values;
 ----------------------------------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------
 -- Opportunity Influenced + Accelerated
-CREATE OR REPLACE TABLE `x-marketing.sandler.opportunity_influenced_accelerated` AS
-
--- Get account engagements of target account
-WITH target_account_engagements AS (
-  SELECT DISTINCT
-    _6sensecompanyname,
-    _6sensecountry,
-    _6sensedomain,
-    _engagement,
-    _timestamp AS _eng_timestamp,
-    _description AS _eng_description,
-    _notes AS _eng_notes,
-    _city,
-    _state,
-    _icp_tier_static,
-    _is_dossier,
-    CASE
-      WHEN _engagement LIKE '6sense%' THEN '6sense'
-      WHEN _engagement LIKE 'LinkedIn%' THEN 'LinkedIn'
-      WHEN _engagement LIKE 'SEM%' THEN 'SEM'
-      WHEN _engagement = 'PF Tracking' THEN 'Pathfactory'
-      WHEN _engagement LIKE 'HS%' THEN 'HubSpot'
-    END AS _channel
-  FROM `x-marketing.sandler.db_6sense_engagement_log` -- WHERE 
-    --     REGEXP_CONTAINS(_engagement_data_source,'SEM|Sales Intelligence')
-),
 -- Get all generated opportunities
-opps_created AS (
+CREATE OR REPLACE TABLE `x-marketing.sandler.opportunity_created` AS
   SELECT
     CAST(companies.companyid AS STRING) AS _account_id,
     companies.property_name.value AS _account_name,
@@ -1010,11 +984,13 @@ opps_created AS (
       FROM `x-marketing.sandler_hubspot.deals`,
         UNNEST (SPLIT(property_hs_merged_object_ids.value, ';')) AS _merge_id
       WHERE property_hs_merged_object_ids.value IS NOT NULL
-    )
-),
+    );
+
+
 -- Get all historical stages of opp
 -- Perform necessary cleaning of the data
-opps_historical_stage AS (
+CREATE OR REPLACE TABLE `x-marketing.sandler.opportunity_historical_stage` AS
+WITH opps_historical_stage AS (
   SELECT DISTINCT
     _opportunityID AS _opp_id,
     _opportunityName AS _opp_name,
@@ -1065,6 +1041,35 @@ get_aggregated_stage_history_text AS (
       ORDER BY _stage_rank
     ) AS _stage_history
   FROM unique_opps_historical_stage
+)
+SELECT
+  *
+FROM get_aggregated_stage_history_text;
+
+
+CREATE OR REPLACE TABLE `x-marketing.sandler.opportunity_influenced_accelerated` AS
+-- Get account engagements of target account
+WITH target_account_engagements AS (
+  SELECT DISTINCT
+    _6sensecompanyname,
+    _6sensecountry,
+    _6sensedomain,
+    _engagement,
+    _timestamp AS _eng_timestamp,
+    _description AS _eng_description,
+    _notes AS _eng_notes,
+    _city,
+    _state,
+    _icp_tier_static,
+    _is_dossier,
+    CASE
+      WHEN _engagement LIKE '6sense%' THEN '6sense'
+      WHEN _engagement LIKE 'LinkedIn%' THEN 'LinkedIn'
+      WHEN _engagement LIKE 'SEM%' THEN 'SEM'
+      WHEN _engagement = 'PF Tracking' THEN 'Pathfactory'
+      WHEN _engagement LIKE 'HS%' THEN 'HubSpot'
+    END AS _channel
+  FROM `x-marketing.sandler.db_6sense_engagement_log` -- WHERE 
 ),
 -- Add the stage related fields to the opps data
 opps_history AS (
@@ -1083,8 +1088,8 @@ opps_history AS (
       WHEN side._previous_stage_prob > side._next_stage_prob THEN 'Downward'
       ELSE 'Upward'
     END AS _stage_movement
-  FROM opps_created AS main
-  LEFT JOIN get_aggregated_stage_history_text AS side
+  FROM `x-marketing.sandler.opportunity_created` AS main
+  LEFT JOIN `x-marketing.sandler.opportunity_historical_stage` AS side
     ON main._opp_name = side._opp_name
 ),
 -- Tie opportunities with account engagements
