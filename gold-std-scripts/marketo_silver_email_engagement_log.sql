@@ -1,60 +1,37 @@
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
------------------------------------------------------------------------- Email Engagement Log --------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-/* 
-  This script is used typically for the email performance page/dashboard 
-  CRM/Platform: Marketo
-  Data type: Email Engagement
-  Depedency Table: db_tam_database
-  Target table: db_email_engagements_log
-*/
-
-TRUNCATE TABLE `x-marketing.hyland.db_email_engagements_log`;
-INSERT INTO `x-marketing.hyland.db_email_engagements_log` (
-  _sdc_sequence,
-  _campaignID,
-  _utmcampaign,
-  _subject,
-  _timestamp,
-  _engagement,
-  _description,
-  _utm_source,  
+TRUNCATE TABLE `x-marketing.ridecell.db_email_engagements_log`;
+INSERT INTO `x-marketing.ridecell.db_email_engagements_log` (
+  _sdc_sequence, 
+  _campaignID, 
+  _campaign, 
+  _subject, 
+  _timestamp, 
+  _engagement, 
+  _description, 
+  _link, 
+  _utm_source, 
   _utm_medium, 
-  _utm_content,
-  _prospectID,
-  _email,
-  _name,
-  _domain,
-  _title,
-  _function,
-  _seniority,
-  _phone,
-  _company,
-  _revenue,
-  _industry,
-  _city,
-  _state,
-  _country,
+  _utm_content, 
+  _id, 
+  _email, 
+  _name, 
+  _domain, 
+  _job_title, 
+  _function, 
+  _seniority, 
+  _phone, 
+  _company, 
+  _revenue, 
+  _industry, 
+  _city, 
+  _state, 
+  _country, 
   _persona,
-  _lifecycleStage,
-  _leadsourcedetail,
-  _mostrecentleadsource,
-  _mostrecentleadsourcedetail,
-  _programname,
-  _programchannel,
-  _campaignSentDate,
-  EMEAcampaign,
-  airtableSegment,
-  _hive9owner,
-  _campaignowner,
-  _campaignstartdate,
-  _campaignenddate,
-  region__c,
-  sub_region__c,
-  description,
-  _sfdccampaignid
+  _account_tier,
+  _leadsourcedetail, 
+  _most_recent_lead_source, 
+  _most_recent_lead_source_detail, 
+  _program_name, 
+  _program_channel
 )
 WITH prospect_info AS (
   SELECT DISTINCT 
@@ -122,66 +99,24 @@ WITH prospect_info AS (
     phone AS _phone,
     company AS _company,
     CAST(annualrevenue AS STRING) AS _revenue,
-    industry AS _industry,
+    ridecell_industry__c AS _industry,
     city AS _city,
     state AS _state, 
     country AS _country,
     "" AS _persona,
-    lead_lifecycle_stage__c AS _lifecycle_stage,
-    leadsourcedetail AS _lead_source_detail,
-    mostrecentleadsource AS _most_recent_lead_source,
-    mostrecentleadsourcedetail AS _most_recent_lead_source_detail,
+    account_tier__c_account AS _account_tier,
+    original_lead_source_details__c AS _leadsourcedetail,
+    most_recent_lead_source__c AS _most_recent_lead_source,
+    most_recent_lead_source_details__c AS _most_recent_lead_source_detail,
     programs.name AS _program_name,
     programs.channel AS _program_channel
-  FROM `x-marketing.hyland_marketo.leads` marketo
-  LEFT JOIN `x-marketing.hyland_marketo.programs` programs
+  FROM `x-marketing.ridecell_marketo.leads` marketo
+  LEFT JOIN `x-marketing.ridecell_marketo.programs` programs
     ON marketo.acquisitionprogramid = CAST(programs.id AS STRING)
   WHERE email IS NOT NULL
     AND email NOT LIKE '%2x.marketing%'
-    AND email NOT LIKE '%hyland.com%'
-  QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY email
-    ORDER BY marketo.id DESC
-  ) = 1
-),
-airtable_emea AS (
-  SELECT
-    _assetid AS _id,
-    IF(
-      _senddate = '',
-      CAST(null AS TIMESTAMP),
-      CAST(_senddate AS TIMESTAMP)
-    ) AS _campaign_sent_date,
-    IF(
-      _assetid IS NOT NULL,
-      'Yes',
-      'No'
-    ) AS _EMEA_campaign,
-    'EMEA' AS _airtable_segment,
-    _sfcampaignid
-  FROM `x-marketing.hyland_mysql.db_airtable_email_emea` 
-),
-airtable_customermarketing AS (
-  SELECT
-    _assetid AS _id,
-    IF(
-      _senddate = '',
-      CAST(null AS TIMESTAMP),
-      CAST(_senddate AS TIMESTAMP)
-    ) AS _campaign_sent_date,
-    IF(
-      _assetid IS NOT NULL,
-      'Yes',
-      'No'
-    ) AS _EMEA_campaign,
-    'Customer Marketing' AS _airtable_segment,
-    '' AS _sfcampaignID
-  FROM `x-marketing.hyland_mysql.db_airtable_email_customermarketing` 
-),
-airtable_info AS (
-  SELECT * FROM airtable_emea
-  UNION ALL
-  SELECT* FROM airtable_customermarketing
+    AND email NOT LIKE '%ridecell.com%'
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY email ORDER BY marketo.id DESC) = 1
 ),
 email_sent AS (
   SELECT
@@ -191,14 +126,12 @@ email_sent AS (
     '' AS _subject,
     '' AS _email,
     activitydate AS _timestamp,
-    'sent' AS _engagement,
+    'Sent' AS _engagement,
     '' AS _description,
-    CAST(leadid AS STRING) AS _leadid
-  FROM `x-marketing.hyland_marketo.activities_send_email`
-  QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY leadid, primary_attribute_value_id 
-    ORDER BY activitydate DESC
-  ) = 1
+    CAST(leadid AS STRING) AS _leadid,
+    '' AS _link
+  FROM `x-marketing.ridecell_marketo.activities_send_email`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
 ),
 email_delivered AS (
   SELECT
@@ -208,14 +141,12 @@ email_delivered AS (
     '' AS _subject,
     '' AS _email,
     activitydate AS _timestamp,
-    'delivered' AS _engagement,
+    'Delivered' AS _engagement,
     '' AS _description,
-    CAST(leadid AS STRING) AS _leadid
-  FROM `x-marketing.hyland_marketo.activities_email_delivered`
-  QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY leadid, primary_attribute_value_id 
-    ORDER BY activitydate DESC
-  ) = 1 
+    CAST(leadid AS STRING) AS _leadid,
+    '' AS _link
+  FROM `x-marketing.ridecell_marketo.activities_email_delivered`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1 
 ),
 email_open AS (
   SELECT
@@ -225,14 +156,12 @@ email_open AS (
     '' AS _subject,
     '' AS _email,
     activitydate AS _timestamp,
-    'opened' AS _engagement,
+    'Opened' AS _engagement,
     '' AS _description,
-    CAST(leadid AS STRING) AS _leadid
-  FROM `x-marketing.hyland_marketo.activities_open_email`
-  QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY leadid, primary_attribute_value_id 
-    ORDER BY activitydate DESC
-  ) = 1
+    CAST(leadid AS STRING) AS _leadid,
+    '' AS _link
+  FROM `x-marketing.ridecell_marketo.activities_open_email`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
 ),
 email_click AS (
   SELECT
@@ -242,22 +171,44 @@ email_click AS (
     '' AS _subject,
     '' AS _email,
     activitydate AS _timestamp,
-    'clicked' AS _engagement,
+    'Clicked' AS _engagement,
     '' AS _description,
-    CAST(leadid AS STRING) AS _leadid
-  FROM `x-marketing.hyland_marketo.activities_click_email`
-  QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY leadid, primary_attribute_value_id 
-    ORDER BY activitydate DESC
-  ) = 1
+    CAST(leadid AS STRING) AS _leadid,
+    link AS _link
+  FROM `x-marketing.ridecell_marketo.activities_click_email`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
 ),
-unique_click AS (
-  SELECT
-    DISTINCT
-    email_click.*
-  FROM email_click
-  JOIN email_open 
-    ON email_open._leadid = email_click._leadid
+open_click AS ( --merge open and click data
+  SELECT * FROM email_open
+  UNION ALL
+  SELECT * FROM email_click
+),
+new_open AS ( --to populate the data in Clicked but not appear in Opened list
+  SELECT 
+    _sdc_sequence,
+    _campaignID,
+    _campaign,
+    _subject,
+    _email,
+    _timestamp,
+    'Opened' AS _engagement,
+    _description,
+    _leadid,
+    _link 
+  FROM open_click
+  WHERE _engagement <> 'Opened' 
+    AND _engagement = 'Clicked'
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY _leadid, _campaignID ORDER BY _timestamp DESC) = 1
+), 
+new_open_consolidate AS (
+  SELECT * FROM email_open
+  UNION ALL
+  SELECT * FROM new_open
+),
+final_open AS (
+  SELECT *
+  FROM new_open_consolidate
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY _leadid, _campaignID ORDER BY _timestamp DESC) = 1
 ),
 email_hard_bounce AS (
   SELECT
@@ -267,14 +218,12 @@ email_hard_bounce AS (
     '' AS _subject,
     '' AS _email,
     activitydate AS _timestamp,
-    'hard_bounced' AS _engagement,
+    'Hard Bounced' AS _engagement,
     details AS _description,
-    CAST(leadid AS STRING) AS _leadid
-  FROM `x-marketing.hyland_marketo.activities_email_bounced` 
-  QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY leadid, primary_attribute_value_id 
-    ORDER BY activitydate DESC
-  ) = 1
+    CAST(leadid AS STRING) AS _leadid,
+    '' AS _link
+  FROM `x-marketing.ridecell_marketo.activities_email_bounced` 
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
 ),
 email_soft_bounce AS (
   SELECT
@@ -284,14 +233,27 @@ email_soft_bounce AS (
     '' AS _subject,
     '' AS _email,
     activitydate AS _timestamp,
-    'soft_bounced' AS _engagement,
+    'Soft Bounced' AS _engagement,
     details AS _description,
-    CAST(leadid AS STRING) AS _leadid
-  FROM `x-marketing.hyland_marketo.activities_email_bounced_soft`  
-  QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY leadid, primary_attribute_value_id 
-    ORDER BY activitydate DESC
-  ) = 1
+    CAST(leadid AS STRING) AS _leadid,
+    '' AS _link
+  FROM `x-marketing.ridecell_marketo.activities_email_bounced_soft`  
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
+),
+email_soft_hard_bounced AS (
+  SELECT * FROM email_hard_bounce
+  UNION ALL
+  SELECT * FROM email_soft_bounce
+),
+new_delivered_email AS( --remove soft and hard bounced in delivered list
+  SELECT 
+    d.*
+  FROM email_delivered d
+  LEFT JOIN email_soft_hard_bounced b 
+    ON d._campaignID = b._campaignID 
+    AND d._leadid = b._leadid
+  WHERE b._campaignID IS NULL 
+    AND b._leadid IS NULL
 ),
 email_download AS (
   SELECT
@@ -301,16 +263,14 @@ email_download AS (
     '' AS _subject,
     '' AS _email,
     activitydate AS _timestamp,
-    'downloaded' AS _engagement,
+    'Downloaded' AS _engagement,
     '' AS _description,
-    CAST(leadid AS STRING) AS _leadid
-  FROM `x-marketing.hyland_marketo.activities_fill_out_form`
+    CAST(leadid AS STRING) AS _leadid,
+    '' AS _link
+  FROM `x-marketing.ridecell_marketo.activities_fill_out_form`
   WHERE primary_attribute_value NOT LIKE '%TEST 2X%'
     AND primary_attribute_value NOT LIKE '%Email Unsubscribe Form%'
-  QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY leadid, primary_attribute_value_id 
-    ORDER BY activitydate DESC
-  ) = 1
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
 ),
 email_unsubscribed AS (
   SELECT
@@ -320,111 +280,34 @@ email_unsubscribed AS (
     '' AS _subject,
     '' AS _email,
     activitydate AS _timestamp,
-    'unsubscribed' AS _engagement,
+    'Unsubscribed' AS _engagement,
     '' AS _description,
-    CAST(leadid AS STRING) AS _leadid
-  FROM `x-marketing.hyland_marketo.activities_unsubscribe_email`
-  QUALIFY ROW_NUMBER() OVER(
-    PARTITION BY leadid, primary_attribute_value_id 
-    ORDER BY activitydate DESC
-  ) = 1
+    CAST(leadid AS STRING) AS _leadid,
+    '' AS _link
+  FROM `x-marketing.ridecell_marketo.activities_unsubscribe_email`
+  QUALIFY ROW_NUMBER() OVER(PARTITION BY leadid, primary_attribute_value_id ORDER BY activitydate DESC) = 1
 ),
 engagements_combined AS (
   SELECT * FROM email_sent
   UNION ALL
-  SELECT * FROM email_delivered
+  SELECT * FROM new_delivered_email
   UNION ALL
-  SELECT * FROM email_open
-  -- UNION ALL
-  -- SELECT * FROM email_click
+  SELECT * FROM final_open
   UNION ALL
-  SELECT * FROM unique_click
+  SELECT * FROM email_click
   UNION ALL
   SELECT * FROM email_hard_bounce
   UNION ALL
   SELECT * FROM email_soft_bounce
   UNION ALL
   SELECT * FROM email_unsubscribed
-), 
-_all AS (
-  SELECT
-    engagements.* EXCEPT(_leadid, _email),
-    COALESCE(REGEXP_EXTRACT(_description, r'[?&]utm_source=([^&]+)'), "Email") AS _utm_source,
-    REGEXP_EXTRACT(_description, r'[?&]utm_medium=([^&]+)') AS _utm_medium,
-    REGEXP_EXTRACT(_description, r'[?&]utm_content=([^&]+)') AS _utm_content,
-    prospect_info.*,
-    CAST(airtable_info._campaign_sent_date AS TIMESTAMP) AS _campaign_sent_date,
-    airtable_info._EMEA_campaign,
-    airtable_info._airtable_segment,
-    airtable_info._sfcampaignid
-  FROM 
-    engagements_combined AS engagements
-  LEFT JOIN prospect_info
-    ON engagements._leadid = prospect_info._id
-  JOIN airtable_info
-    ON engagements._campaignID = CAST(airtable_info._id AS STRING)
-),
-user AS (
-  SELECT 
-    name, 
-    id 
-  FROM `x-marketing.hyland_salesforce.User`
 )
-SELECT 
-  _all.* EXCEPT (_sfcampaignid),
-  hive9_owner__c AS _hive_9owner,
-  user.name AS _campaign_owner,
-  startdate AS _campaign_start_date,
-  enddate AS _campaign_end_date,
-  region__c AS _region_c,
-  sub_region__c AS _sub_region_c,
-  description AS _description,
-  sfcampaign.id AS _sfcampaignID
-FROM _all
-LEFT JOIN `x-marketing.hyland_salesforce.Campaign` sfcampaign 
-  ON sfcampaign.id = _all._sfcampaignid
-LEFT JOIN user 
-  ON user.id = sfcampaign.ownerid;
-
-----------------------------------------------------------Email Campaign Timeline---------------------------------------------------------
-CREATE OR REPLACE TABLE `x-marketing.hyland.db_email_details_aggregate` AS
-WITH campaign_aggregate AS (
-  SELECT 
-    _campaignname AS _campaign_name, 
-    hive9_owner__c AS _hive_9owner,
-    user.name AS _campaign_owner,
-    _assetid AS _marketo_id,
-    --CASE WHEN _senddate = "" THEN NULL ELSE
-    --PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%E*S%Ez",_senddate) END AS _senddate,
-    _sfcampaignid AS _sfcampaignID,
-    startdate AS _campaign_start_date,
-    enddate AS _campaign_end_date,
-    region__c AS _region_c,
-    sub_region__c AS _sub_region_c,
-    description AS _description,
-  FROM `x-marketing.hyland_mysql.db_airtable_email_emea` airtable
-  LEFT JOIN `x-marketing.hyland_salesforce.Campaign` campaign 
-    ON campaign.id = airtable._sfcampaignid
-  LEFT JOIN (SELECT name, id FROM `x-marketing.hyland_salesforce.User`) user 
-    ON user.id = campaign.ownerid
-),
-email_aggregate AS(
-  SELECT 
-    _campaignID,
-    _utmcampaign AS _utm_campaign,
-    _sfdccampaignid AS _sfdccampaignID,
-    SUM(CASE WHEN _engagement = 'sent' THEN 1 ELSE 0 END) AS _sent,
-    SUM(CASE WHEN _engagement = 'delivered' THEN 1 ELSE 0 END) AS _delivered,
-    SUM(CASE WHEN _engagement = 'soft_bounced' THEN 1 ELSE 0 END) AS _soft_bounced,
-    SUM(CASE WHEN _engagement = 'hard_bounced' THEN 1 ELSE 0 END) AS _hard_bounced
-  FROM `x-marketing.hyland.db_email_engagements_log` email
-  GROUP BY 1,2,3
-)
-
-SELECT 
-  campaign_aggregate.*, 
-  email_aggregate.* EXCEPT(_campaignID,_utm_campaign,_sfdccampaignID)
-FROM campaign_aggregate
-LEFT JOIN email_aggregate 
-  ON email_aggregate._sfdccampaignid = campaign_aggregate._sfcampaignid
-WHERE _campaign_start_date IS NOT NULL
+SELECT
+  engagements.* EXCEPT(_leadid, _email),
+  COALESCE(REGEXP_EXTRACT(_description, r'[?&]utm_source=([^&]+)'), "Email") AS _utm_source,
+  REGEXP_EXTRACT(_description, r'[?&]utm_medium=([^&]+)') AS _utm_medium,
+  REGEXP_EXTRACT(_description, r'[?&]utm_content=([^&]+)') AS _utm_content,
+  prospect_info.*
+FROM engagements_combined AS engagements
+LEFT JOIN prospect_info
+  ON engagements._leadid = prospect_info._id;

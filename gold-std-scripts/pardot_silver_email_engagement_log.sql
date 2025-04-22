@@ -44,7 +44,6 @@ INSERT INTO `x-marketing.terrasmart.db_email_engagements_log` (
   _totalPageViews,
   _averagePageViews
 )
-
 WITH airtable_info AS (
   SELECT 
     _pardotID,
@@ -155,20 +154,13 @@ main_table AS (
     CAST(activity.list_email_id AS STRING) AS _email_id,
     activity.email_template_id AS email_template_id,
     activity.type
-  FROM
-    `x-marketing.terrasmart_pardot.visitor_activities` activity
-  LEFT JOIN
-    `x-marketing.terrasmart_pardot.prospects` prospect
-  ON
-    activity.prospect_id = prospect.id
-  LEFT JOIN
-    `x-marketing.terrasmart_pardot.campaigns` campaign
-  ON
-    activity.campaign_id = campaign.id
-  JOIN
-    airtable_info airtable
-  ON
-    CAST(activity.list_email_id AS STRING) = airtable._pardotid
+  FROM `x-marketing.terrasmart_pardot.visitor_activities` activity
+  LEFT JOIN `x-marketing.terrasmart_pardot.prospects` prospect
+  ON activity.prospect_id = prospect.id
+  LEFT JOIN `x-marketing.terrasmart_pardot.campaigns` campaign
+  ON activity.campaign_id = campaign.id
+  JOIN airtable_info airtable
+  ON CAST(activity.list_email_id AS STRING) = airtable._pardotid
   WHERE activity.type_name IN ('Email', 'Email Tracker')
     AND email NOT LIKE '%@2x.marketing%' 
     AND email NOT LIKE '%2X%' 
@@ -258,12 +250,11 @@ clicks_downloads AS (
   WHERE main_table.type = 1   /* Click */
     AND (
     (_email NOT LIKE '%2x.marketing%' AND _email NOT LIKE '%terrasmart%')
-    OR
-    _email IS NULL
+    OR _email IS NULL
     )
 
   UNION ALL
-  # To get all downloads without matching campaigns
+  -- To get all downloads without matching campaigns
   SELECT
     activity._sdc_sequence,
     CAST(activity.prospect_id AS STRING) AS _prospectID,
@@ -286,19 +277,18 @@ clicks_downloads AS (
   WHERE activity.type = 4   /* Success */
     AND (
       (email NOT LIKE '%2x.marketing%' AND email NOT LIKE '%terrasmart%')
-      OR
-      email IS NULL
+      OR email IS NULL
     )
 ),
 clicks_downloads_timeline AS (
-  # Order clicks and downloads in a timeline series
+  -- Order clicks and downloads in a timeline series
   SELECT 
     *,
     ROW_NUMBER() OVER(PARTITION BY _prospectID ORDER BY _timestamp) AS _rownum
   FROM clicks_downloads
 ),
 mql_submission_email AS (
-  # Get those downloads that follow right after a click 
+  -- Get those downloads that follow right after a click 
   SELECT
     download._sdc_sequence,
     download._prospectID,
@@ -402,5 +392,4 @@ FROM (
 ) scenario
 WHERE origin._email = scenario._email
   AND origin._campaignCode = scenario._campaignCode
-  AND TIMESTAMP_DIFF(click_timestamp, open_timestamp, SECOND) < 3
-;
+  AND TIMESTAMP_DIFF(click_timestamp, open_timestamp, SECOND) < 3;

@@ -1,172 +1,289 @@
----bings_ads_performance
-
---Keywords Performance
-CREATE OR REPLACE TABLE quantum.bing_keyword_performance AS
-WITH keywords AS(
-    SELECT*EXCEPT(_rank) FROM (
-        SELECT
-            adgroupid, 
-            keywords.timeperiod, 
-            keywords.campaignname, 
-            keywords.campaignid, 
-            addistribution, /* ads.*EXCEPT(adid), */
-            keywords.currencycode, 
-            keywords.spend AS cost, 
-            keywords.impressions , 
-            keywords.clicks, 
-            CAST(REPLACE(keywords.AbsoluteTopImpressionRatePercent, "%","") AS FLOAT64 ) AS AbsoluteTopImpressionRatePercent , 
-            keywords.ctr, 
-            keywords.averagecpc AS avgcpc,
-            keywords.conversions , 
-            keywords.conversionrate , 
-            keywords.deliveredmatchtype, 
-            keywords.keyword, 
-            keywords.qualityscore, 
-            bidmatchtype,
-            RANK() OVER (PARTITION BY keywords.timeperiod, keywords.keywordid ORDER BY keywords._sdc_report_datetime DESC) AS _rank
-        FROM `x-marketing.quantum_bing_ads.keyword_performance_report` keywords
-        )
-    WHERE _rank =1
-)/*, airtable AS (
-    SELECT *EXCEPT(_sdc_batched_at, _sdc_received_at, _sdc_sequence, _sdc_table_version) FROM `x-marketing.quantum_mysql.db_airtable_ads` WHERE _platform = 'Bing'
-)*/, budget AS (
-    SELECT id AS campaignid, dailybudget FROM `x-marketing.quantum_bing_ads.campaigns`
+---bing keyword performance
+TRUNCATE TABLE `x-marketing.emburse.bing_keyword_performance`;
+INSERT INTO `x-marketing.emburse.bing_keyword_performance` (
+  adgroupid,	
+  timeperiod,	
+  campaignname,	
+  campaign_country_region,	
+  campaignid,	
+  addistribution,	
+  currencycode,	
+  cost,	
+  impressions,	
+  clicks,	
+  AbsoluteTopImpressionRatePercent,	
+  ctr,	
+  avgcpc,	
+  conversions,	
+  conversionrate,	
+  deliveredmatchtype,	
+  keyword,	
+  qualityscore,	
+  bidmatchtype,	
+  dailybudget	
+)
+WITH keywords AS (
+  SELECT
+    adgroupid, 
+    keywords.timeperiod, 
+    keywords.campaignname,
+    CASE 
+      WHEN campaignname LIKE '%US/CA/UK%' THEN 'US/CA/UK'
+      WHEN campaignname LIKE '%US/CA%' THEN 'US/CA'
+      WHEN campaignname LIKE '%Germany%' THEN 'Germany'
+      WHEN campaignname LIKE '%UK%' THEN 'UK'
+      WHEN campaignname LIKE '%US%' THEN 'US'
+      WHEN campaignname LIKE '%APAC%' THEN 'APAC'
+      WHEN campaignname LIKE '%NZ/AU/SG%' THEN 'NZ/AU/SG'
+      WHEN campaignname LIKE '%NORAM%' THEN 'NORAM'
+      ELSE NULL 
+    END AS campaign_country_region,
+    keywords.campaignid, 
+    addistribution,
+    keywords.currencycode, 
+    keywords.spend AS cost, 
+    keywords.impressions , 
+    keywords.clicks, 
+    CAST(REPLACE(keywords.AbsoluteTopImpressionRatePercent, "%","") AS FLOAT64 ) AS AbsoluteTopImpressionRatePercent, 
+    keywords.ctr, 
+    keywords.averagecpc AS avgcpc,
+    keywords.conversions , 
+    keywords.conversionrate , 
+    keywords.deliveredmatchtype, 
+    keywords.keyword, 
+    keywords.qualityscore, 
+    bidmatchtype
+  FROM `x-marketing.emburse_bing_ads.keyword_performance_report` keywords
+  QUALIFY RANK() OVER (
+    PARTITION BY keywords.timeperiod, keywords.keywordid
+    ORDER BY keywords._sdc_report_datetime DESC) = 1
+), 
+budget AS (
+  SELECT 
+    id AS campaignid, dailybudget 
+  FROM `x-marketing.emburse_bing_ads.campaigns`
 )
 SELECT 
---airtable._screenshot, 
-keywords.*, 
-budget.dailybudget 
+  keywords.*, 
+  budget.dailybudget 
 FROM keywords 
---JOIN airtable ON keywords.adgroupid = airtable._adid
-JOIN budget ON keywords.campaignid = budget.campaignid
-;
+JOIN budget 
+  ON keywords.campaignid = budget.campaignid;
 
---Ads Variation Performance
-CREATE OR REPLACE TABLE quantum.bing_adsvariation_performance AS
+---bing ads variation performance
+TRUNCATE TABLE `x-marketing.emburse.bing_adsvariation_performance`;
+INSERT INTO `x-marketing.emburse.bing_adsvariation_performance` (
+  adgroupid,
+  titlepart1,	
+  titlepart2,	
+  titlepart3,	
+  campaignname,	
+  campaign_country_region,	
+  campaignid,
+  adid,
+  timeperiod,	
+  currencycode,	
+  cost,	
+  impressions,
+  clicks,
+  AbsoluteTopImpressionRatePercent,	
+  conversions,	
+  conversionrate,	
+  _sdc_report_datetime,	
+  dailybudget
+)
 WITH ads AS (
-    SELECT* FROM (
-        SELECT
-            adgroupid, 
-            titlepart1, 
-            titlepart2, 
-            titlepart3, 
-            ads.campaignname, 
-            ads.campaignid, 
-            ads.adid, 
-            ads.timeperiod, 
-            ads.currencycode, 
-            ads.spend AS cost, 
-            ads.impressions , 
-            ads.clicks, 
-            CAST(REPLACE(ads.AbsoluteTopImpressionRatePercent, "%","") AS FLOAT64 ) AS AbsoluteTopImpressionRatePercent, 
-            ads.ctr, 
-            ads.averagecpc AS avgcpc,
-            ads.conversions , 
-            ads.conversionrate ,
-             ads._sdc_report_datetime,
-            RANK() OVER (PARTITION BY ads.timeperiod, ads.adid ORDER BY ads._sdc_report_datetime DESC) AS _rank
-        FROM `x-marketing.quantum_bing_ads.ad_performance_report` ads
-       )
-    WHERE _rank =1
-)
-/*, airtable AS (
-    SELECT *EXCEPT(_sdc_batched_at, _sdc_received_at, _sdc_sequence, _sdc_table_version) FROM `x-marketing.quantum_mysql.db_airtable_ads` WHERE _platform = 'Bing'
-)*/, budget AS (
-    SELECT 
+  SELECT
+    adgroupid, 
+    titlepart1, 
+    titlepart2, 
+    titlepart3, 
+    ads.campaignname,
+    CASE 
+      WHEN campaignname LIKE '%US/CA/UK%' THEN 'US/CA/UK'
+      WHEN campaignname LIKE '%US/CA%' THEN 'US/CA'
+      WHEN campaignname LIKE '%Germany%' THEN 'Germany'
+      WHEN campaignname LIKE '%UK%' THEN 'UK'
+      WHEN campaignname LIKE '%US%' THEN 'US'
+      WHEN campaignname LIKE '%APAC%' THEN 'APAC'
+      WHEN campaignname LIKE '%NZ/AU/SG%' THEN 'NZ/AU/SG'
+      WHEN campaignname LIKE '%NORAM%' THEN 'NORAM'
+      ELSE NULL 
+    END AS campaign_country_region, 
+    ads.campaignid, 
+    ads.adid, 
+    ads.timeperiod, 
+    ads.currencycode, 
+    ads.spend AS cost, 
+    ads.impressions , 
+    ads.clicks, 
+    CAST(REPLACE(ads.AbsoluteTopImpressionRatePercent, "%","") AS FLOAT64 ) AS AbsoluteTopImpressionRatePercent, 
+    ads.conversions, 
+    ads.conversionrate,
+    ads._sdc_report_datetime
+  FROM `x-marketing.emburse_bing_ads.ad_performance_report` ads
+  QUALIFY RANK() OVER (PARTITION BY ads.timeperiod, ads.adid ORDER BY ads._sdc_report_datetime DESC) = 1
+), 
+budget AS (
+  SELECT 
     id AS campaignid, 
-    dailybudget FROM `x-marketing.quantum_bing_ads.campaigns`
+    dailybudget 
+  FROM `x-marketing.emburse_bing_ads.campaigns`
 )
 SELECT 
---airtable._screenshot, 
-ads.*EXCEPT(_rank), 
---budget.dailybudget 
+  ads.*, 
+  budget.dailybudget 
 FROM ads
---LEFT JOIN airtable ON ads.adgroupid = airtable._adid
---LEFT JOIN budget ON ads.campaignid = budget.campaignid
-;
+JOIN budget
+  ON ads.campaignid = budget.campaignid;
 
-
-
--- Campaign Performance
-CREATE OR REPLACE TABLE quantum.bing_campaign_performance AS
-WITH campaign AS(
-    SELECT * EXCEPT(_rank) FROM (
-        SELECT
-            campaign.timeperiod, 
-            campaign.campaignname, 
-            campaign.campaignid, 
-            addistribution,
-            campaign.currencycode, 
-            campaign.spend AS cost, 
-            campaign.impressions , 
-            campaign.clicks, 
-            CAST(REPLACE(campaign.AbsoluteTopImpressionRatePercent, "%","") AS FLOAT64 ) AS AbsoluteTopImpressionRatePercent , 
-            campaign.ctr, 
-            campaign.averagecpc AS avgcpc,
-            campaign.conversions , 
-            campaign.conversionrate,
-            RANK() OVER (PARTITION BY campaign.timeperiod, campaign.campaignid ORDER BY campaign._sdc_report_datetime DESC) AS _rank
-        FROM `x-marketing.quantum_bing_ads.campaign_performance_report` campaign
-        )
-    WHERE _rank =1 
-), budget AS (
-    SELECT id AS campaignid, dailybudget FROM `x-marketing.quantum_bing_ads.campaigns`
-), influence_conversion AS (
-  SELECT campaign_id, 
-  campaign, 
-  counta_of_contact_link AS conversion_influence, 
-  PARSE_TIMESTAMP('%F',created_date) AS created_date
-  FROM `x-marketing.quantum_google_sheets.Pivot_Table_2`
-), combined AS (
-    SELECT campaign.*, 
-    budget.dailybudget 
-    FROM campaign
-    JOIN budget ON campaign.campaignid = budget.campaignid
-), combined_2 AS (
-    SELECT *, 
-    COUNT(campaignid) OVER (PARTITION BY timeperiod, campaignname) AS campaign_count
-    FROM combined
-), _all AS(
-    SELECT combined_2.*, conversion_influence, campaign
-    FROM combined_2 
-    LEFT JOIN influence_conversion c ON c.created_date = combined_2.timeperiod AND c.campaign_id = combined_2.campaignid
+---Bing Campaign Performance
+TRUNCATE TABLE `x-marketing.emburse.bing_campaign_performance`;
+INSERT INTO `x-marketing.emburse.bing_campaign_performance` (
+  timeperiod,	
+  campaignname,	
+  campaign_country_region,	
+  campaignid,	
+  addistribution,	
+  currencycode,	
+  cost,	
+  impressions,	
+  clicks,	
+  AbsoluteTopImpressionRatePercent,	
+  conversions,	
+  campaign_status,
+  dailybudget
 )
-    SELECT * EXCEPT(conversion_influence), CASE WHEN campaign_count > 0 THEN conversion_influence / campaign_count ELSE 0 END AS conv_influence
-    FROM _all
-;
-
-
---Ad Group Performance
-CREATE OR REPLACE TABLE quantum.bing_adgroup_performance AS
-WITH adgroups AS (
-    SELECT * EXCEPT(_rank) FROM (
-        SELECT
-            adgroups.timeperiod, 
-            adgroups.adgroupid, 
-            addistribution, /* ads.*EXCEPT(adid), */ 
-            campaignid,
-            adgroups.currencycode, 
-            adgroups.allreturnonadspend AS cost, 
-            adgroups.impressions , 
-            adgroups.clicks, 
-            CAST(REPLACE(adgroups.AbsoluteTopImpressionRatePercent, "%","") AS FLOAT64 ) AS AbsoluteTopImpressionRatePercent , 
-            adgroups.ctr, 
-            adgroups.averagecpc AS avgcpc,
-            adgroups.conversions , 
-            adgroups.conversionrate,
-            RANK() OVER (PARTITION BY adgroups.timeperiod, adgroups.adgroupid ORDER BY adgroups._sdc_report_datetime DESC) AS _rank
-        FROM `x-marketing.quantum_bing_ads.ad_group_performance_report` adgroups
-        )
-    WHERE _rank =1 /* AND adgroupsname LIKE '%2X%' */
-)/*, airtable AS (
-    SELECT *EXCEPT(_sdc_batched_at, _sdc_received_at, _sdc_sequence, _sdc_table_version) FROM `x-marketing.quantum_mysql.db_airtable_ads` WHERE _platform = 'Bing'
-)*/, budget AS (
-    SELECT id AS campaignid, dailybudget FROM `x-marketing.quantum_bing_ads.campaigns`
+WITH campaign AS (
+  SELECT
+    campaign.timeperiod, 
+    campaign.campaignname,
+    CASE 
+      WHEN campaignname LIKE '%US/CA/UK%' THEN 'US/CA/UK'
+      WHEN campaignname LIKE '%US/CA%' THEN 'US/CA'
+      WHEN campaignname LIKE '%Germany%' THEN 'Germany'
+      WHEN campaignname LIKE '%UK%' THEN 'UK'
+      WHEN campaignname LIKE '%US%' THEN 'US'
+      WHEN campaignname LIKE '%APAC%' THEN 'APAC'
+      WHEN campaignname LIKE '%NZ/AU/SG%' THEN 'NZ/AU/SG'
+      WHEN campaignname LIKE '%NORAM%' THEN 'NORAM'
+      ELSE NULL 
+    END AS campaign_country_region, 
+    campaign.campaignid, 
+    addistribution,
+    campaign.currencycode, 
+    campaign.spend AS cost,
+    campaign.impressions,
+    campaign.clicks,
+    CAST(REPLACE(campaign.AbsoluteTopImpressionRatePercent, "%","") AS FLOAT64) AS AbsoluteTopImpressionRatePercent, 
+    campaign.conversions,
+    campaign.campaignstatus AS campaign_status
+  FROM `x-marketing.emburse_bing_ads.campaign_performance_report` campaign
+  QUALIFY RANK() OVER (PARTITION BY campaign.timeperiod, campaign.campaignid ORDER BY campaign._sdc_report_datetime DESC) = 1
+), 
+budget AS (
+  SELECT 
+    id AS campaignid, 
+    dailybudget 
+  FROM `x-marketing.emburse_bing_ads.campaigns`
 )
 SELECT 
---airtable._screenshot, 
-adgroups.*EXCEPT(campaignid), 
-budget.dailybudget
+  campaign.*, 
+  budget.dailybudget 
+FROM campaign
+JOIN budget 
+  ON campaign.campaignid = budget.campaignid;
+
+---Bing Ad Group Performance
+TRUNCATE TABLE `x-marketing.emburse.bing_adgroup_performance`;
+INSERT INTO `x-marketing.emburse.bing_adgroup_performance` (
+  timeperiod,	
+  adgroupid,	
+  addistribution,	
+  currencycode,	
+  cost,	
+  impressions,	
+  clicks,	
+  AbsoluteTopImpressionRatePercent,	
+  ctr,	
+  avgcpc,	
+  conversions,	
+  conversionrate,	
+  dailybudget
+)
+WITH adgroups AS (
+  SELECT
+    adgroups.timeperiod, 
+    adgroups.adgroupid, 
+    addistribution, 
+    campaignid,
+    adgroups.currencycode, 
+    adgroups.allreturnonadspend AS cost, 
+    adgroups.impressions , 
+    adgroups.clicks, 
+    CAST(REPLACE(adgroups.AbsoluteTopImpressionRatePercent, "%","") AS FLOAT64 ) AS AbsoluteTopImpressionRatePercent , 
+    adgroups.ctr, adgroups.averagecpc AS avgcpc,
+    adgroups.conversions , 
+    adgroups.conversionrate
+  FROM `x-marketing.emburse_bing_ads.ad_group_performance_report` adgroups
+  QUALIFY RANK() OVER (PARTITION BY adgroups.timeperiod, adgroups.adgroupid ORDER BY adgroups._sdc_report_datetime DESC) = 1
+), 
+budget AS (
+  SELECT 
+    id AS campaignid, 
+    dailybudget 
+  FROM `x-marketing.emburse_bing_ads.campaigns`
+)
+SELECT 
+  adgroups.* EXCEPT (campaignid), 
+  budget.dailybudget
 FROM adgroups
---JOIN airtable ON airtable._adid = adgroups.adgroupid
-JOIN budget ON adgroups.campaignid = budget.campaignid;
+JOIN budget 
+  ON adgroups.campaignid = budget.campaignid;
+
+---Bing Search Query Performance
+TRUNCATE TABLE `x-marketing.emburse.bing_search_query_performance`;
+INSERT INTO `x-marketing.emburse.bing_search_query_performance` (
+  campaignid,	
+  campaignname,	
+  campaign_country_region,	
+  adgroupid,	
+  adgroupname,	
+  keyword,	
+  search_term,	
+  day,	
+  cost,	
+  impressions,	
+  clicks,	
+  conversions,	
+  campaignstatus,	
+  adgroupstatus
+)
+SELECT
+  campaignid,
+  campaignname,
+  CASE 
+    WHEN campaignname LIKE '%US/CA/UK%' THEN 'US/CA/UK'
+    WHEN campaignname LIKE '%US/CA%' THEN 'US/CA'
+    WHEN campaignname LIKE '%Germany%' THEN 'Germany'
+    WHEN campaignname LIKE '%UK%' THEN 'UK'
+    WHEN campaignname LIKE '%US%' THEN 'US'
+    WHEN campaignname LIKE '%APAC%' THEN 'APAC'
+    WHEN campaignname LIKE '%NZ/AU/SG%' THEN 'NZ/AU/SG'
+    WHEN campaignname LIKE '%NORAM%' THEN 'NORAM'
+    ELSE NULL 
+  END AS campaign_country_region,
+  adgroupid,
+  adgroupname,
+  keyword AS keyword,
+  -- search_term_match_type AS match_type,
+  searchquery AS search_term,
+  timeperiod AS day,
+  spend AS cost,
+  impressions,
+  clicks,
+  conversions,
+  campaignstatus,
+  adgroupstatus
+FROM `x-marketing.emburse_bing_ads.search_query_performance_report`
+QUALIFY RANK() OVER (PARTITION BY timeperiod, campaignid, adgroupid, keyword, searchquery ORDER BY _sdc_received_at DESC) = 1;
