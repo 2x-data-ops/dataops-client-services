@@ -42,7 +42,31 @@ LOOP
     ),
     all_account_health AS (
       SELECT DISTINCT
-        *
+        _domain,
+        _email,
+        _week,
+        _year,
+        _contentTitle AS _content_title,
+        _engagement,
+        _description,
+        _avg_bombora_score,
+        _id,
+        _name,
+        _jobtitle AS _job_title,
+        _seniority,
+        _phone,
+        _company,
+        _revenue,
+        _industry,
+        _city,
+        _state,
+        _country,
+        _persona,
+        _lifecycleStage AS _life_cycle_stage,
+        _sfdcaccountid AS _sfdc_account_id,
+        _sfdccontactid AS _sfdc_contact_id,
+        _timestamp,
+        _t90_days_score
       FROM `x-marketing.sandler.db_account_health_all`
     ),
     quarterly_contact_engagement AS (
@@ -51,34 +75,34 @@ LOOP
         COUNT(
           DISTINCT
           CASE
-            WHEN _engagement = 'Email Opened' THEN CONCAT(_email, _contentTitle)
+            WHEN _engagement = 'Email Opened' THEN CONCAT(_email, _content_title)
           END
         ) AS _distinct_email_open,
         COUNT(
           DISTINCT
           CASE
-            WHEN _engagement = 'Email Clicked' THEN CONCAT(_email, _contentTitle)
+            WHEN _engagement = 'Email Clicked' THEN CONCAT(_email, _content_title)
           END
         ) AS _distinct_email_click,
         COUNT(
           DISTINCT
           CASE
             WHEN _engagement = 'Form Filled'
-            AND REGEXP_CONTAINS(LOWER(_contentTitle), 'contact us|try now|demo') THEN CONCAT(_email, _contentTitle)
+            AND REGEXP_CONTAINS(LOWER(_content_title), 'contact us|try now|demo') THEN CONCAT(_email, _content_title)
           END
-        ) AS _distinct_contactus_form,
+        ) AS _distinct_contact_us_form,
         COUNT(
           DISTINCT
           CASE
             WHEN _engagement = 'Form Filled'
-            AND REGEXP_CONTAINS(LOWER(_contentTitle), 'webinar|wbn') THEN CONCAT(_email, _contentTitle)
+            AND REGEXP_CONTAINS(LOWER(_content_title), 'webinar|wbn') THEN CONCAT(_email, _content_title)
           END
         ) AS _distinct_webinar_form,
         COUNT(
           DISTINCT
           CASE
             WHEN _engagement = 'Form Filled'
-            AND NOT REGEXP_CONTAINS(LOWER(_contentTitle), 'try now|demo|contact us|webinar|wbn') THEN CONCAT(_email, _contentTitle)
+            AND NOT REGEXP_CONTAINS(LOWER(_content_title), 'try now|demo|contact us|webinar|wbn') THEN CONCAT(_email, _content_title)
           END
         ) AS _distinct_gated_content,
       FROM all_account_health
@@ -120,11 +144,11 @@ LOOP
           --Contact Us Form
           (
             CASE
-              WHEN _distinct_contactus_form >= 1 THEN 60
+              WHEN _distinct_contact_us_form >= 1 THEN 60
               ELSE 0
             END
           )
-        ) AS _contactUs_form_score,
+        ) AS _contact_us_form_score,
         (
           --Webinar Form
           (
@@ -147,7 +171,7 @@ LOOP
         _domain,
         _distinct_email_open,
         _distinct_email_click,
-        _distinct_contactus_form,
+        _distinct_contact_us_form,
         _distinct_webinar_form,
         _distinct_gated_content,
         -- Setting of threshold for max of email score
@@ -164,7 +188,7 @@ LOOP
         ) AS _organic_social_score,
         -- Setting of threshold for max of gated/webinar form score
         (
-          IF(_gated_or_webinar_form > 30, 30, _gated_or_webinar_form) + _contactUs_form_score
+          IF(_gated_or_webinar_form > 30, 30, _gated_or_webinar_form) + _contact_us_form_score
         ) AS _form_fill_score,
       FROM quarterly_contact_scoring
     ),
@@ -180,8 +204,8 @@ LOOP
         _engagementtime AS _website_time_spent,
         CAST(_totalsessionviews AS INT64) AS _website_page_view,
         _visitorid AS _website_visitor_count,
-        _utmsource,
-        _utmmedium
+        _utmsource AS _utm_score,
+        _utmmedium AS _utm_medium
       FROM `x-marketing.sandler.db_web_engagements_log` web
       WHERE (
         NOT REGEXP_CONTAINS(LOWER(_utmsource), '6sense|linkedin|google|email')
@@ -226,8 +250,8 @@ LOOP
         CASE
           WHEN _website_visitor_count >= 3 THEN 10 -- WHEN _website_visitor_count < 3 THEN 5
           ELSE 0
-        END AS website_visitor_count_score,
-        1 AS visited_website_score
+        END AS _website_visitor_count_score,
+        1 AS _visited_website_score
       FROM web_data
     ),
     -- Get scores for web visits activity
@@ -236,21 +260,21 @@ LOOP
         * EXCEPT (
           website_time_spent_score,
           website_page_view_score,
-          website_visitor_count_score,
-          visited_website_score
+          _website_visitor_count_score,
+          _visited_website_score
         ),
         website_time_spent_score AS _website_time_spent_score,
         website_page_view_score AS _website_page_view_score,
-        website_visitor_count_score AS _website_visitor_count_score,
-        visited_website_score AS _visited_website_score,
+        _website_visitor_count_score AS _website_visitor_count_score,
+        _visited_website_score AS _visited_website_score,
         CASE
           WHEN (
             website_time_spent_score + website_page_view_score +
-            website_visitor_count_score + visited_website_score
+            _website_visitor_count_score + _visited_website_score
           ) > 50 THEN 50
           ELSE (
             website_time_spent_score + website_page_view_score +
-            website_visitor_count_score + visited_website_score
+            _website_visitor_count_score + _visited_website_score
           )
         END AS _web_score
       FROM web_data_agg
@@ -261,7 +285,7 @@ LOOP
         _timestamp,
         -- EXTRACT(WEEK FROM _date) AS _week,  
         -- EXTRACT(YEAR FROM _date) AS _year, 
-        _page AS _pageName,
+        _page AS _page_name,
         CONCAT(_utmsource, " Ad Clicks") AS _engagement,
         -- _fullpage
       FROM `x-marketing.sandler.db_web_engagements_log` web
@@ -278,11 +302,11 @@ LOOP
         _domain,
         -- _week,
         -- _year,
-        COUNT(DISTINCT CONCAT(_domain, _pageName)) OVER (PARTITION BY _domain) AS _distinct_ads_clicks,
+        COUNT(DISTINCT CONCAT(_domain, _page_name)) OVER (PARTITION BY _domain) AS _distinct_ads_clicks,
         --Calculating total ads score
         (
           CASE
-            WHEN COUNT(DISTINCT CONCAT(_domain, _pageName)) OVER (PARTITION BY _domain) >= 1 THEN 3
+            WHEN COUNT(DISTINCT CONCAT(_domain, _page_name)) OVER (PARTITION BY _domain) >= 1 THEN 3
             ELSE 0
           END
         ) AS _ads_score,
@@ -293,7 +317,7 @@ LOOP
       web_score._domain,
       _distinct_email_open,
       _distinct_email_click,
-      _distinct_contactus_form,
+      _distinct_contact_us_form,
       _distinct_webinar_form,
       _distinct_gated_content,
       _email_score,

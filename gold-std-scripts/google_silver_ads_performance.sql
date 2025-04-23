@@ -1,22 +1,22 @@
 ---Google Campaign Performance
 TRUNCATE TABLE `x-marketing.emburse.google_search_campaign_performance`;
 INSERT INTO `x-marketing.emburse.google_search_campaign_performance` (
-  campaign_id,	
-  campaign_name,	
-  campaign_country_region,	
-  day,	
-  currency,	
-  campaign_status,	
-  customer_time_zone,	
-  campaign_advertising_channel_type,	
+  _campaign_id,
+  _campaign_name,
+  _campaign_country_region,
+  _day,
+  _currency,
+  _campaign_status,
+  _customer_time_zone,
+  _campaign_advertising_channel_type,
   _account_name,
-  cost,	
-  impressions,	
-  search_impressions,	
-  clicks,	
-  conversions,	
-  view_through_conv,	
-  conv_value
+  _cost,
+  _impressions,
+  _search_impressions,
+  _clicks,
+  _conversions,
+  _view_through_conv,
+  _conv_value
 )
 WITH unique_rows AS (
   SELECT
@@ -56,50 +56,50 @@ WITH unique_rows AS (
   QUALIFY RANK() OVER (PARTITION BY date, campaign_id ORDER BY report._sdc_received_at DESC) = 1
 )
 SELECT
-  campaign_id,
-  campaign_name,
-  campaign_country_region,
-  day,
-  currency,
-  campaign_status,
-  customer_time_zone,
-  campaign_advertising_channel_type,
+  campaign_id AS _campaign_id,
+  campaign_name AS _campaign_name,
+  campaign_country_region AS _campaign_country_region,
+  day AS _day,
+  currency AS _currency,
+  campaign_status AS _campaign_status,
+  customer_time_zone AS _customer_time_zone,
+  campaign_advertising_channel_type AS _campaign_advertising_channel_type,
   _account_name,
-  SUM(cost) AS cost,
-  SUM(impressions) AS impressions,
-  SUM(search_impressions) AS search_impressions,
-  SUM(clicks) AS clicks,
-  SUM(conversions) AS conversions,
-  SUM(view_through_conv) AS view_through_conv,
-  SUM(conv_value) AS conv_value
+  SUM(cost) AS _cost,
+  SUM(impressions) AS _impressions,
+  SUM(search_impressions) AS _search_impressions,
+  SUM(clicks) AS _clicks,
+  SUM(conversions) AS _conversions,
+  SUM(view_through_conv) AS _view_through_conv,
+  SUM(conv_value) AS _conv_value
 FROM unique_rows
 GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
-ORDER BY day, campaign_id;
+ORDER BY _day, _campaign_id;
 
 -- Google Search Ads Variation Performance
 TRUNCATE TABLE `x-marketing.emburse.google_search_adsvariation_performance`;
 INSERT INTO `x-marketing.emburse.google_search_adsvariation_performance` (
-  campaign_id,	
-  campaign_name,	
-  campaign_country_region,	
-  ad_group_id,	
-  ad_group_name,	
-  day,	
-  ad_id,	
-  headlines,	
-  final_urls,	
-  currency,	
-  ad_group_status,	
-  customer_time_zone,	
+  _campaign_id,
+  _campaign_name,
+  _campaign_country_region,
+  _ad_group_id,
+  _ad_group_name,
+  _day,
+  _ad_id,
+  _headlines,
+  _final_urls,
+  _currency,
+  _ad_group_status,
+  _customer_time_zone,
   _account_name,
-  cost,	
-  impressions,	
-  search_impressions,	
-  abs_top_impr_value,	
-  clicks,	
-  conversions,	
-  view_through_conv,	
-  conv_value
+  _cost,
+  _impressions,
+  _search_impressions,
+  _abs_top_impr_value,
+  _clicks,
+  _conversions,
+  _view_through_conv,
+  _conv_value
 )
 WITH unique_rows AS (
   SELECT
@@ -146,54 +146,54 @@ WITH unique_rows AS (
   QUALIFY RANK() OVER (PARTITION BY date, ads.campaign_id, ads.ad_group_id, ads.id ORDER BY ads._sdc_received_at DESC) = 1
 )
 SELECT
-  campaign_id,
-  campaign_name,
-  campaign_country_region,
-  ad_group_id,
-  ad_group_name,
-  day,
-  ad_id,
-  headlines,
-  final_urls,
-  currency,
-  ad_group_status,
-  customer_time_zone,
+  campaign_id AS _campaign_id,
+  campaign_name AS _campaign_name,
+  campaign_country_region AS _campaign_country_region,
+  ad_group_id AS _ad_group_id,
+  ad_group_name AS _ad_group_name,
+  day AS _day,
+  ad_id AS _ad_id,
+  headlines AS _headlines,
+  final_urls AS _final_urls,
+  currency AS _currency,
+  ad_group_status AS _ad_group_status,
+  customer_time_zone AS _customer_time_zone,
   _account_name,
-  SUM(cost) AS cost,
-  SUM(impressions) AS impressions,
-  SUM(search_impressions) AS search_impressions,
-  SUM(abs_top_impr) AS abs_top_impr_value,
-  SUM(clicks) AS clicks,
-  SUM(conversions) AS conversions,
-  SUM(view_through_conv) AS view_through_conv,
-  SUM(conv_value) AS conv_value
+  SUM(cost) AS _cost,
+  SUM(impressions) AS _impressions,
+  SUM(search_impressions) AS _search_impressions,
+  SUM(abs_top_impr) AS _abs_top_impr_value,
+  SUM(clicks) AS _clicks,
+  SUM(conversions) AS _conversions,
+  SUM(view_through_conv) AS _view_through_conv,
+  SUM(conv_value) AS _conv_value
 FROM unique_rows
 GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13
-ORDER BY day, campaign_id, ad_group_id, ad_id;
+ORDER BY _day, _campaign_id, _ad_group_id, _ad_id;
 
 -- Google Seach Keyword Performance
 TRUNCATE TABLE `x-marketing.emburse.google_search_keyword_performance`;
 INSERT INTO `x-marketing.emburse.google_search_keyword_performance` (
-  campaign_id,	
-  campaign_name,	
-  campaign_country_region,	
-  ad_group_id,	
-  ad_group_name,	
-  match_type,	
-  keyword,	
-  quality_score,	
-  day,	
-  currency,	
-  ad_group_criterion_status,	
-  customer_time_zone,	
+  _campaign_id,
+  _campaign_name,
+  _campaign_country_region,
+  _ad_group_id,
+  _ad_group_name,
+  _match_type,
+  _keyword,
+  _quality_score,
+  _day,
+  _currency,
+  _ad_group_criterion_status,
+  _customer_time_zone,
   _account_name,
-  cost,	
-  impressions,	
-  search_impressions,	
-  abs_top_impr_value,	
-  clicks,	
-  conversions,	
-  view_through_conv
+  _cost,
+  _impressions,
+  _search_impressions,
+  _abs_top_impr_value,
+  _clicks,
+  _conversions,
+  _view_through_conv
 )
 WITH unique_rows AS (
   SELECT
@@ -238,53 +238,53 @@ WITH unique_rows AS (
     ORDER BY keywords._sdc_received_at DESC) = 1
 )
 SELECT
-  campaign_id,
-  campaign_name,
-  campaign_country_region,
-  ad_group_id,
-  ad_group_name,
-  match_type,
-  keyword,
-  quality_score,
-  day,
-  currency,
-  ad_group_criterion_status,
-  customer_time_zone,
-  _account_name,
-  SUM(cost) AS cost,
-  SUM(impressions) AS impressions,
-  SUM(search_impressions) AS search_impressions,
-  SUM(abs_top_impr) AS abs_top_impr_value,
-  SUM(clicks) AS clicks,
-  SUM(conversions) AS conversions,
-  SUM(view_through_conv) AS view_through_conv
+  campaign_id AS _campaign_id,
+  campaign_name AS _campaign_name,
+  campaign_country_region AS _campaign_country_region,
+  ad_group_id AS _ad_group_id,
+  ad_group_name AS _ad_group_name,
+  match_type AS _match_type,
+  keyword AS _keyword,
+  quality_score AS _quality_score,
+  day AS _day,
+  currency AS _currency,
+  ad_group_criterion_status AS _ad_group_criterion_status,
+  customer_time_zone AS _customer_time_zone,
+  _account_name AS _account_name,
+  SUM(cost) AS _cost,
+  SUM(impressions) AS _impressions,
+  SUM(search_impressions) AS _search_impressions,
+  SUM(abs_top_impr) AS _abs_top_impr_value,
+  SUM(clicks) AS _clicks,
+  SUM(conversions) AS _conversions,
+  SUM(view_through_conv) AS _view_through_conv
 FROM unique_rows
-GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13
-ORDER BY day, campaign_id, ad_group_id, keyword;
+GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13
+ORDER BY _day, _campaign_id, _ad_group_id, _keyword;
 
 -- Google Search Query Performance
 TRUNCATE TABLE `x-marketing.emburse.google_search_query_performance`;
 INSERT INTO `x-marketing.emburse.google_search_query_performance` (
-  campaign_id,	
-  campaign_name,	
-  campaign_country_region,	
-  ad_group_id,	
-  ad_group_name,	
-  keyword,	
-  search_term,	
-  day,	
-  currency,	
-  campaign_status,	
-  ad_group_status,	
-  customer_time_zone,	
+  _campaign_id,
+  _campaign_name,
+  _campaign_country_region,
+  _ad_group_id,
+  _ad_group_name,
+  _keyword,
+  _search_term,
+  _day,
+  _currency,
+  _campaign_status,
+  _ad_group_status,
+  _customer_time_zone,
   _account_name,
-  cost,	
-  impressions,	
-  search_impressions,	
-  abs_top_impr_value,	
-  clicks,	
-  conversions,	
-  view_through_conv
+  _cost,
+  _impressions,
+  _search_impressions,
+  _abs_top_impr_value,
+  _clicks,
+  _conversions,
+  _view_through_conv
 )
 WITH unique_rows AS (
   SELECT
@@ -330,51 +330,51 @@ WITH unique_rows AS (
     ORDER BY report._sdc_received_at DESC) = 1
 )
 SELECT
-  campaign_id,
-  campaign_name,
-  campaign_country_region,
-  ad_group_id,
-  ad_group_name,
-  keyword,
+  campaign_id AS _campaign_id,
+  campaign_name AS _campaign_name,
+  campaign_country_region AS _campaign_country_region,
+  ad_group_id AS _ad_group_id,
+  ad_group_name AS _ad_group_name,
+  keyword AS _keyword,
   -- match_type,
-  search_term,
-  day,
-  currency,
-  campaign_status,
-  ad_group_status,
-  customer_time_zone,
+  search_term AS _search_term,
+  day AS _day,
+  currency AS _currency,
+  campaign_status AS _campaign_status,
+  ad_group_status AS _ad_group_status,
+  customer_time_zone AS _customer_time_zone,
   _account_name,
-  SUM(cost) AS cost,
-  SUM(impressions) AS impressions,
-  SUM(search_impressions) AS search_impressions,
-  SUM(abs_top_impr) AS abs_top_impr_value,
-  SUM(clicks) AS clicks,
-  SUM(conversions) AS conversions,
-  SUM(view_through_conv) AS view_through_conv
+  SUM(cost) AS _cost,
+  SUM(impressions) AS _impressions,
+  SUM(search_impressions) AS _search_impressions,
+  SUM(abs_top_impr) AS _abs_top_impr_value,
+  SUM(clicks) AS _clicks,
+  SUM(conversions) AS _conversions,
+  SUM(view_through_conv) AS _view_through_conv
 FROM unique_rows
 GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13
-ORDER BY day, campaign_id, ad_group_id, keyword, search_term;
+ORDER BY _day, _campaign_id, _ad_group_id, _keyword, _search_term;
 
 -- Google Display Campaign Performance
 TRUNCATE TABLE `x-marketing.emburse.google_display_campaign_performance`;
 INSERT INTO `x-marketing.emburse.google_display_campaign_performance`  (
-  campaign_id,	
-  campaign_name,	
-  campaign_country_region,	
-  day,	
-  currency,	
-  budget,	
-  campaign_status,	
-  customer_time_zone,	
+  _campaign_id,
+  _campaign_name,
+  _campaign_country_region,
+  _day,
+  _currency,
+  _budget,
+  _campaign_status,
+  _customer_time_zone,
   _account_name,
-  cost,	
-  impressions,	
-  active_view_impressions,	
-  search_impressions,	
-  abs_top_impr_value,	
-  clicks,	
-  conversions,	
-  view_through_conv
+  _cost,
+  _impressions,
+  _active_view_impressions,
+  _search_impressions,
+  _abs_top_impr_value,
+  _clicks,
+  _conversions,
+  _view_through_con
 )
 WITH unique_rows AS (
   SELECT
@@ -415,23 +415,23 @@ WITH unique_rows AS (
   QUALIFY RANK() OVER (PARTITION BY date, campaign_id ORDER BY report._sdc_received_at DESC) = 1
 )
 SELECT
-  campaign_id,
-  campaign_name,
-  campaign_country_region,
-  day,
-  currency,
-  budget,
-  campaign_status,
-  customer_time_zone,
+  campaign_id AS _campaign_id,
+  campaign_name AS _campaign_name,
+  campaign_country_region AS _campaign_country_region,
+  day AS _day,
+  currency AS _currency,
+  budget AS _budget,
+  campaign_status AS _campaign_status,
+  customer_time_zone AS _customer_time_zone,
   _account_name,
-  SUM(cost) AS cost,
-  SUM(impressions) AS impressions,
-  SUM(active_view_impressions) AS active_view_impressions,
-  SUM(search_impressions) AS search_impressions,
-  SUM(abs_top_impr) AS abs_top_impr_value,
-  SUM(clicks) AS clicks,
-  SUM(conversions) AS conversions,
-  SUM(view_through_conv) AS view_through_conv
+  SUM(cost) AS _cost,
+  SUM(impressions) AS _impressions,
+  SUM(active_view_impressions) AS _active_view_impressions,
+  SUM(search_impressions) AS _search_impressions,
+  SUM(abs_top_impr) AS _abs_top_impr_value,
+  SUM(clicks) AS _clicks,
+  SUM(conversions) AS _conversions,
+  SUM(view_through_conv) AS _view_through_conv
 FROM unique_rows
 GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
-ORDER BY day, campaign_id;
+ORDER BY _day, _campaign_id;

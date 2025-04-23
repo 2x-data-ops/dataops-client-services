@@ -1,62 +1,62 @@
 TRUNCATE TABLE `x-marketing.brp.sf_opportunity_ads`;
 
 INSERT INTO `x-marketing.brp.sf_opportunity_ads` (
-  stagename,
-  opportunity_amount,
-  opportunity_id,
-  opportunity_name,
-  type,
-  createddate,
-  closedate,
-  opp_type,
-  opp_record_type,
-  laststagechangedate,
-  amount,
-  converted_amount__c,
-  pl_inside_sales__c,
-  gclid__c,
-  contactid,
-  firstname,
-  lastname,
-  title,
-  email,
-  ownerid,
-  accountid,
-  pi__utm_campaign__c,
-  is_primary,
-  owner_name,
-  from_stage,
-  opp_count,
-  average_amount
+  _stage_name,
+  _opportunity_amount,
+  _opportunity_id,
+  _opportunity_name,
+  _type,
+  _created_date,
+  _close_date,
+  _opp_type,
+  _opp_record_type,
+  _last_stage_change_date,
+  _amount,
+  _converted_amount__c,
+  _pl_inside_sales__c,
+  _gclid__c,
+  _contact_id,
+  _first_name,
+  _last_name,
+  _title,
+  _email,
+  _owner_id,
+  _account_id,
+  _pi__utm_campaign__c,
+  _is_primary,
+  _owner_name,
+  _from_stage,
+  _opp_count,
+  _average_amount
 )
 WITH oppscontact AS (
   SELECT
-    contactid,
-    opportunityid,
-    isprimary
+    contactid AS _contact_id,
+    opportunityid AS _opportunity_id,
+    isprimary AS _is_primary
   FROM `x-marketing.brp_salesforce.OpportunityContactRole`
   WHERE isdeleted IS FALSE
     AND isprimary IS TRUE
 ),
 opps AS (
   SELECT
-    opp.stagename,
-    opp.amount AS opportunity_amount,
-    opp.id AS opportunity_id,
-    opp.name AS opportunity_name,
-    opp.type,
-    contactid,
-    opp.createddate,
-    opp.closedate,
-    type AS opp_type,
-    r.name AS opp_record_type,
-    opp.accountid,
-    laststagechangedate,
-    amount,
-    converted_amount__c,
-    user.name AS owner_name,
-    pl_inside_sales__c,
-    gclid__c
+    opp.stagename AS _stage_name,
+    opp.amount AS _opportunity_amount,
+    opp.id AS _opportunity_id,
+    opp.name AS _opportunity_name,
+    opp.type AS _type,
+    contactid AS _contact_id,
+    opp.createddate AS _created_date,
+    opp.closedate AS _close_date,
+    type AS _opp_type,
+    r.name AS _opp_record_type,
+    opp.accountid AS _account_id,
+    laststagechangedate AS _last_stage_change_date,
+    amount AS _amount,
+    converted_amount__c AS _converted_amount__c,
+    user.name AS _owner_name,
+    pl_inside_sales__c AS _pl_inside_sales__c,
+    gclid__c AS _gclid__c
   FROM `x-marketing.brp_salesforce.Opportunity` opp
   LEFT JOIN `x-marketing.brp_salesforce.RecordType` r
     ON r.id = opp.recordtypeid
@@ -100,53 +100,67 @@ leads AS (
 ),
 contact AS (
   SELECT
-    id AS contactid,
-    firstname,
-    lastname,
-    title,
-    email,
-    ownerid,
-    accountid,
-    pi__utm_campaign__c
+    id AS _contact_id,
+    firstname AS _first_name,
+    lastname AS _last_name,
+    title AS _title,
+    email AS _email,
+    ownerid AS _owner_id,
+    accountid AS _account_id,
+    pi__utm_campaign__c AS _pi__utm_campaign__c
   FROM `x-marketing.brp_salesforce.Contact` contact
 ),
 opp_base AS (
   SELECT
-    opps.* EXCEPT (contactid, accountid, owner_name),
+    -- opps.* EXCEPT (contactid, accountid, owner_name),
+    opps._stage_name,
+    opps._opportunity_amount,
+    opps._opportunity_id,
+    opps._opportunity_name,
+    opps._type,
+    opps._created_date,
+    opps._close_date,
+    opps._opp_type,
+    opps._opp_record_type,
+    opps._last_stage_change_date,
+    opps._amount,
+    opps._converted_amount__c,
+    opps._pl_inside_sales__c,
+    opps._gclid__c,
     contact.*,
-    oppscontact.isprimary AS is_primary,
-    user.name AS owner_name,
+    oppscontact._is_primary,
+    user.name AS _owner_name,
     LAG(side.stagename) OVER (
-      PARTITION BY opps.opportunity_id,
-        opps.createddate
+      PARTITION BY opps._opportunity_id,
+        opps._created_date
       ORDER BY side.createddate
-    ) AS from_stage,
+    ) AS _from_stage,
   FROM oppscontact
   JOIN opps
-    ON opps.opportunity_id = oppscontact.opportunityid
+    ON opps._opportunity_id = oppscontact._opportunity_id
   JOIN contact
-    ON contact.contactid = oppscontact.contactid
+    ON contact._contact_id = oppscontact._contact_id
   LEFT JOIN `x-marketing.brp_salesforce.User` user
-    ON user.id = contact.ownerid
+    ON user.id = contact._owner_id
   LEFT JOIN `x-marketing.brp_salesforce.Account` acc
-    ON acc.id = contact.accountid
+    ON acc.id = contact._account_id
   LEFT JOIN `x-marketing.brp_salesforce.OpportunityHistory` side
-    ON side.opportunityid = opps.opportunity_id
+    ON side.opportunityid = opps._opportunity_id
   QUALIFY ROW_NUMBER() OVER (
-    PARTITION BY opps.stagename, opps.opportunity_id, contact.contactid, opps.createddate
+    PARTITION BY opps._stage_name, opps._opportunity_id, contact._contact_id, opps._created_date
     ORDER BY side.createddate DESC
   ) = 1
 ),
 final_opp_base AS (
   SELECT
     *,
-    COUNT(opportunity_id) OVER (PARTITION BY opportunity_id) AS opp_count
+    COUNT(_opportunity_id) OVER (PARTITION BY _opportunity_id) AS _opp_count
   FROM opp_base
 ),
 final_base AS (
   SELECT
     *,
-    IF(opp_count > 0, opportunity_amount / opp_count, 0) AS average_amount
+    IF(_opp_count > 0, _opportunity_amount / _opp_count, 0) AS _average_amount
   FROM final_opp_base
 )
 SELECT

@@ -36,19 +36,19 @@ INSERT INTO `x-marketing.pcs.dg_email_performance` (
 )
 WITH open_event AS (
   SELECT
-    activity._sdc_sequence AS _scd_sequence,
-    subscriberkey AS _prospectID,
-    CAST(sendid AS STRING) AS _campaignID,
+    activity._sdc_sequence,
+    subscriberkey AS _prospect_id,
+    CAST(sendid AS STRING) AS _campaign_id,
     'Opened' AS _event_type,
     email AS _email,
     PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ", eventdate) AS _timestamp,
     CONCAT(firstname, ' ', lastname) AS _name,
-    territory__c,
-    url,
-    '' AS utm_source,
-    '' AS utm_content,
-    '' AS utm_medium,
-    '' AS content_downloaded,
+    territory__c AS _region,
+    url AS _description,
+    '' AS _utm_source,
+    '' AS _utm_content,
+    '' AS _utm_medium,
+    '' AS _content_downloaded,
     '' AS _linked_clicked,
   FROM `x-marketing.pcs_sfmc.event` activity
   JOIN `x-marketing.pcs_salesforce.Lead` l
@@ -58,19 +58,19 @@ WITH open_event AS (
 ),
 click_event AS (
   SELECT
-    activity._sdc_sequence AS _scd_sequence,
-    subscriberkey AS _prospectID,
-    CAST(sendid AS STRING) AS _campaignID,
+    activity._sdc_sequence,
+    subscriberkey AS _prospect_id,
+    CAST(sendid AS STRING) AS _campaign_id,
     'Clicked' AS _event_type,
     email AS _email,
     PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ", eventdate) AS _timestamp,
     CONCAT(firstname, ' ', lastname) AS _name,
-    territory__c,
-    url,
-    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_source=') + 11), '&') [ORDINAL(1)] AS utm_source,
-    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_content=') + 12), '&') [ORDINAL(1)] AS utm_content,
-    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_medium=') + 11), '&') [ORDINAL(1)] AS utm_medium,
-    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'content_downloaded=') + 19), '&') [ORDINAL(1)] AS content_downloaded,
+    territory__c AS _region,
+    url AS _description,
+    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_source=') + 11), '&') [ORDINAL(1)] AS _utm_source,
+    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_content=') + 12), '&') [ORDINAL(1)] AS _utm_content,
+    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_medium=') + 11), '&') [ORDINAL(1)] AS _utm_medium,
+    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'content_downloaded=') + 19), '&') [ORDINAL(1)] AS _content_downloaded,
     CASE
       WHEN activity.url LIKE '%link=botclick%' THEN 'Bot'
       WHEN activity.url LIKE "%https://view.accountsvc.com/?qs=a151ee28ee321868fe1eb06406ee4c83c89cef65eb35f1f72e57748751b538fc2b01752ec938ea2a2f8ed18b4e6569fc8b79455702a2526f6b201c6ee37b5d61813237b7efa21189eb88856daa059b96%" THEN "PL_DG_22_EM14"
@@ -108,19 +108,19 @@ click_event AS (
 ),
 unique_click AS (
   SELECT
-    activity._sdc_sequence AS _scd_sequence,
-    subscriberkey AS _prospectID,
-    CAST(sendid AS STRING) AS _campaignID,
+    activity._sdc_sequence,
+    subscriberkey AS _prospect_id,
+    CAST(sendid AS STRING) AS _campaign_id,
     'Unique' AS _event_type,
     email AS _email,
     PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ", eventdate) AS _timestamp,
     CONCAT(firstname, ' ', lastname) AS _name,
-    territory__c,
-    url,
-    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_source=') + 11), '&') [ORDINAL(1)] AS utm_source,
-    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_content=') + 12), '&') [ORDINAL(1)] AS utm_content,
-    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_medium=') + 11), '&') [ORDINAL(1)] AS utm_medium,
-    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'content_downloaded=') + 19),'&') [ORDINAL(1)] AS content_downloaded,
+    territory__c AS _region,
+    url AS _description,
+    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_source=') + 11), '&') [ORDINAL(1)] AS _utm_source,
+    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_content=') + 12), '&') [ORDINAL(1)] AS _utm_content,
+    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'utm_medium=') + 11), '&') [ORDINAL(1)] AS _utm_medium,
+    SPLIT(SUBSTR(activity.url, STRPOS(activity.url, 'content_downloaded=') + 19),'&') [ORDINAL(1)] AS _content_downloaded,
     CASE
       WHEN activity.url LIKE '%link=botclick%' THEN 'Bot'
       WHEN activity.url LIKE "%https://view.accountsvc.com/?qs=a151ee28ee321868fe1eb06406ee4c83c89cef65eb35f1f72e57748751b538fc2b01752ec938ea2a2f8ed18b4e6569fc8b79455702a2526f6b201c6ee37b5d61813237b7efa21189eb88856daa059b96%" THEN "PL_DG_22_EM14"
@@ -158,19 +158,19 @@ unique_click AS (
 ),
 sent_event AS (
   SELECT
-    activity._sdc_sequence AS _scd_sequence,
-    subscriberkey AS _prospectID,
-    CAST(sendid AS STRING) AS _campaignID,
+    activity._sdc_sequence,
+    subscriberkey AS _prospect_id,
+    CAST(sendid AS STRING) AS _campaign_id,
     'Sent' AS _event_type,
     email AS _email,
     PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ", eventdate) AS _timestamp,
     CONCAT(firstname, ' ', lastname) AS _name,
-    territory__c,
-    url,
-    '' AS utm_source,
-    '' AS utm_content,
-    '' AS utm_medium,
-    '' AS content_downloaded,
+    territory__c AS _region,
+    url AS _description,
+    '' AS _utm_source,
+    '' AS _utm_content,
+    '' AS _utm_medium,
+    '' AS _content_downloaded,
     '' AS _linked_clicked,
   FROM `x-marketing.pcs_sfmc.event` activity
   JOIN `x-marketing.pcs_salesforce.Lead` l
@@ -180,19 +180,19 @@ sent_event AS (
 ),
 hard_bounce AS (
   SELECT
-    activity._sdc_sequence AS _scd_sequence,
-    subscriberkey AS _prospectID,
-    CAST(sendid AS STRING) AS _campaignID,
+    activity._sdc_sequence,
+    subscriberkey AS _prospect_id,
+    CAST(sendid AS STRING) AS _campaign_id,
     eventtype AS _event_type,
     email AS _email,
     PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ", eventdate) AS _timestamp,
     CONCAT(firstname, ' ', lastname) AS _name,
-    territory__c,
-    url,
-    '' AS utm_source,
-    '' AS utm_content,
-    '' AS utm_medium,
-    '' AS content_downloaded,
+    territory__c AS _region,
+    url AS _description,
+    '' AS _utm_source,
+    '' AS _utm_content,
+    '' AS _utm_medium,
+    '' AS _content_downloaded,
     '' AS _linked_clicked,
   FROM `x-marketing.pcs_sfmc.event` activity
   JOIN `x-marketing.pcs_salesforce.Lead` l
@@ -202,19 +202,19 @@ hard_bounce AS (
 ),
 unsubscribe AS (
   SELECT
-    activity._sdc_sequence AS _scd_sequence,
-    subscriberkey AS _prospectID,
-    CAST(sendid AS STRING) AS _campaignID,
+    activity._sdc_sequence,
+    subscriberkey AS _prospect_id,
+    CAST(sendid AS STRING) AS _campaign_id,
     'Unsubscribe' AS _event_type,
     email AS _email,
     PARSE_TIMESTAMP("%Y-%m-%dT%H:%M:%SZ", eventdate) AS _timestamp,
     CONCAT(firstname, ' ', lastname) AS _name,
-    territory__c,
-    url,
-    '' AS utm_source,
-    '' AS utm_content,
-    '' AS utm_medium,
-    '' AS content_downloaded,
+    territory__c AS _region,
+    url AS _description,
+    '' AS _utm_source,
+    '' AS _utm_content,
+    '' AS _utm_medium,
+    '' AS _content_downloaded,
     '' AS _linked_clicked,
   FROM `x-marketing.pcs_sfmc.event` activity
   JOIN `x-marketing.pcs_salesforce.Lead` l
@@ -228,65 +228,65 @@ email_campaign AS (
     _status,
     _trimcode,
     _screenshot,
-    _assettitle,
+    _assettitle AS _asset_title,
     _subject,
-    _whatwedo,
-    _campaignid AS id,
+    _whatwedo AS _what_we_do,
+    _campaignid AS _campaign_id,
     _utm_campaign,
     _preview,
     _code,
-    _journeyname,
-    _campaignname,
-    _formsubmission,
+    _journeyname AS _journey_name,
+    _campaignname AS _campaignname,
+    _formsubmission AS _form_submission,
     _id,
-    _livedate,
+    _livedate AS _live_date,
     _utm_source,
-    _emailname,
+    _emailname AS _email_name,
     _assignee,
     _utm_medium,
-    _landingpage,
+    _landingpage AS _landing_page,
     _emailsequence AS _segment,
     _link,
-    _rootcampaign
+    _rootcampaign AS _root_campaign
   FROM `x-marketing.pcs_mysql.db_airtable_email_participant_engagement`
   WHERE _rootcampaign = 'Demand Generation'
     AND _campaignid != ''
     AND _campaignid IS NOT NULL
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY id, _code ORDER BY _livedate DESC) = 1
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY _campaign_id, _code ORDER BY _livedate DESC) = 1
 ),
 airtable AS (
   SELECT
     name.value.name AS _utm_campaign,
-    TRIM(subject) AS subject,
-    PARSE_DATETIME("%Y-%m-%dT%H:%M:%SZ", airtable.createddate) AS createddate,
-    airtable.id,
+    TRIM(subject) AS _subject,
+    PARSE_DATETIME("%Y-%m-%dT%H:%M:%SZ", airtable.createddate) AS _created_date,
+    airtable.id AS _id,
     _code,
     _screenshot,
-    SAFE.timestamp (_livedate) AS _livedate,
-    _utm_source,
-    _utm_medium,
-    _landingpage,
+    SAFE.timestamp (_live_date) AS _live_date,
+    _utm_source AS _story_brand_stage,
+    _utm_medium AS _sub_campaign,
+    _landing_page,
     _segment,
     _link,
-    _rootcampaign,
+    _root_campaign,
   FROM `x-marketing.pcs_sfmc.send` airtable,
     UNNEST (partnerproperties) name
   LEFT JOIN email_campaign
-    ON airtable.id = CAST(email_campaign.id AS INT)
+    ON airtable.id = CAST(email_campaign._campaign_id AS INT)
   WHERE _code IS NOT NULL
   QUALIFY ROW_NUMBER() OVER (
     PARTITION BY emailname, airtable.id, emailid, _segment
     ORDER BY senddate DESC
   ) = 1
 ),
-Contact AS (
+contact AS (
   SELECT
-    acc.id,
+    acc.id AS _id,
     title AS _title,
     phone AS _phone,
-    fin.name,
-    total_market_value_amt__c,
-    contributing__c,
+    fin.name AS _financial_account_name,
+    total_market_value_amt__c AS _total_market_value_amt,
+    contributing__c AS _contributing__c,
     CONCAT(
       'https://pcsretirement.lightning.force.com/lightning/r/Lead/',
       masterrecordid,
@@ -324,26 +324,26 @@ engagements AS (
 )
 SELECT
   engagements.*,
-  airtable.* EXCEPT (id),
-  contact.* EXCEPT (id),
+  airtable.* EXCEPT (_id),
+  contact.* EXCEPT (_id),
 FROM engagements
 JOIN airtable
-  ON CAST(engagements._campaignID AS INT64) = airtable.id
+  ON CAST(engagements._campaign_id AS INT64) = airtable._id
 LEFT JOIN contact
-  ON engagements._prospectID = contact.id
+  ON engagements._prospect_id = contact._id
 QUALIFY ROW_NUMBER() OVER (
-  PARTITION BY _scd_sequence, _prospectID, _campaignID, _event_type, url
+  PARTITION BY _sdc_sequence, _prospect_id, _campaign_id, _event_type, _description
   ORDER BY _timestamp DESC
-) = 1;
+) = 1 LIMIT 1;
 
 UPDATE `x-marketing.pcs.dg_email_performance` origin
 SET origin._remove_bot = 'True'
 FROM (
   WITH engagements AS (
     SELECT
-      _campaignID,
+      _campaign_id,
       _email,
-      _prospectID,
+      _prospect_id,
       SUM(CASE WHEN _linkid LIKE "%DG%" THEN 1 END) AS _content_donwloaded,
       SUM(CASE WHEN _linkid = 'Bot' THEN 1 END) AS _bot
     FROM `x-marketing.pcs.dg_email_performance`
@@ -351,16 +351,16 @@ FROM (
     GROUP BY 1, 2, 3
   )
   SELECT
-    _campaignID,
+    _campaign_id,
     _email,
-    _prospectID
+    _prospect_id
   FROM engagements
   WHERE _bot IS NULL
     AND _content_donwloaded IS NOT NULL
 ) scenario
 WHERE origin._email = scenario._email
-  AND origin._campaignID = scenario._campaignID
-  AND origin._prospectID = origin._prospectID
+  AND origin._campaign_id = scenario._campaign_id
+  AND origin._prospect_id = origin._prospect_id
   AND origin._engagement = "Clicked"
   AND _linkid LIKE "%DG%";
 
@@ -369,12 +369,12 @@ SET origin._dropped = 'True'
 FROM (
   WITH engagements AS (
     SELECT
-      _campaignID,
+      _campaign_id,
       _email,
-      _prospectID,
-      SUM(CASE WHEN _engagement = 'Opened' THEN 1 END) AS _hasOpened,
-      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 END) AS _hasClicked,
-      SUM(CASE WHEN _engagement IN ('SoftBounce', 'HardBounce', 'Block bounce', "OtherBounce") THEN 1 END) AS _hasBounced,
+      _prospect_id,
+      SUM(CASE WHEN _engagement = 'Opened' THEN 1 END) AS _has_opened,
+      SUM(CASE WHEN _engagement = 'Clicked' THEN 1 END) AS _has_clicked,
+      SUM(CASE WHEN _engagement IN ('SoftBounce', 'HardBounce', 'Block bounce', "OtherBounce") THEN 1 END) AS _has_bounced,
     FROM `x-marketing.pcs.dg_email_performance`
     WHERE _engagement IN (
       'Opened',
@@ -384,23 +384,23 @@ FROM (
       'Block bounce',
       "OtherBounce"
     )
-    GROUP BY 1, 2,3
+    GROUP BY 1, 2, 3
   )
   SELECT
-    _campaignID,
+    _campaign_id,
     _email,
-    _prospectID
+    _prospect_id
   FROM engagements
   WHERE (
-    _hasClicked IS NOT NULL
-    AND _hasBounced IS NOT NULL
+    _has_clicked IS NOT NULL
+    AND _has_bounced IS NOT NULL
   )
   OR (
-    _hasOpened IS NOT NULL
-    AND _hasBounced IS NOT NULL
+    _has_opened IS NOT NULL
+    AND _has_bounced IS NOT NULL
   )
 ) scenario
 WHERE origin._email = scenario._email
-  AND origin._campaignID = scenario._campaignID
-  AND origin._prospectID = scenario._prospectID
+  AND origin._campaign_id = scenario._campaign_id
+  AND origin._prospect_id = scenario._prospect_id
   AND origin._engagement IN ('SoftBounce', 'HardBounce', 'Block bounce', "OtherBounce");
