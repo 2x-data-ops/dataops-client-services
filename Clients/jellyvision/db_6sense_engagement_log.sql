@@ -1,8 +1,5 @@
--- 6sense Engagement Log
 
 CREATE OR REPLACE TABLE `jellyvision.db_6sense_engagement_log` AS
-
--- Get all target accounts and their unique info
 WITH target_accounts AS (
 
     SELECT * FROM `jellyvision.db_6sense_account_current_state`
@@ -36,6 +33,7 @@ WITH target_accounts AS (
         -- Need label to distingush 6sense and Linkedin campaigns
         -- side._campaigntype AS _campaign_type,
         side._campaignname AS _campaign_name,
+        _6sensecompanyname, _6sensedomain,
         CONCAT(main._6sensecountry, main._6sensecompanyname) AS _country_account
     
     FROM 
@@ -62,8 +60,8 @@ WITH target_accounts AS (
 , campaign_reached AS (
 
     SELECT DISTINCT 
- 
         _country_account, 
+         _6sensecompanyname, _6sensedomain,
         CAST(NULL AS STRING) AS _email,
 
         MIN(_latestimpression) OVER(
@@ -96,6 +94,7 @@ WITH target_accounts AS (
         SELECT DISTINCT 
 
             _country_account,
+             _6sensecompanyname, _6sensedomain,
             CAST(NULL AS STRING) AS _email,  
             _activities_on AS _timestamp,
             -- CONCAT(_campaign_type, ' ', 'Ad Clicks') AS _engagement,
@@ -136,7 +135,8 @@ WITH target_accounts AS (
 
         SELECT DISTINCT 
 
-            _country_account, 
+            _country_account,
+            _6sensecompanyname, _6sensedomain,
             CAST(NULL AS STRING) AS _email, 
             _activities_on AS _timestamp,
             -- CONCAT(_campaign_type, ' ', 'Influenced Form Filled') AS _engagement, 
@@ -175,6 +175,7 @@ WITH target_accounts AS (
             act.name AS _account_name,
             _websiteaddress AS _domain,
             _contactcountry AS _country,
+            act.id AS crmid,
             sales.* EXCEPT(_accountname)
         
         FROM 
@@ -195,6 +196,10 @@ WITH target_accounts AS (
         side._activitymetainfo,
         side._contactname,
         side._email,
+        _account_name,
+        _country,
+        crmid,
+        side._domain,
 
         CASE 
             WHEN _activitydate LIKE '%/%'
@@ -203,7 +208,7 @@ WITH target_accounts AS (
         END  
         AS _date,
 
-        main._country_account,
+        CONCAT(_country, _account_name) AS _country_account,
         COUNT(*) AS _count
 
     FROM 
@@ -229,9 +234,9 @@ WITH target_accounts AS (
         AND
             main._6sensecountry = side._country
     ) 
-        
+   -- WHERE _account_name= 'PepGen'
     GROUP BY 
-        1, 2, 3, 4, 5, 6,7
+        1, 2, 3, 4, 5, 6,7,8,9,10
 
 )
 -- Get all the different types of engagements
@@ -243,6 +248,10 @@ WITH target_accounts AS (
         _country_account,
         _email, 
         _date AS _timestamp,
+        _account_name,
+        _country,
+        crmid,
+        _domain,
         
         CASE 
             WHEN 
@@ -312,11 +321,20 @@ WITH target_accounts AS (
 -- Only activities involving target accounts are considered
 
 , combined_data AS (
-
+    
     SELECT DISTINCT 
-
-        target_accounts.*,
-        activities.* EXCEPT(_country_account)
+         IFNULL(target_accounts._6sensecompanyname,activities._6sensecompanyname) AS _6sensecompanyname,
+          _6sensecountry AS _6sensecountry , 
+        IFNULL(target_accounts._6sensedomain,activities._6sensedomain) AS _6sensedomain, 
+        IFNULL(target_accounts._domain,activities._6sensedomain) AS _domain, 
+        _6senseindustry, 
+        _6senseemployeerange, 
+        _6senserevenuerange, 
+        _added_on, _country_account, _first_impressions, _website_engagement, _6qa_date, _is_6qa, _6sensescore, _prev_stage, _prev_order, _current_stage, _curr_order, _movement, _movement_date, 
+        _crmaccountid AS _crmaccountid , 
+        IFNULL(_crmdomain, activities._6sensedomain) AS _crmdomain, 
+        IFNULL(_crmaccount,activities._6sensecompanyname) AS  _crmaccount, 
+        activities.* EXCEPT(_country_account, _6sensecompanyname, _6sensedomain)
         
     FROM (
 
@@ -325,16 +343,39 @@ WITH target_accounts AS (
         SELECT * FROM ad_clicks 
         UNION DISTINCT
         SELECT * FROM influenced_form_fills
-        UNION DISTINCT
-        SELECT * FROM sales_intelligence_engagements
         
     ) activities
 
-    JOIN
+    LEFT JOIN
         target_accounts
 
     USING (_country_account)
+    UNION ALL
 
+    SELECT DISTINCT 
+
+        IFNULL(target_accounts._6sensecompanyname,_account_name) AS _6sensecompanyname, 
+        IFNULL(_6sensecountry,_country) AS _6sensecountry , 
+        IFNULL(_6sensedomain,activities._domain) AS _6sensedomain, 
+        IFNULL(target_accounts._domain,activities._domain) AS _domain, 
+        _6senseindustry, 
+        _6senseemployeerange, 
+        _6senserevenuerange, 
+        _added_on, _country_account, _first_impressions, _website_engagement, _6qa_date, _is_6qa, _6sensescore, _prev_stage, _prev_order, _current_stage, _curr_order, _movement, _movement_date, 
+        IFNULL(_crmaccountid,crmid) AS _crmaccountid , 
+        IFNULL(_crmdomain, activities._domain) AS _crmdomain, 
+        IFNULL(_crmaccount,_account_name) AS  _crmaccount,
+        activities.* EXCEPT(_country_account,_account_name,_country,_domain,crmid)
+        
+    FROM (
+        SELECT *  FROM sales_intelligence_engagements
+        
+    ) activities
+
+    LEFT JOIN
+        target_accounts
+
+    USING (_country_account)
 )
 -- Get accumulated values for each engagement
 
