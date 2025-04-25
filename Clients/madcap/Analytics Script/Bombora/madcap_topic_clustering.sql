@@ -72,7 +72,13 @@ _all_accounts AS (
   SELECT 
     main.*,
     side._account_name,
-    side._account_owner,
+    CASE
+      WHEN _hqstate IN ("AL", "DC", "FL", "GA", "IN", "KY", "MD", "NC", "SC", "TN", "VA", "WV") THEN "Kathy Bernardino"
+      WHEN _hqstate IN ("CT", "DE", "MA", "ME", "MI", "NH", "NJ", "NY", "OH", "PA", "RI", "VT") THEN "Bill Herriott"
+      WHEN _hqstate IN ("AK", "AZ", "CA", "CO", "HI", "ID", "MT", "NM", "NV", "OR", "UT", "WA") THEN "Michelle Klatt"
+      WHEN _hqstate IN ("AR", "IA", "IL", "KS", "LA", "MN", "MO", "MS", "ND", "NE", "OK", "SD", "TX", "WI", "WY") THEN "David Dye"
+      ELSE ""
+    END AS _account_owner,
     _priority,
     "All Accounts" AS _top20
   FROM average_surge_score main
