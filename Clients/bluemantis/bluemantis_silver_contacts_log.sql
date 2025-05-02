@@ -21,7 +21,8 @@ INSERT INTO `x-marketing.bluemantis.contacts_log` (
   _mql_create_date,
   _sql_create_date,
   _converted_date,
-  _qualified_lead_status
+  _qualified_lead_status,
+  _lead_source_description
 )
 SELECT 
   leads.id AS _lead_id,
@@ -45,7 +46,9 @@ SELECT
   mql_create_date__c AS _mql_create_date, 
   sql_create_date__c AS _sql_create_date, 
   converted_date__c AS _converted_date, 
-  qualified_lead_status__c AS _qualified_lead_status 
+  qualified_lead_status__c AS _qualified_lead_status,
+  lead_source_description__c AS _lead_source_description
 FROM `x-marketing.bluemantis_salesforce.Lead` leads
 LEFT JOIN `x-marketing.bluemantis_salesforce.User` user
   ON user.id = ownerid
+WHERE isdeleted IS FALSE
