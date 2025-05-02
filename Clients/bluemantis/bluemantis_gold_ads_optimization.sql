@@ -12,7 +12,10 @@ INSERT INTO `x-marketing.bluemantis.dashboard_optimization_ads` (
   _messaging,
   _product_company_name,
   _statistic_proof_point,
-  _screenshot,
+  _introduction_text,
+  _headline_text,
+  _ad_visual,
+  _campaign_initiated_by,
   _date,
   _spend,
   _clicks,
@@ -84,7 +87,10 @@ linkedin_airtable AS (
     _messaging,
     _product_company_name,
     _statistic_proof_point,
-    '' AS _screenshot
+    _introduction_text,
+    _headline_text,
+    _ad_visual,
+    _campaign_initiated_by
   FROM `x-marketing.bluemantis_google_sheets.db_ads_optimization`
   WHERE LENGTH(_ad_id) > 2 
     AND _campaign_id IS NOT NULL
@@ -109,7 +115,10 @@ s6sense_airtable AS (
     _messaging,
     _product_company_name,
     _statistic_proof_point,
-    '' AS _screenshot
+    _introduction_text,
+    _headline_text,
+    _ad_visual,
+    _campaign_initiated_by 
   FROM `x-marketing.bluemantis_google_sheets.db_ads_optimization`
   WHERE LENGTH(_ad_id) > 2 
     AND _campaign_id IS NOT NULL
@@ -137,19 +146,7 @@ linkedin_combined AS (
 s6sense_combined AS (
   SELECT
     s6ense_ads._ad_id,
-    s6sense_airtable._ad_name,
-    s6sense_airtable._campaign_id,
-    s6sense_airtable._campaign_name,
-    s6sense_airtable._ad_group,
-    s6sense_airtable._cta_copy,
-    s6sense_airtable._size,
-    s6sense_airtable._platform,
-    s6sense_airtable._business_segment,
-    s6sense_airtable._logo,
-    s6sense_airtable._messaging,
-    s6sense_airtable._product_company_name,
-    s6sense_airtable._statistic_proof_point,
-    s6sense_airtable._screenshot,
+    s6sense_airtable.* EXCEPT(_ad_id),
     s6ense_ads._date,
     s6ense_ads._spend,
     s6ense_ads._clicks,
