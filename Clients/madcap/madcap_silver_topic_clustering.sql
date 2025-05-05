@@ -48,6 +48,7 @@ WITH target_bombora AS (
     _compositescoredelta,
     _timestamp AS _date
   FROM `x-marketing.madcap_mysql.madcap_db_bombora_comprehensive`
+  WHERE _topicname IS NOT NULL
 ),
 total_date AS (
   SELECT 
