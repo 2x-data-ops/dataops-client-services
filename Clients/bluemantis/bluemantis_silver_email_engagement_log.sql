@@ -37,7 +37,10 @@ INSERT INTO `x-marketing.bluemantis.db_email_engagements_log` (
   _asset_title,
   _asset_type,
   _asset_url,
-  _live_date
+  _live_date,
+  _ad_visual,
+  _email_proof,
+  _campaign_initiated_by
 )
 WITH prospect_info AS (
   SELECT DISTINCT 
@@ -78,7 +81,10 @@ campaign_list AS (
     _asset_title,
     _asset_type,
     _asset_url,
-    _live_date
+    _live_date,
+    _ad_visual,
+    _email_proof,
+    _campaign_initiated_by
   FROM `x-marketing.bluemantis_google_sheets.db_email_campaign`
 ),
 email_sent AS (

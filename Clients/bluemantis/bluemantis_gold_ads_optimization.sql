@@ -12,7 +12,10 @@ INSERT INTO `x-marketing.bluemantis.dashboard_optimization_ads` (
   _messaging,
   _product_company_name,
   _statistic_proof_point,
-  _screenshot,
+  _introduction_text,
+  _headline_text,
+  _ad_visual,
+  _campaign_initiated_by,
   _date,
   _spend,
   _clicks,
@@ -40,7 +43,7 @@ WITH linkedin_ads AS (
 ),
 ads_title AS (
   SELECT
-    SPLIT(SUBSTR(id, STRPOS(id, 'sponsoredCreative:')+18))[ORDINAL(1)] AS cID,
+    REGEXP_EXTRACT(id, r'\d+') AS cID,
     campaign_id
   FROM `x-marketing.bluemantis_linkedin_ads.creatives`
 ),
@@ -66,7 +69,7 @@ s6ense_ads AS (
   WHERE _date IS NOT NULL
   GROUP BY _ad_id, _ad_variation, _campaign_id, _date, _campaign_status
 ),
-linkedin_airtable AS (
+airtable_base AS (
   SELECT
     _ad_id, 
     _ad_name, 
@@ -84,8 +87,16 @@ linkedin_airtable AS (
     _messaging,
     _product_company_name,
     _statistic_proof_point,
-    '' AS _screenshot
+    _introduction_text,
+    _headline_text,
+    _ad_visual,
+    _campaign_initiated_by
   FROM `x-marketing.bluemantis_google_sheets.db_ads_optimization`
+),
+linkedin_airtable AS (
+  SELECT
+    *
+  FROM airtable_base
   WHERE LENGTH(_ad_id) > 2 
     AND _campaign_id IS NOT NULL
     AND _platform = 'LinkedIn'
@@ -93,24 +104,8 @@ linkedin_airtable AS (
 ),
 s6sense_airtable AS (
   SELECT
-    _ad_id, 
-    _ad_name, 
-    CASE 
-      WHEN _campaign_id = "" THEN NULL 
-      ELSE _campaign_id 
-    END AS _campaign_id,  
-    _campaign_name, 
-    _ad_group, 
-    _cta_copy, 
-    _size, 
-    _platform, 
-    _business_segment,
-    _logo,
-    _messaging,
-    _product_company_name,
-    _statistic_proof_point,
-    '' AS _screenshot
-  FROM `x-marketing.bluemantis_google_sheets.db_ads_optimization`
+    *
+  FROM airtable_base
   WHERE LENGTH(_ad_id) > 2 
     AND _campaign_id IS NOT NULL
     AND _platform = '6sense'
@@ -137,19 +132,7 @@ linkedin_combined AS (
 s6sense_combined AS (
   SELECT
     s6ense_ads._ad_id,
-    s6sense_airtable._ad_name,
-    s6sense_airtable._campaign_id,
-    s6sense_airtable._campaign_name,
-    s6sense_airtable._ad_group,
-    s6sense_airtable._cta_copy,
-    s6sense_airtable._size,
-    s6sense_airtable._platform,
-    s6sense_airtable._business_segment,
-    s6sense_airtable._logo,
-    s6sense_airtable._messaging,
-    s6sense_airtable._product_company_name,
-    s6sense_airtable._statistic_proof_point,
-    s6sense_airtable._screenshot,
+    s6sense_airtable.* EXCEPT(_ad_id),
     s6ense_ads._date,
     s6ense_ads._spend,
     s6ense_ads._clicks,
