@@ -13,8 +13,7 @@ WITH closedConversionRate AS (
   ON rate.isoCode = opp.currencyisocode
     AND opp.closedate >= rate.startDate
     AND opp.closedate < rate.nextStartDate
-  WHERE 
-    opp.isclosed = true
+  WHERE opp.isclosed = true
   -- ORDER BY rate.startDate DESC
 ),
 openConversionRate AS (
