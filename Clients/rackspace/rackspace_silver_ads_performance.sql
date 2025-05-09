@@ -161,7 +161,7 @@ main_data AS (
   LEFT JOIN campaign_group 
     ON campaigns._campaign_group_id = campaign_group._campaign_group_id
 ),
-airtable_data AS (
+google_sheet AS (
   SELECT
     _final_utm_tracking_url AS _finalutmtrackingurl,
     _body_text_length AS _bodytextlength,
@@ -182,27 +182,26 @@ airtable_data AS (
     _campaign_name AS _campaignname,
     _size,
     _ad_title_naming AS _adtitlenaming,
-    _cta_on_image_length AS _ctalength,
+    CAST(_cta_on_image_length AS INT64) AS _ctalength,
     _body_text AS _bodytext,
     _ad_type AS _adtype,
     _ad_title AS _adtitle,
     _layout,
     _platform,
-    _ad_title_length AS _adtitlelength,
+    CAST(_ad_title_length AS STRING) AS _adtitlelength,
     _ad_group AS _adgroup,
     _stage,
     _ad_name AS _adname,
-    -- NEW COLUMN
     SAFE.PARSE_DATE('%e/%m/%Y', _live_date) AS _live_date,
     SAFE.PARSE_DATE('%e/%m/%Y', _completed_date) AS _completed_date,
     _campaign_objective,
     _introduction_text,
-    _intro_text_length,
+    CAST(_intro_text_length AS INT64) AS _intro_text_length,
     _text_on_image,
-    _text_on_image_length,
+    CAST(_text_on_image_length AS INT64) AS _text_on_image_length,
     _cta_on_image,
     _headline_text,
-    _headline_text_length
+    CAST(_headline_text_length AS INT64) AS _headline_text_length
   FROM `x-marketing.rackspace_google_sheets.db_ads_optimization`
   WHERE _ad_id != ''
 ),
@@ -223,7 +222,7 @@ daily_budget_per_ad_per_campaign AS (
 )
 SELECT 
   daily_budget_per_ad_per_campaign.*,
-  airtable_data.* EXCEPT (_platform, _campaign_id, _adid, _campaignname)
+  google_sheet.* EXCEPT (_platform, _campaign_id, _adid, _campaignname)
 FROM daily_budget_per_ad_per_campaign
-LEFT JOIN airtable_data
-  ON CAST(daily_budget_per_ad_per_campaign._ad_id AS STRING) = airtable_data._adid
+LEFT JOIN google_sheet
+  ON CAST(daily_budget_per_ad_per_campaign._ad_id AS STRING) = google_sheet._adid
